@@ -13,8 +13,8 @@ public class CreateOperation extends Operation {
 
     private final String[] dataTypes;
 
-    public CreateOperation(Host sender, int senderClock, VectorClock vc, String opType, String crdtId, String crdtType, String[] dataTypes) {
-        super(sender, senderClock, vc, opType, crdtId, crdtType);
+    public CreateOperation(Host sender, int senderClock, String opType, String crdtId, String crdtType, String[] dataTypes) {
+        super(sender, senderClock, opType, crdtId, crdtType);
         this.dataTypes = dataTypes;
     }
 
@@ -54,7 +54,6 @@ public class CreateOperation extends Operation {
             size = in.readInt();
             byte[] crdtType = new byte[size];
             in.readBytes(crdtType);
-            VectorClock vc = VectorClock.serializer.deserialize(in);
             Host sender = Host.serializer.deserialize(in);
             int senderClock = in.readInt();
             size = in.readInt();
@@ -64,7 +63,7 @@ public class CreateOperation extends Operation {
                 in.readBytes(dataTypeBytes);
                 dataType[i] = new String(dataTypeBytes);
             }
-            return new CreateOperation(sender, senderClock, vc, new String(opType), new String(crdtId), new String(crdtType), dataType);
+            return new CreateOperation(sender, senderClock, new String(opType), new String(crdtId), new String(crdtType), dataType);
         }
     };
 

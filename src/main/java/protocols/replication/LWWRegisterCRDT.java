@@ -49,7 +49,7 @@ public class LWWRegisterCRDT implements RegisterCRDT, KernelCRDT {
     public void assign(Host sender, SerializableType value) {
         this.ts = Instant.now();
         this.value = value;
-        Operation op = new RegisterOperation(sender, 0, null, ASSIGN, crdtId, CRDT_TYPE, value, this.ts);
+        Operation op = new RegisterOperation(sender, 0, ASSIGN, crdtId, CRDT_TYPE, value, this.ts);
         UUID id = UUID.randomUUID();
         logger.debug("Downstream assign {} op for {} - {}", value, crdtId, id);
         kernel.downstream(new DownstreamRequest(id, sender, op), (short)0);

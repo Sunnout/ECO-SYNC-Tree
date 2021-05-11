@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>pt.unl.fct.di.novasys</groupId>
-    <artifactId>CRDTsBabel</artifactId>
+    <artifactId>PlumtreeOpLogs</artifactId>
     <version>0.0.1</version>
 
     <properties>
@@ -49,7 +49,7 @@
                 <artifactId>maven-assembly-plugin</artifactId>
                 <version>3.1.1</version>
                 <configuration>
-                    <finalName>CRDTsBabel</finalName>
+                    <finalName>PlumtreeOpLogs</finalName>
                     <appendAssemblyId>false</appendAssemblyId>
                     <archive>
                         <manifest>

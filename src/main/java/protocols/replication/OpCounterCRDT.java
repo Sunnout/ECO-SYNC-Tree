@@ -52,7 +52,7 @@ public class OpCounterCRDT implements CounterCRDT, KernelCRDT {
 
     public synchronized void incrementBy(Host sender, int v) {
         this.c = this.c.add(BigInteger.valueOf(v));
-        Operation op = new CounterOperation(sender, 0, null, INCREMENT, crdtId, CRDT_TYPE, v);
+        Operation op = new CounterOperation(sender, 0, INCREMENT, crdtId, CRDT_TYPE, v);
         UUID id = UUID.randomUUID();
         logger.debug("Downstream incrementBy {} op for {} - {}", v, crdtId, id);
         kernel.downstream(new DownstreamRequest(id, sender, op), (short)0);
@@ -64,7 +64,7 @@ public class OpCounterCRDT implements CounterCRDT, KernelCRDT {
 
     public synchronized void decrementBy(Host sender, int v) {
         this.c = this.c.subtract(BigInteger.valueOf(v));
-        Operation op = new CounterOperation(sender, 0, null, DECREMENT, crdtId, CRDT_TYPE, v);
+        Operation op = new CounterOperation(sender, 0, DECREMENT, crdtId, CRDT_TYPE, v);
         UUID id = UUID.randomUUID();
         logger.debug("Downstream decrementBy {} op for {} - {}", v, crdtId, id);
         kernel.downstream(new DownstreamRequest(id, sender, op), (short)0);

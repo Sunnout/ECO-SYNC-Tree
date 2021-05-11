@@ -11,15 +11,13 @@ public abstract class Operation {
 
     protected Host sender;
     protected int senderClock;
-    protected VectorClock vc;
     protected final String opType;
     protected final String crdtId;
     protected final String crdtType;
 
-    public Operation(Host sender, int senderClock, VectorClock vc, String opType, String crdtId, String crdtType) {
+    public Operation(Host sender, int senderClock, String opType, String crdtId, String crdtType) {
         this.sender = sender;
         this.senderClock = senderClock;
-        this.vc = vc;
         this.opType = opType;
         this.crdtId = crdtId;
         this.crdtType = crdtType;
@@ -35,14 +33,6 @@ public abstract class Operation {
 
     public String getCrdtType() {
         return this.crdtType;
-    }
-
-    public VectorClock getVectorClock() {
-        return this.vc;
-    }
-
-    public void setVectorClock(VectorClock vc) {
-        this.vc = vc;
     }
 
     public Host getSender() {
@@ -68,7 +58,6 @@ public abstract class Operation {
         out.writeBytes(operation.crdtId.getBytes());
         out.writeInt(operation.crdtType.getBytes().length);
         out.writeBytes(operation.crdtType.getBytes());
-        VectorClock.serializer.serialize(operation.vc, out);
         Host.serializer.serialize(operation.sender, out);
         out.writeInt(operation.senderClock);
     }
@@ -101,19 +90,6 @@ public abstract class Operation {
         in.readBytes(string);
         in.resetReaderIndex();
         return new String(string);
-    }
-
-    public static VectorClock vectorClockFromByteArray(ByteBuf in) throws IOException {
-        in.markReaderIndex();
-        byte[] string = new byte[in.readInt()];
-        in.readBytes(string);
-        string = new byte[in.readInt()];
-        in.readBytes(string);
-        string = new byte[in.readInt()];
-        in.readBytes(string);
-        VectorClock vc = VectorClock.serializer.deserialize(in);
-        in.resetReaderIndex();
-        return vc;
     }
 
 }

@@ -162,7 +162,7 @@ public class PlumTree extends GenericProtocol {
     }
 
     private void uponReceivePrune(PruneMessage msg, Host from, short sourceProto, int channelId) {
-        logger.trace("Received {} from {}", msg, from);
+        logger.info("Received {} from {}", msg, from);
         if(eager.remove(from)) {
             logger.trace("Removed {} from eager {}", from, eager);
             logger.debug("Removed {} from eager", from);
@@ -175,7 +175,7 @@ public class PlumTree extends GenericProtocol {
 
     private void uponReceiveGraft(GraftMessage msg, Host from, short sourceProto, int channelId) {
         UUID mid = msg.getMid();
-        logger.trace("Received {} from {}", msg, from);
+        logger.info("Received {} from {}", msg, from);
         if(eager.add(from)) {
             logger.trace("Added {} to eager {}", from, eager);
             logger.debug("Added {} to eager", from);
@@ -191,7 +191,7 @@ public class PlumTree extends GenericProtocol {
 
     private void uponReceiveIHave(IHaveMessage msg, Host from, short sourceProto, int channelId) {
         UUID mid = msg.getMid();
-        logger.trace("Received {} from {}", msg, from);
+        logger.info("Received {} from {}", msg, from);
         if(!received.containsKey(msg.getMid())) {
             if(!onGoingTimers.containsKey(mid)) {
                 long tid = setupTimer(new IHaveTimeout(msg.getMid()), timeout1);

@@ -1,6 +1,5 @@
 package crdts.operations;
 
-import crdts.utils.VectorClock;
 import io.netty.buffer.ByteBuf;
 import pt.unl.fct.di.novasys.network.data.Host;
 import serializers.MyOpSerializer;
@@ -13,8 +12,8 @@ public class CounterOperation extends Operation {
 
     private final int value;
 
-    public CounterOperation(Host sender, int senderClock, VectorClock vc, String opType, String crdtId, String crdtType, int value) {
-        super(sender, senderClock, vc, opType, crdtId, crdtType);
+    public CounterOperation(Host sender, int senderClock, String opType, String crdtId, String crdtType, int value) {
+        super(sender, senderClock, opType, crdtId, crdtType);
         this.value = value;
     }
 
@@ -50,11 +49,10 @@ public class CounterOperation extends Operation {
             size = in.readInt();
             byte[] crdtType = new byte[size];
             in.readBytes(crdtType);
-            VectorClock vc = VectorClock.serializer.deserialize(in);
             Host sender = Host.serializer.deserialize(in);
             int senderClock = in.readInt();
             int value = in.readInt();
-            return new CounterOperation(sender, senderClock, vc, new String(opType), new String(crdtId), new String(crdtType), value);
+            return new CounterOperation(sender, senderClock, new String(opType), new String(crdtId), new String(crdtType), value);
         }
     };
 

@@ -43,30 +43,30 @@ public class VectorClock {
             this.clock.put(host, ++value);
     }
 
-    public boolean canExecuteOperation(Operation op) {
-        //Check clock of sender of operation
-        Host sender = op.getSender();
-        int senderClock = op.getSenderClock();
-        if(senderClock > this.clock.getOrDefault(sender, 0) + 1) {
-            logger.debug("Missing operation from sender");
-                logger.debug("Sender clock: {}", senderClock);
-                logger.debug("Local clock: {}", this.clock);
-            return false;
-        }
-
-        //Check for missing dependencies from other hosts
-        for (Map.Entry<Host, Integer> entry : op.getVectorClock().getClock().entrySet()) {
-            Host h = entry.getKey();
-            Integer msgClock = entry.getValue();
-            if (!h.equals(sender) && this.clock.getOrDefault(h, 0) < msgClock) {
-                logger.debug("Missing dependency from {}", h);
-                logger.debug("Host clock: {}", msgClock);
-                logger.debug("Local clock: {}", this.clock.getOrDefault(h, 0));
-                return false;
-            }
-        }
-        return true;
-    }
+//    public boolean canExecuteOperation(Operation op) {
+//        //Check clock of sender of operation
+//        Host sender = op.getSender();
+//        int senderClock = op.getSenderClock();
+//        if(senderClock > this.clock.getOrDefault(sender, 0) + 1) {
+//            logger.debug("Missing operation from sender");
+//                logger.debug("Sender clock: {}", senderClock);
+//                logger.debug("Local clock: {}", this.clock);
+//            return false;
+//        }
+//
+//        //Check for missing dependencies from other hosts
+//        for (Map.Entry<Host, Integer> entry : op.getVectorClock().getClock().entrySet()) {
+//            Host h = entry.getKey();
+//            Integer msgClock = entry.getValue();
+//            if (!h.equals(sender) && this.clock.getOrDefault(h, 0) < msgClock) {
+//                logger.debug("Missing dependency from {}", h);
+//                logger.debug("Host clock: {}", msgClock);
+//                logger.debug("Local clock: {}", this.clock.getOrDefault(h, 0));
+//                return false;
+//            }
+//        }
+//        return true;
+//    }
 
     public static MySerializer<VectorClock> serializer = new MySerializer<VectorClock>() {
         @Override

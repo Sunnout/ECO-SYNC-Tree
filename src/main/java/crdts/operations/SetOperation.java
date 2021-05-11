@@ -15,8 +15,8 @@ public class SetOperation extends Operation {
 
     private Set<TaggedElement> set;
 
-    public SetOperation(Host sender, int senderClock, VectorClock vc, String opType, String crdtId, String crdtType, Set<TaggedElement> set) {
-        super(sender, senderClock, vc, opType, crdtId, crdtType);
+    public SetOperation(Host sender, int senderClock, String opType, String crdtId, String crdtType, Set<TaggedElement> set) {
+        super(sender, senderClock, opType, crdtId, crdtType);
         this.set = set;
     }
 
@@ -56,14 +56,13 @@ public class SetOperation extends Operation {
             size = in.readInt();
             byte[] crdtType = new byte[size];
             in.readBytes(crdtType);
-            VectorClock vc = VectorClock.serializer.deserialize(in);
             Host sender = Host.serializer.deserialize(in);
             int senderClock = in.readInt();
             size = in.readInt();
             for(int i = 0; i < size; i++) {
                 set.add(TaggedElement.serializer.deserialize(serializers, in));
             }
-            return new SetOperation(sender, senderClock, vc, new String(opType), new String(crdtId), new String(crdtType), set);
+            return new SetOperation(sender, senderClock, new String(opType), new String(crdtId), new String(crdtType), set);
         }
     };
 

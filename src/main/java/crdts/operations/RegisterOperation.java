@@ -17,8 +17,8 @@ public class RegisterOperation extends Operation {
     private final SerializableType value;
     private final Instant timestamp;
 
-    public RegisterOperation(Host sender, int senderClock, VectorClock vc, String opType, String crdtId, String crdtType, SerializableType value, Instant timestamp) {
-        super(sender, senderClock, vc, opType, crdtId, crdtType);
+    public RegisterOperation(Host sender, int senderClock, String opType, String crdtId, String crdtType, SerializableType value, Instant timestamp) {
+        super(sender, senderClock, opType, crdtId, crdtType);
         this.value = value;
         this.timestamp = timestamp;
     }
@@ -61,13 +61,12 @@ public class RegisterOperation extends Operation {
             size = in.readInt();
             byte[] crdtType = new byte[size];
             in.readBytes(crdtType);
-            VectorClock vc = VectorClock.serializer.deserialize(in);
             Host sender = Host.serializer.deserialize(in);
             int senderClock = in.readInt();
             SerializableType value = (SerializableType) serializers[0].deserialize(in);
             long epoch = in.readLong();
             int nano = in.readInt();
-            return new RegisterOperation(sender, senderClock, vc, new String(opType), new String(crdtId), new String(crdtType), value, Instant.ofEpochSecond(epoch, nano));
+            return new RegisterOperation(sender, senderClock, new String(opType), new String(crdtId), new String(crdtType), value, Instant.ofEpochSecond(epoch, nano));
         }
     };
 

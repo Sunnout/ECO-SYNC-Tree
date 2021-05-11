@@ -59,7 +59,10 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     private Map<String, KernelCRDT> crdtsById; //Map that stores CRDTs by their ID
     private Map<String, Set<Host>> hostsByCrdt; //Map that stores the hosts that replicate a given CRDT
     private Map<Host, Queue<Operation>> opsByHost;
+
     private List<Operation> causallyOrderedOps; //List of causally ordered received operations
+    private int seqNumber;
+
 
     //Debug variables
     public static int sentOps;
@@ -154,7 +157,6 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         sentOps++;
 
         Operation op = request.getOperation();
-        causallyOrderedOps.add(op);
         incrementAndSetVectorClock(op);
         try {
             broadcastOperation(false, msgId, request.getSender(), op);
@@ -190,14 +192,14 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
                     op = (Operation) opSerializers.get(crdtType).deserialize(serializers, buf);
                 }
 
-                if (this.vectorClock.canExecuteOperation(op)) {
-                    logger.debug("Executing operation without queueing");
+//                if (this.vectorClock.canExecuteOperation(op)) {
+                    logger.debug("Executing operation");
                     executeOperation(op.getSender(), op);
-                    executeQueuedOperations();
-                } else {
-                    logger.debug("Adding operation to queue");
-                    addOperationToQueue(op.getSender(), op);
-                }
+//                    executeQueuedOperations();
+//                } else {
+//                    logger.debug("Adding operation to queue");
+//                    addOperationToQueue(op.getSender(), op);
+//                }
             } else {
                 executedOps++;
             }
@@ -231,26 +233,25 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
 
     private void incrementAndSetVectorClock(Operation op) {
         this.vectorClock.incrementClock(myself);
-        op.setVectorClock(this.vectorClock);
         op.setSender(myself);
-        op.setSenderClock(this.vectorClock.getClock().get(myself));
-        logger.debug("Set local clock to {}", op.getVectorClock());
+        op.setSenderClock(++seqNumber);
+        logger.debug("Set local seqNumber to {}", seqNumber);
     }
 
-    private void executeQueuedOperations() throws IOException {
-        for (Map.Entry<Host, Queue<Operation>> entry : opsByHost.entrySet()) {
-            Host h = entry.getKey();
-            Queue<Operation> q = entry.getValue();
-            Operation op = q.peek();
-            while(op != null && this.vectorClock.canExecuteOperation(op)) {
-                logger.debug("Executing queued operation");
-                op = q.remove();
-                executeOperation(h, op);
-                op = q.peek();
-            }
-            queueSize.put(h, q.size());
-        }
-    }
+//    private void executeQueuedOperations() throws IOException {
+//        for (Map.Entry<Host, Queue<Operation>> entry : opsByHost.entrySet()) {
+//            Host h = entry.getKey();
+//            Queue<Operation> q = entry.getValue();
+//            Operation op = q.peek();
+//            while(op != null && this.vectorClock.canExecuteOperation(op)) {
+//                logger.debug("Executing queued operation");
+//                op = q.remove();
+//                executeOperation(h, op);
+//                op = q.peek();
+//            }
+//            queueSize.put(h, q.size());
+//        }
+//    }
 
     private void addOperationToQueue(Host sender, Operation op) {
         Queue<Operation> queue = opsByHost.get(sender);
@@ -288,7 +289,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         triggerNotification(new ReturnCRDTNotification(msgId, sender, crdt));
         //TODO: not incrementing counter for create ops
 //        this.vectorClock.incrementClock(myself);
-        CreateOperation op = new CreateOperation(myself, this.vectorClock.getClock().get(myself), this.vectorClock, CREATE_CRDT, crdtId, crdtType, dataTypes);
+        CreateOperation op = new CreateOperation(myself, this.vectorClock.getClock().get(myself), CREATE_CRDT, crdtId, crdtType, dataTypes);
         broadcastOperation(true, msgId, sender, op);
     }
 

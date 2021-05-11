@@ -99,7 +99,7 @@ public class ORMapCRDT implements MapCRDT, KernelCRDT {
         Set<TaggedElement> toAdd = new HashSet<>();
         toAdd.add(elem);
         this.map.put(key, toAdd);
-        Operation op = new MapOperation(sender, 0, null, MAP_PUT, crdtId, CRDT_TYPE, key, elem, toRemove);
+        Operation op = new MapOperation(sender, 0, MAP_PUT, crdtId, CRDT_TYPE, key, elem, toRemove);
         UUID id = UUID.randomUUID();
         logger.debug("Downstream put {} {} op for {} - {}", key, value, crdtId, id);
         kernel.downstream(new DownstreamRequest(id, sender, op), (short)0);
@@ -108,7 +108,7 @@ public class ORMapCRDT implements MapCRDT, KernelCRDT {
     public void delete(Host sender, SerializableType key) {
         Set<TaggedElement> toRemove = this.map.remove(key);
         toRemove = checkForNullSet(toRemove);
-        Operation op = new MapOperation(sender, 0, null, MAP_DELETE, crdtId, CRDT_TYPE, key, null, toRemove);
+        Operation op = new MapOperation(sender, 0, MAP_DELETE, crdtId, CRDT_TYPE, key, null, toRemove);
         UUID id = UUID.randomUUID();
         logger.debug("Downstream delete {} op for {} - {}", key, crdtId, id);
         kernel.downstream(new DownstreamRequest(id, sender, op), (short)0);

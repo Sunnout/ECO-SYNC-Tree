@@ -2,7 +2,9 @@ package protocols.broadcast.plumtree;
 
 import protocols.broadcast.common.BroadcastRequest;
 import protocols.broadcast.common.DeliverNotification;
+import protocols.broadcast.plumtree.notifications.PendingSync;
 import protocols.membership.common.notifications.ChannelCreated;
+import protocols.replication.notifications.SyncComplete;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.network.data.Host;
@@ -84,6 +86,7 @@ public class PlumTree extends GenericProtocol {
         /*--------------------- Register Notification Handlers ----------------------------- */
         subscribeNotification(NeighbourUp.NOTIFICATION_ID, this::uponNeighbourUp);
         subscribeNotification(NeighbourDown.NOTIFICATION_ID, this::uponNeighbourDown);
+        subscribeNotification(SyncComplete.NOTIFICATION_ID, this::uponSyncComplete);
         subscribeNotification(ChannelCreated.NOTIFICATION_ID, this::uponChannelCreated);
     }
 
@@ -242,12 +245,18 @@ public class PlumTree extends GenericProtocol {
     }
 
     /*--------------------------------- Notifications ---------------------------------------- */
+
     private void uponNeighbourUp(NeighbourUp notification, short sourceProto) {
-        if(eager.add(notification.getNeighbour())) {
-            logger.trace("Added {} to eager {}", notification.getNeighbour(), eager);
-            logger.debug("Added {} to eager", notification.getNeighbour());
-        } else
+        if(eager.contains(notification.getNeighbour())) {
             logger.trace("Received neigh up but {} is already in eager {}", notification.getNeighbour(), eager);
+        } else {
+            triggerNotification(new PendingSync(notification.getNeighbour()));
+        }
+//        if(eager.add(notification.getNeighbour())) {
+//            logger.trace("Added {} to eager {}", notification.getNeighbour(), eager);
+//            logger.debug("Added {} to eager", notification.getNeighbour());
+//        } else
+//            logger.trace("Received neigh up but {} is already in eager {}", notification.getNeighbour(), eager);
     }
 
     private void uponNeighbourDown(NeighbourDown notification, short sourceProto) {
@@ -266,6 +275,14 @@ public class PlumTree extends GenericProtocol {
         }
         closeConnection(notification.getNeighbour());
     }
+
+    private void uponSyncComplete(SyncComplete notification, short sourceProto) {
+        logger.trace("Added {} to eager {}", notification.getNeighbour(), eager);
+        logger.debug("Added {} to eager", notification.getNeighbour());
+    }
+
+
+    /*--------------------------------- Initialization ---------------------------------------- */
 
     @Override
     public void init(Properties props) throws HandlerRegistrationException, IOException {

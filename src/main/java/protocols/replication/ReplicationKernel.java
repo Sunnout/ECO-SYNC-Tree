@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import protocols.broadcast.common.BroadcastRequest;
 import protocols.broadcast.common.DeliverNotification;
+import protocols.broadcast.plumtree.notifications.PendingSync;
 import protocols.replication.notifications.*;
 import protocols.replication.requests.*;
 import protocols.replication.utils.SortOpsByHostClock;
@@ -97,6 +98,8 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
 
         /* --------------------- Register Notification Handlers --------------------- */
         subscribeNotification(DeliverNotification.NOTIFICATION_ID, this::uponDeliverNotification);
+        subscribeNotification(PendingSync.NOTIFICATION_ID, this::uponPendingSyncNotification);
+
     }
 
     @Override
@@ -206,6 +209,11 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    private void uponPendingSyncNotification(PendingSync notification, short sourceProto) {
+        Host sender = notification.getNeighbour();
+
     }
 
     /* --------------------------------- Interface Methods --------------------------------- */

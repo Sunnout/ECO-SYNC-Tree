@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="INFO" shutdownHook="disable">
+    <Appenders>
+        <Console name="Console" target="SYSTEM_OUT">
+				<PatternLayout pattern="%highlight{%level{length=1}[%d{HH:mm:ss,SSS}] [%t]%logger{0}:} %msg%n"/>
+        </Console>
+
+        <File name="MyFile" fileName="${sys:logFilename}.log" append="false" immediateFlush="true">
+            <PatternLayout pattern="%level{length=1}[%d{HH:mm:ss,SSS}] [%t]%logger{0}: %msg%n"/>
+        </File>
+
+    </Appenders>
+
+    <Loggers>
+        <!-- UNCOMMENT TO SPECIFY LOG LEVEL OF PACKAGES -->
+        <Logger level="debug" name="protocols.apps"/>
+        <Logger level="debug" name="protocols.replication"/>
+        <Logger level="debug" name="protocols.broadcast"/>
+        <Logger level="debug" name="protocols.membership"/>
+
+
+        <Logger level="info" name="io.netty"/>
+        <Logger level="debug" name="network"/>
+        <Logger level="debug" name="channel"/>
+        <Logger level="debug" name="babel"/>
+
+
+        <Root level="debug">
+            <AppenderRef ref="Console" level="info"/>
+           <AppenderRef ref="MyFile" level="debug"/>
+       </Root>
+   </Loggers>
+
+</Configuration>

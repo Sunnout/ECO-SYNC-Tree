@@ -25,6 +25,10 @@ do
 	sleep 0.1s
 done
 
+#sleep 25
+#(java -DlogFilename=results/results-$(hostname)-$[$port+$i] -jar target/PlumtreeOpLogs.jar -conf config.properties address=$(hostname) port=$[$port+$i] contact=$(hostname):$port | sed "s/^/[$(($port + $i))] /")&
+#	echo "launched process on port $[$port+$i]"
+
 read -p "------------- Press enter to kill servers. --------------------"
 
 kill $(ps aux | grep 'PlumtreeOpLogs.jar' | awk '{print $2}')

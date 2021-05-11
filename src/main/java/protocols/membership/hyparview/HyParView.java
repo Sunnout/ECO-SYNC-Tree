@@ -131,7 +131,6 @@ public class HyParView extends GenericProtocol {
     protected void handleDropFromActive(Host dropped) {
         if(dropped != null) {
             triggerNotification(new NeighbourDown(dropped));
-            openConnection(dropped);
             sendMessage(new DisconnectMessage(), dropped);
             logger.debug("Sent DisconnectMessage to {}", dropped);
             passive.addPeer(dropped);

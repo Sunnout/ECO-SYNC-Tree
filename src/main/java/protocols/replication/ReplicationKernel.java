@@ -84,7 +84,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         this.crdtsById = new ConcurrentHashMap<>();
         this.hostsByCrdt = new ConcurrentHashMap<>();
         this.opsByHost = new ConcurrentHashMap<>();
-        this.causallyOrderedOps = new LinkedList<>();
+        causallyOrderedOps = new LinkedList<>();
 
         this.queueSize = new ConcurrentHashMap<>();
 
@@ -128,7 +128,6 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
                 }
             } else {
                 handleCRDTCreation(crdtId, crdtType, dataTypes, sender, msgId);
-                sentOps++;
             }
 
         } catch (IOException e) {
@@ -154,10 +153,10 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     private void uponDownstreamRequest(DownstreamRequest request, short sourceProto) {
         UUID msgId = request.getMsgId();
         logger.debug("Received downstream request: {}", msgId);
-        sentOps++;
 
         Operation op = request.getOperation();
         incrementAndSetVectorClock(op);
+        causallyOrderedOps.add(op);
         try {
             broadcastOperation(false, msgId, request.getSender(), op);
         } catch (IOException e) {
@@ -202,6 +201,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
 //                }
             } else {
                 executedOps++;
+                sentOps++;
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -229,13 +229,6 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         byte[] payload = new byte[buf.readableBytes()];
         buf.readBytes(payload);
         sendRequest(new BroadcastRequest(msgId, sender, payload), broadcastId);
-    }
-
-    private void incrementAndSetVectorClock(Operation op) {
-        this.vectorClock.incrementClock(myself);
-        op.setSender(myself);
-        op.setSenderClock(++seqNumber);
-        logger.debug("Set local seqNumber to {}", seqNumber);
     }
 
 //    private void executeQueuedOperations() throws IOException {
@@ -278,8 +271,8 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
             }
         } else {
             crdtsById.get(crdtId).upstream(op);
-            this.vectorClock.incrementClock(sender);
         }
+        this.vectorClock.incrementClock(sender);
         executedOps++;
     }
 
@@ -287,9 +280,8 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         logger.debug("Creating new CRDT with id {} and type {}", crdtId, crdtType);
         KernelCRDT crdt = createNewCrdt(crdtId, crdtType, dataTypes, sender);
         triggerNotification(new ReturnCRDTNotification(msgId, sender, crdt));
-        //TODO: not incrementing counter for create ops
-//        this.vectorClock.incrementClock(myself);
-        CreateOperation op = new CreateOperation(myself, this.vectorClock.getClock().get(myself), CREATE_CRDT, crdtId, crdtType, dataTypes);
+        CreateOperation op = new CreateOperation(myself, ++seqNumber, CREATE_CRDT, crdtId, crdtType, dataTypes);
+        causallyOrderedOps.add(op);
         broadcastOperation(true, msgId, sender, op);
     }
 
@@ -471,6 +463,13 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
      */
     private void initializeVectorClock() {
         this.vectorClock = new VectorClock(myself);
+    }
+
+    private void incrementAndSetVectorClock(Operation op) {
+        this.vectorClock.incrementClock(myself);
+        op.setSender(myself);
+        op.setSenderClock(++seqNumber);
+        logger.debug("Set local seqNumber to {}", seqNumber);
     }
 
 }

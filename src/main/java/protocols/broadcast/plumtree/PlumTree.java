@@ -299,8 +299,6 @@ public class PlumTree extends GenericProtocol {
         registerMessageSerializer(channelId, GraftMessage.MSG_ID, GraftMessage.serializer);
         registerMessageSerializer(channelId, IHaveMessage.MSG_ID, IHaveMessage.serializer);
 
-        /*---------------------- Register Message Handlers -------------------------- */
-
         try {
 
             /*---------------------- Register Message Handlers -------------------------- */

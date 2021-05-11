@@ -11,7 +11,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import protocols.broadcast.common.BroadcastRequest;
 import protocols.broadcast.common.DeliverNotification;
+import protocols.broadcast.flood.messages.FloodMessage;
 import protocols.broadcast.plumtree.notifications.PendingSync;
+import protocols.replication.messages.MyVectorClockMessage;
+import protocols.replication.messages.MyVectorClockReply;
 import protocols.replication.notifications.*;
 import protocols.replication.requests.*;
 import protocols.replication.utils.SortOpsByHostClock;
@@ -61,7 +64,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     private Map<String, Set<Host>> hostsByCrdt; //Map that stores the hosts that replicate a given CRDT
     private Map<Host, Queue<Operation>> opsByHost;
 
-    private List<Operation> causallyOrderedOps; //List of causally ordered received operations
+    public static List<Operation> causallyOrderedOps; //List of causally ordered received operations
     private int seqNumber;
 
 
@@ -177,31 +180,12 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
      */
     private void uponDeliverNotification(DeliverNotification notification, short sourceProto) {
         Host sender = notification.getSender();
-        byte [] msg = notification.getMsg();
         try {
             if(!sender.equals(myself)) {
                 receivedOps++;
-                ByteBuf buf = Unpooled.buffer().writeBytes(msg);
-                String crdtId = Operation.crdtIdFromByteArray(buf);
-                String crdtType = Operation.crdtTypeFromByteArray(buf);
-                String opType = Operation.opTypeFromByteArray(buf);
-                Operation op;
-
-                if (opType.equals(CREATE_CRDT)) {
-                    op = CreateOperation.serializer.deserialize(null, buf);
-                } else {
-                    MySerializer[] serializers = dataSerializers.get(crdtId).toArray(new MySerializer[2]);
-                    op = (Operation) opSerializers.get(crdtType).deserialize(serializers, buf);
-                }
-
-//                if (this.vectorClock.canExecuteOperation(op)) {
-                    logger.debug("Executing operation");
-                    executeOperation(op.getSender(), op);
-//                    executeQueuedOperations();
-//                } else {
-//                    logger.debug("Adding operation to queue");
-//                    addOperationToQueue(op.getSender(), op);
-//                }
+                Operation op = deserializeOperation(notification.getMsg());
+                logger.debug("Executing operation");
+                executeOperation(op.getSender(), op);
             } else {
                 executedOps++;
                 sentOps++;
@@ -212,9 +196,21 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     }
 
     private void uponPendingSyncNotification(PendingSync notification, short sourceProto) {
-        Host sender = notification.getNeighbour();
+        Host neighbour = notification.getNeighbour();
+        sendMessage(new MyVectorClockMessage(this.vectorClock), neighbour);
+    }
+
+    /* --------------------------------- Messages --------------------------------- */
+
+    private void uponMyVectorClockMessage(MyVectorClockMessage msg, Host from, short sourceProto, int channelId) {
+        logger.info("Received {} from {}", msg, from);
+        sendMessage(new MyVectorClockReply(this.vectorClock), from);
+
+        //TODO: how to know which ops to send from vector clock
+        //TODO: estas vao deixar de ser mensagens e vao passar a ser requests para o plumtree que envia tanto os clocks como as ops (camada de disseminacao)
 
     }
+
 
     /* --------------------------------- Interface Methods --------------------------------- */
 
@@ -225,6 +221,22 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
 
 
     /* --------------------------------- Auxiliary Methods --------------------------------- */
+
+    private Operation deserializeOperation(byte[] msg) throws IOException {
+        ByteBuf buf = Unpooled.buffer().writeBytes(msg);
+        String crdtId = Operation.crdtIdFromByteArray(buf);
+        String crdtType = Operation.crdtTypeFromByteArray(buf);
+        String opType = Operation.opTypeFromByteArray(buf);
+        Operation op;
+
+        if (opType.equals(CREATE_CRDT)) {
+            op = CreateOperation.serializer.deserialize(null, buf);
+        } else {
+            MySerializer[] serializers = dataSerializers.get(crdtId).toArray(new MySerializer[2]);
+            op = (Operation) opSerializers.get(crdtType).deserialize(serializers, buf);
+        }
+        return op;
+    }
 
     private void broadcastOperation(boolean isCreateOp, UUID msgId, Host sender, Operation op) throws IOException {
         ByteBuf buf = Unpooled.buffer();

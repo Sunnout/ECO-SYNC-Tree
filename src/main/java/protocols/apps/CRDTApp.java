@@ -262,7 +262,7 @@ public class CRDTApp extends GenericProtocol {
         logger.info("Number of received operations: {}", ReplicationKernel.receivedOps);
         logger.info("Number of executed operations: {}", ReplicationKernel.executedOps);
         logger.info("Queue sizes: {}", ReplicationKernel.queueSize);
-        logger.info("Ops: {}", ReplicationKernel.causallyOrderedOps);
+        logger.info("Ops: {}", ReplicationKernel.causallyOrderedOps.size());
 
         if(run == 0) {
             logger.info("Integer value of {}: {}", CRDT0, getCounterValue(CRDT0));
@@ -519,7 +519,7 @@ public class CRDTApp extends GenericProtocol {
                 return ((ORMapCRDT) crdt).values();
             } else {
                 return null; //TODO: exception?
-                //CRDT with crdtId is not a orapCRDT
+                //CRDT with crdtId is not a ormapCRDT
             }
         } else {
             return null;

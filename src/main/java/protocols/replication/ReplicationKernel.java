@@ -11,10 +11,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import protocols.broadcast.common.BroadcastRequest;
 import protocols.broadcast.common.DeliverNotification;
-import protocols.broadcast.flood.messages.FloodMessage;
-import protocols.broadcast.plumtree.notifications.PendingSync;
-import protocols.replication.messages.MyVectorClockMessage;
-import protocols.replication.messages.MyVectorClockReply;
+import protocols.broadcast.plumtree.notifications.OriginalVectorClockNotification;
+import protocols.broadcast.plumtree.notifications.PendingSyncNotification;
+import protocols.broadcast.plumtree.notifications.ReplyVectorClockNotification;
+import protocols.broadcast.plumtree.notifications.SyncOpsNotification;
+import protocols.broadcast.plumtree.requests.MyVectorClockRequest;
+import protocols.broadcast.plumtree.requests.MyVectorClockReply;
+import protocols.broadcast.plumtree.requests.SyncCompleteRequest;
+import protocols.broadcast.plumtree.requests.SyncOpsRequest;
 import protocols.replication.notifications.*;
 import protocols.replication.requests.*;
 import protocols.replication.utils.SortOpsByHostClock;
@@ -67,7 +71,6 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     public static List<Operation> causallyOrderedOps; //List of causally ordered received operations
     private int seqNumber;
 
-
     //Debug variables
     public static int sentOps;
     public static int receivedOps;
@@ -101,7 +104,10 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
 
         /* --------------------- Register Notification Handlers --------------------- */
         subscribeNotification(DeliverNotification.NOTIFICATION_ID, this::uponDeliverNotification);
-        subscribeNotification(PendingSync.NOTIFICATION_ID, this::uponPendingSyncNotification);
+        subscribeNotification(PendingSyncNotification.NOTIFICATION_ID, this::uponPendingSyncNotification);
+        subscribeNotification(OriginalVectorClockNotification.NOTIFICATION_ID, this::uponOriginalVectorClockNotification);
+        subscribeNotification(ReplyVectorClockNotification.NOTIFICATION_ID, this::uponReplyVectorClockNotification);
+        subscribeNotification(SyncOpsNotification.NOTIFICATION_ID, this::uponSyncOpsNotification);
 
     }
 
@@ -195,19 +201,35 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         }
     }
 
-    private void uponPendingSyncNotification(PendingSync notification, short sourceProto) {
+    private void uponPendingSyncNotification(PendingSyncNotification notification, short sourceProto) {
         Host neighbour = notification.getNeighbour();
-        sendMessage(new MyVectorClockMessage(this.vectorClock), neighbour);
+        logger.info("Received {} with {}", notification, neighbour);
+        sendRequest(new MyVectorClockRequest(UUID.randomUUID(), myself, neighbour, this.vectorClock), broadcastId);
     }
 
-    /* --------------------------------- Messages --------------------------------- */
+    private void uponOriginalVectorClockNotification(OriginalVectorClockNotification notification, short sourceProto) {
+        Host neighbour = notification.getNeighbour();
+        logger.info("Received {} with {}", notification, neighbour);
+        sendRequest(new MyVectorClockReply(UUID.randomUUID(), myself, neighbour, this.vectorClock), broadcastId);
+        List<byte[]> ops = new LinkedList<>();
+        ops.add(new byte[]{(byte) 0, (byte) 1});
+        sendRequest(new SyncOpsRequest(UUID.randomUUID(), myself, notification.getNeighbour(), ops), broadcastId);
+        //TODO: aqui já se pode mandar as ops em falta - syncopsrequest
+    }
 
-    private void uponMyVectorClockMessage(MyVectorClockMessage msg, Host from, short sourceProto, int channelId) {
-        logger.info("Received {} from {}", msg, from);
-        sendMessage(new MyVectorClockReply(this.vectorClock), from);
+    private void uponReplyVectorClockNotification(ReplyVectorClockNotification notification, short sourceProto) {
+        Host neighbour = notification.getNeighbour();
+        logger.info("Received {} with {}", notification, neighbour);
+        List<byte[]> ops = new LinkedList<>();
+        ops.add(new byte[]{(byte) 0, (byte) 1});
+        sendRequest(new SyncOpsRequest(UUID.randomUUID(), myself, notification.getNeighbour(), ops), broadcastId);
+        //TODO: aqui já se pode mandar as ops em falta - syncopsrequest
+    }
 
-        //TODO: how to know which ops to send from vector clock
-        //TODO: estas vao deixar de ser mensagens e vao passar a ser requests para o plumtree que envia tanto os clocks como as ops (camada de disseminacao)
+    private void uponSyncOpsNotification(SyncOpsNotification notification, short sourceProto) {
+        //TODO: executar ops e dizer que sync acabou (mas só para o gajo que o vai adicionar à eager?)
+        logger.info("Received ops: {}", notification.getOperations());
+        sendRequest(new SyncCompleteRequest(UUID.randomUUID(), myself, notification.getNeighbour()), broadcastId);
 
     }
 

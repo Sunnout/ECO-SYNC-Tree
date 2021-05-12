@@ -1,4 +1,4 @@
-package protocols.replication.messages;
+package protocols.broadcast.plumtree.messages;
 
 import io.netty.buffer.ByteBuf;
 import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;
@@ -8,8 +8,8 @@ import java.io.IOException;
 import java.util.LinkedList;
 import java.util.List;
 
-public class SyncOperationMessage extends ProtoMessage {
-    public static final short MSG_ID = 902;
+public class SyncOpsMessage extends ProtoMessage {
+    public static final short MSG_ID = 907;
 
     private final List<byte[]> ops;
 
@@ -20,7 +20,7 @@ public class SyncOperationMessage extends ProtoMessage {
                 '}';
     }
 
-    public SyncOperationMessage(List<byte[]> ops) {
+    public SyncOpsMessage(List<byte[]> ops) {
         super(MSG_ID);
         this.ops = ops;
     }
@@ -29,11 +29,11 @@ public class SyncOperationMessage extends ProtoMessage {
         return ops;
     }
 
-    public static ISerializer<SyncOperationMessage> serializer = new ISerializer<SyncOperationMessage>() {
+    public static ISerializer<SyncOpsMessage> serializer = new ISerializer<SyncOpsMessage>() {
         @Override
-        public void serialize(SyncOperationMessage syncOperationMessage, ByteBuf out) throws IOException {
-            out.writeInt(syncOperationMessage.ops.size());
-            for(byte[] op : syncOperationMessage.ops) {
+        public void serialize(SyncOpsMessage syncOpsMessage, ByteBuf out) throws IOException {
+            out.writeInt(syncOpsMessage.ops.size());
+            for(byte[] op : syncOpsMessage.ops) {
                 out.writeInt(op.length);
                 if (op.length > 0) {
                     out.writeBytes(op);
@@ -42,7 +42,7 @@ public class SyncOperationMessage extends ProtoMessage {
         }
 
         @Override
-        public SyncOperationMessage deserialize(ByteBuf in) {
+        public SyncOpsMessage deserialize(ByteBuf in) {
             int size = in.readInt();
             List<byte[]> ops = new LinkedList<>();
             for(int i = 0; i < size; i++) {
@@ -52,7 +52,7 @@ public class SyncOperationMessage extends ProtoMessage {
                     in.readBytes(op);
                 ops.add(op);
             }
-            return new SyncOperationMessage(ops);
+            return new SyncOpsMessage(ops);
         }
     };
 }

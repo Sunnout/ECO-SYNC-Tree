@@ -261,59 +261,58 @@ public class CRDTApp extends GenericProtocol {
         logger.info("Number of sent operations: {}", ReplicationKernel.sentOps);
         logger.info("Number of received operations: {}", ReplicationKernel.receivedOps);
         logger.info("Number of executed operations: {}", ReplicationKernel.executedOps);
-        logger.info("Queue sizes: {}", ReplicationKernel.queueSize);
-        logger.info("Ops: {}", ReplicationKernel.causallyOrderedOps.size());
+        logger.info("Number of ordered operations: {}", ReplicationKernel.causallyOrderedOps.size());
 
         if(run == 0) {
-            logger.info("Integer value of {}: {}", CRDT0, getCounterValue(CRDT0));
+            logger.info("--------------------> Integer value of {}: {}", CRDT0, getCounterValue(CRDT0));
         } else if(run == 1) {
-            logger.info("Integer value of {}: {}", CRDT1, getRegisterValue(CRDT1));
+            logger.info("--------------------> Integer value of {}: {}", CRDT1, getRegisterValue(CRDT1));
         } else if(run == 2) {
-            logger.info("Value of {}: {}", CRDT2, getSetValue(CRDT2));
+            logger.info("--------------------> Value of {}: {}", CRDT2, getSetValue(CRDT2));
         } else if(run == 3) {
-            logger.info("Keys of {}: {}", CRDT3, getMapKeys(CRDT3));
-            logger.info("Values of {}: {}", CRDT3, getMapValues(CRDT3));
+            logger.info("--------------------> Keys of {}: {}", CRDT3, getMapKeys(CRDT3));
+            logger.info("--------------------> Values of {}: {}", CRDT3, getMapValues(CRDT3));
         } else if(run == 4) {
-            logger.info("Integer value of {}: {}", CRDT1, getRegisterValue(CRDT1));
-            logger.info("Long value of {}: {}", CRDT2, getRegisterValue(CRDT2));
-            logger.info("Short value of {}: {}", CRDT3, getRegisterValue(CRDT3));
-            logger.info("Float value of {}: {}", CRDT4, getRegisterValue(CRDT4));
-            logger.info("Double value of {}: {}", CRDT5, getRegisterValue(CRDT5));
-            logger.info("String value of {}: {}", CRDT6, getRegisterValue(CRDT6));
-            logger.info("Boolean value of {}: {}", CRDT7, getRegisterValue(CRDT7));
-            logger.info("Byte value of {}: {}", CRDT8, getRegisterValue(CRDT8));
+            logger.info("--------------------> Integer value of {}: {}", CRDT1, getRegisterValue(CRDT1));
+            logger.info("--------------------> Long value of {}: {}", CRDT2, getRegisterValue(CRDT2));
+            logger.info("--------------------> Short value of {}: {}", CRDT3, getRegisterValue(CRDT3));
+            logger.info("--------------------> Float value of {}: {}", CRDT4, getRegisterValue(CRDT4));
+            logger.info("--------------------> Double value of {}: {}", CRDT5, getRegisterValue(CRDT5));
+            logger.info("--------------------> String value of {}: {}", CRDT6, getRegisterValue(CRDT6));
+            logger.info("--------------------> Boolean value of {}: {}", CRDT7, getRegisterValue(CRDT7));
+            logger.info("--------------------> Byte value of {}: {}", CRDT8, getRegisterValue(CRDT8));
         } else if(run == 5) {
-            logger.info("Value of {}: {}", CRDT1, getSetValue(CRDT1));
-            logger.info("Value of {}: {}", CRDT2, getSetValue(CRDT2));
-            logger.info("Value of {}: {}", CRDT3, getSetValue(CRDT3));
-            logger.info("Value of {}: {}", CRDT4, getSetValue(CRDT4));
-            logger.info("Value of {}: {}", CRDT5, getSetValue(CRDT5));
-            logger.info("Value of {}: {}", CRDT6, getSetValue(CRDT6));
-            logger.info("Value of {}: {}", CRDT7, getSetValue(CRDT7));
-            logger.info("Value of {}: {}", CRDT8, getSetValue(CRDT8));
+            logger.info("--------------------> Value of {}: {}", CRDT1, getSetValue(CRDT1));
+            logger.info("--------------------> Value of {}: {}", CRDT2, getSetValue(CRDT2));
+            logger.info("--------------------> Value of {}: {}", CRDT3, getSetValue(CRDT3));
+            logger.info("--------------------> Value of {}: {}", CRDT4, getSetValue(CRDT4));
+            logger.info("--------------------> Value of {}: {}", CRDT5, getSetValue(CRDT5));
+            logger.info("--------------------> Value of {}: {}", CRDT6, getSetValue(CRDT6));
+            logger.info("--------------------> Value of {}: {}", CRDT7, getSetValue(CRDT7));
+            logger.info("--------------------> Value of {}: {}", CRDT8, getSetValue(CRDT8));
         } else if(run == 6) {
-            logger.info("Keys of {}: {}", CRDT1, getMapKeys(CRDT1));
-            logger.info("Values of {}: {}", CRDT1, getMapValues(CRDT1));
-            logger.info("Keys of {}: {}", CRDT2, getMapKeys(CRDT2));
-            logger.info("Values of {}: {}", CRDT2, getMapValues(CRDT2));
-            logger.info("Keys of {}: {}", CRDT3, getMapKeys(CRDT3));
-            logger.info("Values of {}: {}", CRDT3, getMapValues(CRDT3));
-            logger.info("Keys of {}: {}", CRDT4, getMapKeys(CRDT4));
-            logger.info("Values of {}: {}", CRDT4, getMapValues(CRDT4));
-            logger.info("Keys of {}: {}", CRDT5, getMapKeys(CRDT5));
-            logger.info("Values of {}: {}", CRDT5, getMapValues(CRDT5));
-            logger.info("Keys of {}: {}", CRDT6, getMapKeys(CRDT6));
-            logger.info("Values of {}: {}", CRDT6, getMapValues(CRDT6));
-            logger.info("Keys of {}: {}", CRDT7, getMapKeys(CRDT7));
-            logger.info("Values of {}: {}", CRDT7, getMapValues(CRDT7));
-            logger.info("Keys of {}: {}", CRDT8, getMapKeys(CRDT8));
-            logger.info("Values of {}: {}", CRDT8, getMapValues(CRDT8));
+            logger.info("--------------------> Keys of {}: {}", CRDT1, getMapKeys(CRDT1));
+            logger.info("--------------------> Values of {}: {}", CRDT1, getMapValues(CRDT1));
+            logger.info("--------------------> Keys of {}: {}", CRDT2, getMapKeys(CRDT2));
+            logger.info("--------------------> Values of {}: {}", CRDT2, getMapValues(CRDT2));
+            logger.info("--------------------> Keys of {}: {}", CRDT3, getMapKeys(CRDT3));
+            logger.info("--------------------> Values of {}: {}", CRDT3, getMapValues(CRDT3));
+            logger.info("--------------------> Keys of {}: {}", CRDT4, getMapKeys(CRDT4));
+            logger.info("--------------------> Values of {}: {}", CRDT4, getMapValues(CRDT4));
+            logger.info("--------------------> Keys of {}: {}", CRDT5, getMapKeys(CRDT5));
+            logger.info("--------------------> Values of {}: {}", CRDT5, getMapValues(CRDT5));
+            logger.info("--------------------> Keys of {}: {}", CRDT6, getMapKeys(CRDT6));
+            logger.info("--------------------> Values of {}: {}", CRDT6, getMapValues(CRDT6));
+            logger.info("--------------------> Keys of {}: {}", CRDT7, getMapKeys(CRDT7));
+            logger.info("--------------------> Values of {}: {}", CRDT7, getMapValues(CRDT7));
+            logger.info("--------------------> Keys of {}: {}", CRDT8, getMapKeys(CRDT8));
+            logger.info("--------------------> Values of {}: {}", CRDT8, getMapValues(CRDT8));
         } else if(run == 7) {
-            logger.info("Integer value of {}: {}", CRDT0, getCounterValue(CRDT0));
-            logger.info("Integer value of {}: {}", CRDT1, getRegisterValue(CRDT1));
-            logger.info("Value of {}: {}", CRDT2, getSetValue(CRDT2));
-            logger.info("Keys of {}: {}", CRDT3, getMapKeys(CRDT3));
-            logger.info("Values of {}: {}", CRDT3, getMapValues(CRDT3));
+            logger.info("--------------------> Integer value of {}: {}", CRDT0, getCounterValue(CRDT0));
+            logger.info("--------------------> Integer value of {}: {}", CRDT1, getRegisterValue(CRDT1));
+            logger.info("--------------------> Value of {}: {}", CRDT2, getSetValue(CRDT2));
+            logger.info("--------------------> Keys of {}: {}", CRDT3, getMapKeys(CRDT3));
+            logger.info("--------------------> Values of {}: {}", CRDT3, getMapValues(CRDT3));
         }
     }
 

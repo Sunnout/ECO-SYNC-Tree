@@ -21,7 +21,6 @@ import protocols.broadcast.plumtree.requests.SyncCompleteRequest;
 import protocols.broadcast.plumtree.requests.SyncOpsRequest;
 import protocols.replication.notifications.*;
 import protocols.replication.requests.*;
-import protocols.replication.utils.SortOpsByHostClock;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.network.data.Host;
@@ -75,7 +74,6 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     public static int sentOps;
     public static int receivedOps;
     public static int executedOps;
-    public static Map<Host, Integer> queueSize;
 
     //Serializers
     public static Map<String, MyOpSerializer> opSerializers = initializeOperationSerializers(); //Static map of operation serializers for each crdt type
@@ -91,9 +89,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         this.crdtsById = new ConcurrentHashMap<>();
         this.hostsByCrdt = new ConcurrentHashMap<>();
         this.opsByHost = new ConcurrentHashMap<>();
-        causallyOrderedOps = new LinkedList<>();
-
-        this.queueSize = new ConcurrentHashMap<>();
+        causallyOrderedOps = new ArrayList<>();
 
         this.dataSerializers = new HashMap<>();
 
@@ -211,26 +207,39 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         Host neighbour = notification.getNeighbour();
         logger.info("Received {} with {}", notification, neighbour);
         sendRequest(new MyVectorClockReply(UUID.randomUUID(), myself, neighbour, this.vectorClock), broadcastId);
-        List<byte[]> ops = new LinkedList<>();
-        ops.add(new byte[]{(byte) 0, (byte) 1});
+        List<byte[]> ops = null;
+        try {
+            ops = getMissingSerializedOperations(notification.getVectorClock());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         sendRequest(new SyncOpsRequest(UUID.randomUUID(), myself, notification.getNeighbour(), ops), broadcastId);
-        //TODO: aqui já se pode mandar as ops em falta - syncopsrequest
     }
 
     private void uponReplyVectorClockNotification(ReplyVectorClockNotification notification, short sourceProto) {
         Host neighbour = notification.getNeighbour();
         logger.info("Received {} with {}", notification, neighbour);
-        List<byte[]> ops = new LinkedList<>();
-        ops.add(new byte[]{(byte) 0, (byte) 1});
+        List<byte[]> ops = null;
+        try {
+            ops = getMissingSerializedOperations(notification.getVectorClock());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         sendRequest(new SyncOpsRequest(UUID.randomUUID(), myself, notification.getNeighbour(), ops), broadcastId);
-        //TODO: aqui já se pode mandar as ops em falta - syncopsrequest
     }
 
     private void uponSyncOpsNotification(SyncOpsNotification notification, short sourceProto) {
-        //TODO: executar ops e dizer que sync acabou (mas só para o gajo que o vai adicionar à eager?)
         logger.info("Received ops: {}", notification.getOperations());
+        try {
+            for (byte[] serOp : notification.getOperations()) {
+                Operation op = deserializeOperation(serOp);
+                executeOperation(notification.getNeighbour(), op);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         sendRequest(new SyncCompleteRequest(UUID.randomUUID(), myself, notification.getNeighbour()), broadcastId);
-
+        //TODO: executar ops e dizer que sync acabou (mas só para o gajo que o vai adicionar à eager?)
     }
 
 
@@ -243,6 +252,25 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
 
 
     /* --------------------------------- Auxiliary Methods --------------------------------- */
+
+    private List<byte[]> getMissingSerializedOperations(VectorClock vc) throws IOException {
+        int index = 0;
+        for (Operation op : causallyOrderedOps) {
+            Host h = op.getSender();
+            int clock = op.getSenderClock();
+            if (vc.getHostClock(h) < clock)
+                break;
+            index++;
+        }
+        List<byte[]> ops = new LinkedList<>();
+
+        for(int i = index; i < causallyOrderedOps.size(); i++) {
+            Operation op = causallyOrderedOps.get(i);
+            byte[] serializedOp = serializeOperation(op instanceof CreateOperation, op);
+            ops.add(serializedOp);
+        }
+        return ops;
+    }
 
     private Operation deserializeOperation(byte[] msg) throws IOException {
         ByteBuf buf = Unpooled.buffer().writeBytes(msg);
@@ -260,7 +288,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         return op;
     }
 
-    private void broadcastOperation(boolean isCreateOp, UUID msgId, Host sender, Operation op) throws IOException {
+    private byte[] serializeOperation(boolean isCreateOp, Operation op) throws IOException {
         ByteBuf buf = Unpooled.buffer();
         if(isCreateOp) {
             CreateOperation.serializer.serialize((CreateOperation)op, null, buf);
@@ -270,33 +298,12 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         }
         byte[] payload = new byte[buf.readableBytes()];
         buf.readBytes(payload);
-        sendRequest(new BroadcastRequest(msgId, sender, payload), broadcastId);
+        return payload;
     }
 
-//    private void executeQueuedOperations() throws IOException {
-//        for (Map.Entry<Host, Queue<Operation>> entry : opsByHost.entrySet()) {
-//            Host h = entry.getKey();
-//            Queue<Operation> q = entry.getValue();
-//            Operation op = q.peek();
-//            while(op != null && this.vectorClock.canExecuteOperation(op)) {
-//                logger.debug("Executing queued operation");
-//                op = q.remove();
-//                executeOperation(h, op);
-//                op = q.peek();
-//            }
-//            queueSize.put(h, q.size());
-//        }
-//    }
-
-    private void addOperationToQueue(Host sender, Operation op) {
-        Queue<Operation> queue = opsByHost.get(sender);
-        if(queue != null) {
-            queue.add(op);
-        } else {
-            queue = new PriorityBlockingQueue<>(10, new SortOpsByHostClock());
-            queue.add(op);
-            opsByHost.put(sender, queue);
-        }
+    private void broadcastOperation(boolean isCreateOp, UUID msgId, Host sender, Operation op) throws IOException {
+        byte[] payload = serializeOperation(isCreateOp, op);
+        sendRequest(new BroadcastRequest(msgId, sender, payload), broadcastId);
     }
 
     private void executeOperation(Host sender, Operation op) throws IOException {

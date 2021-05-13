@@ -22,7 +22,7 @@ do
 	(java -DlogFilename=results/results-$(hostname)-$[$port+$i] -jar target/PlumtreeOpLogs.jar -conf config.properties address=$(hostname) port=$[$port+$i] contact=$(hostname):$port | sed "s/^/[$(($port + $i))] /")&
 	echo "launched process on port $[$port+$i]"
 	i=$[$i+1]
-	sleep 0.1s
+	sleep 1
 done
 
 #sleep 25

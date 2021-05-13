@@ -43,6 +43,14 @@ public class VectorClock {
             this.clock.put(host, ++value);
     }
 
+    public int getHostClock(Host host) {
+        return this.clock.getOrDefault(host,0);
+    }
+
+    public void setHostClock(Host host, int clock) {
+        this.clock.put(host, clock);
+    }
+
 //    public boolean canExecuteOperation(Operation op) {
 //        //Check clock of sender of operation
 //        Host sender = op.getSender();

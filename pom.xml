@@ -23,7 +23,7 @@
         <dependency>
             <groupId>com.github.pfouto</groupId>
             <artifactId>babel-core</artifactId>
-            <version>0.4.37</version>
+            <version>0.4.39</version>
         </dependency>
         <dependency>
             <groupId>commons-codec</groupId>

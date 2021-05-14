@@ -17,7 +17,6 @@ import protocols.broadcast.plumtree.notifications.ReplyVectorClockNotification;
 import protocols.broadcast.plumtree.notifications.SyncOpsNotification;
 import protocols.broadcast.plumtree.requests.MyVectorClockRequest;
 import protocols.broadcast.plumtree.requests.MyVectorClockReply;
-import protocols.broadcast.plumtree.requests.SyncCompleteRequest;
 import protocols.broadcast.plumtree.requests.SyncOpsRequest;
 import protocols.replication.notifications.*;
 import protocols.replication.requests.*;
@@ -30,7 +29,6 @@ import serializers.MySerializer;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.PriorityBlockingQueue;
 
 public class ReplicationKernel extends GenericProtocol implements CRDTCommunicationInterface {
 
@@ -39,7 +37,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     //Protocol information, to register in babel
     public static final String PROTOCOL_NAME = "ReplicationKernel";
     public static final short PROTOCOL_ID = 600;
-    
+
     private static final String CREATE_CRDT = "create";
 
     //CRDT Types
@@ -65,7 +63,8 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     private VectorClock vectorClock; //Local vector clock
     private Map<String, KernelCRDT> crdtsById; //Map that stores CRDTs by their ID
     private Map<String, Set<Host>> hostsByCrdt; //Map that stores the hosts that replicate a given CRDT
-    private Map<Host, Queue<Operation>> opsByHost;
+    private Queue<Operation> bufferedOps; //Queue of operations received while not synched
+    private boolean synched;
 
     public static List<Operation> causallyOrderedOps; //List of causally ordered received operations
     private int seqNumber;
@@ -88,8 +87,9 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         initializeVectorClock();
         this.crdtsById = new ConcurrentHashMap<>();
         this.hostsByCrdt = new ConcurrentHashMap<>();
-        this.opsByHost = new ConcurrentHashMap<>();
         causallyOrderedOps = new ArrayList<>();
+        this.bufferedOps = new LinkedList<>();
+        this.synched = false;
 
         this.dataSerializers = new HashMap<>();
 
@@ -183,11 +183,16 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     private void uponDeliverNotification(DeliverNotification notification, short sourceProto) {
         Host sender = notification.getSender();
         try {
-            if(!sender.equals(myself)) {
+            if (!sender.equals(myself)) {
                 receivedOps++;
                 Operation op = deserializeOperation(notification.getMsg());
-                logger.debug("Executing operation");
-                executeOperation(op.getSender(), op);
+                if(!synched) {
+                    logger.info("Buffering operation");
+                    this.bufferedOps.add(op);
+                } else {
+                    logger.debug("Executing operation");
+                    executeOperation(op.getSender(), op);
+                }
             } else {
                 executedOps++;
                 sentOps++;
@@ -199,13 +204,13 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
 
     private void uponPendingSyncNotification(PendingSyncNotification notification, short sourceProto) {
         Host neighbour = notification.getNeighbour();
-        logger.info("Received {} with {}", notification, neighbour);
+        logger.debug("Received {} with {}", notification, neighbour);
         sendRequest(new MyVectorClockRequest(UUID.randomUUID(), myself, neighbour, this.vectorClock), broadcastId);
     }
 
     private void uponOriginalVectorClockNotification(OriginalVectorClockNotification notification, short sourceProto) {
         Host neighbour = notification.getNeighbour();
-        logger.info("Received {} with {}", notification, neighbour);
+        logger.debug("Received {} with {}", notification, neighbour);
         sendRequest(new MyVectorClockReply(UUID.randomUUID(), myself, neighbour, this.vectorClock), broadcastId);
         List<byte[]> ops = null;
         try {
@@ -218,7 +223,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
 
     private void uponReplyVectorClockNotification(ReplyVectorClockNotification notification, short sourceProto) {
         Host neighbour = notification.getNeighbour();
-        logger.info("Received {} with {}", notification, neighbour);
+        logger.debug("Received {} with {}", notification, neighbour);
         List<byte[]> ops = null;
         try {
             ops = getMissingSerializedOperations(notification.getVectorClock());
@@ -229,17 +234,28 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     }
 
     private void uponSyncOpsNotification(SyncOpsNotification notification, short sourceProto) {
-        logger.info("Received ops: {}", notification.getOperations());
         try {
+            //Execute operations from synchronization
             for (byte[] serOp : notification.getOperations()) {
                 Operation op = deserializeOperation(serOp);
+                logger.info("Executing sync operation: {}", op);
                 executeOperation(notification.getNeighbour(), op);
+            }
+
+            //Execute buffered operations
+            for(Operation op : bufferedOps) {
+                Host h = op.getSender();
+                int clock = op.getSenderClock();
+                if(this.vectorClock.getHostClock(h) < clock) {
+                    logger.info("Executing buffered operation: {}", op);
+                    executeOperation(h, op);
+                }
+                //TODO: test
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
-        sendRequest(new SyncCompleteRequest(UUID.randomUUID(), myself, notification.getNeighbour()), broadcastId);
-        //TODO: executar ops e dizer que sync acabou (mas só para o gajo que o vai adicionar à eager?)
+        this.synched = true;
     }
 
 

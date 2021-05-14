@@ -10,7 +10,6 @@ import protocols.broadcast.plumtree.notifications.SyncOpsNotification;
 import protocols.broadcast.plumtree.requests.MyVectorClockReply;
 import protocols.broadcast.plumtree.requests.SyncOpsRequest;
 import protocols.membership.common.notifications.ChannelCreated;
-import protocols.broadcast.plumtree.requests.SyncCompleteRequest;
 import protocols.broadcast.plumtree.requests.MyVectorClockRequest;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
@@ -84,7 +83,6 @@ public class PlumTree extends GenericProtocol {
 
         /*--------------------- Register Request Handlers ----------------------------- */
         registerRequestHandler(BroadcastRequest.REQUEST_ID, this::uponBroadcast);
-        registerRequestHandler(SyncCompleteRequest.REQUEST_ID, this::uponSyncComplete);
         registerRequestHandler(MyVectorClockRequest.REQUEST_ID, this::uponMyVectorClockRequest);
         registerRequestHandler(MyVectorClockReply.REQUEST_ID, this::uponMyVectorClockReply);
         registerRequestHandler(SyncOpsRequest.REQUEST_ID, this::uponSyncOpsRequest);
@@ -265,21 +263,24 @@ public class PlumTree extends GenericProtocol {
         logger.trace("Sent {} to {}", msg, request.getTo());
     }
 
-    private void uponSyncComplete(SyncCompleteRequest request, short sourceProto) {
-        eager.add(request.getNeighbour());
-        logger.info("Added {} to eager {}", request.getNeighbour(), eager);
-        logger.debug("Added {} to eager", request.getNeighbour());
-    }
-
     /*--------------------------------- Notifications ---------------------------------------- */
 
     private void uponNeighbourUp(NeighbourUp notification, short sourceProto) {
-        if(eager.contains(notification.getNeighbour())) {
-            logger.trace("Received neigh up but {} is already in eager {}", notification.getNeighbour(), eager);
-        } else {
+        if(eager.add(notification.getNeighbour())) {
+            logger.trace("Added {} to eager {}", notification.getNeighbour(), eager);
+            logger.debug("Added {} to eager", notification.getNeighbour());
             triggerNotification(new PendingSyncNotification(notification.getNeighbour()));
-        }
+        } else
+            logger.trace("Received neigh up but {} is already in eager {}", notification.getNeighbour(), eager);
     }
+
+//    private void uponNeighbourUp(NeighbourUp notification, short sourceProto) {
+//        if(eager.contains(notification.getNeighbour())) {
+//            logger.trace("Received neigh up but {} is already in eager {}", notification.getNeighbour(), eager);
+//        } else {
+//            triggerNotification(new PendingSyncNotification(notification.getNeighbour()));
+//        }
+//    }
 
     private void uponNeighbourDown(NeighbourDown notification, short sourceProto) {
         if(eager.remove(notification.getNeighbour())) {

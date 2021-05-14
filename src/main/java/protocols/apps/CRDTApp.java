@@ -33,7 +33,7 @@ public class CRDTApp extends GenericProtocol {
     private static final int RUN = 0;
 
     //True for several periodic ops, false for 1 op per crdt from each app
-    private static final boolean PERIODIC_OPS = true;
+    private static final boolean PERIODIC_OPS = false;
 
     private static final String COUNTER = "counter";
     private static final String LWW_REGISTER = "lww_register";
@@ -261,7 +261,7 @@ public class CRDTApp extends GenericProtocol {
         logger.info("Number of sent operations: {}", ReplicationKernel.sentOps);
         logger.info("Number of received operations: {}", ReplicationKernel.receivedOps);
         logger.info("Number of executed operations: {}", ReplicationKernel.executedOps);
-        logger.info("Number of ordered operations: {}", ReplicationKernel.causallyOrderedOps.size());
+        logger.info("Ordered operations: {}", ReplicationKernel.causallyOrderedOps);
 
         if(run == 0) {
             logger.info("--------------------> Integer value of {}: {}", CRDT0, getCounterValue(CRDT0));

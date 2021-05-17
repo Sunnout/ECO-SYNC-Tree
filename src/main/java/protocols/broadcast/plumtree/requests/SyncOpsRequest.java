@@ -1,5 +1,6 @@
 package protocols.broadcast.plumtree.requests;
 
+import crdts.utils.VectorClock;
 import pt.unl.fct.di.novasys.babel.generic.ProtoRequest;
 import pt.unl.fct.di.novasys.network.data.Host;
 
@@ -14,13 +15,15 @@ public class SyncOpsRequest extends ProtoRequest {
     private final UUID msgId;
     private final Host sender;
     private final Host to;
+    private final VectorClock vc;
     private final List<byte[]> ops;
 
-    public SyncOpsRequest(UUID msgId, Host sender, Host to, List<byte[]> ops) {
+    public SyncOpsRequest(UUID msgId, Host sender, Host to, VectorClock vc, List<byte[]> ops) {
         super(REQUEST_ID);
         this.msgId = msgId;
         this.sender = sender;
         this.to = to;
+        this.vc = vc;
         this.ops = ops;
     }
 
@@ -34,6 +37,10 @@ public class SyncOpsRequest extends ProtoRequest {
 
     public Host getTo() {
         return to;
+    }
+
+    public VectorClock getVectorClock() {
+        return vc;
     }
 
     public List<byte[]> getOperations() {

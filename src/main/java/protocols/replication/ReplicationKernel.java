@@ -63,7 +63,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     private VectorClock vectorClock; //Local vector clock
     private Map<String, KernelCRDT> crdtsById; //Map that stores CRDTs by their ID
     private Map<String, Set<Host>> hostsByCrdt; //Map that stores the hosts that replicate a given CRDT
-    private Queue<Operation> bufferedOps; //Queue of operations received while not synched
+    private Queue<byte[]> bufferedOps; //Queue of operations received while not synched
     private boolean synched;
 
     public static List<Operation> causallyOrderedOps; //List of causally ordered received operations
@@ -102,7 +102,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         subscribeNotification(DeliverNotification.NOTIFICATION_ID, this::uponDeliverNotification);
         subscribeNotification(PendingSyncNotification.NOTIFICATION_ID, this::uponPendingSyncNotification);
         subscribeNotification(OriginalVectorClockNotification.NOTIFICATION_ID, this::uponOriginalVectorClockNotification);
-        subscribeNotification(ReplyVectorClockNotification.NOTIFICATION_ID, this::uponReplyVectorClockNotification);
+//        subscribeNotification(ReplyVectorClockNotification.NOTIFICATION_ID, this::uponReplyVectorClockNotification);
         subscribeNotification(SyncOpsNotification.NOTIFICATION_ID, this::uponSyncOpsNotification);
 
     }
@@ -160,7 +160,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
      */
     private void uponDownstreamRequest(DownstreamRequest request, short sourceProto) {
         UUID msgId = request.getMsgId();
-        logger.debug("Received downstream request: {}", msgId);
+        logger.info("Received downstream request: {}", msgId);
 
         Operation op = request.getOperation();
         incrementAndSetVectorClock(op);
@@ -185,11 +185,11 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         try {
             if (!sender.equals(myself)) {
                 receivedOps++;
-                Operation op = deserializeOperation(notification.getMsg());
                 if(!synched) {
                     logger.info("Buffering operation");
-                    this.bufferedOps.add(op);
+                    this.bufferedOps.add(notification.getMsg());
                 } else {
+                    Operation op = deserializeOperation(notification.getMsg());
                     logger.debug("Executing operation");
                     executeOperation(op.getSender(), op);
                 }
@@ -204,50 +204,60 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
 
     private void uponPendingSyncNotification(PendingSyncNotification notification, short sourceProto) {
         Host neighbour = notification.getNeighbour();
-        logger.debug("Received {} with {}", notification, neighbour);
+        logger.info("Received {} with {}", notification, neighbour);
         sendRequest(new MyVectorClockRequest(UUID.randomUUID(), myself, neighbour, this.vectorClock), broadcastId);
     }
 
     private void uponOriginalVectorClockNotification(OriginalVectorClockNotification notification, short sourceProto) {
         Host neighbour = notification.getNeighbour();
-        logger.debug("Received {} with {}", notification, neighbour);
-        sendRequest(new MyVectorClockReply(UUID.randomUUID(), myself, neighbour, this.vectorClock), broadcastId);
+        logger.info("Received {} with {}", notification, neighbour);
+//        sendRequest(new MyVectorClockReply(UUID.randomUUID(), myself, neighbour, this.vectorClock), broadcastId);
         List<byte[]> ops = null;
         try {
             ops = getMissingSerializedOperations(notification.getVectorClock());
         } catch (IOException e) {
             e.printStackTrace();
         }
-        sendRequest(new SyncOpsRequest(UUID.randomUUID(), myself, notification.getNeighbour(), ops), broadcastId);
+        sendRequest(new SyncOpsRequest(UUID.randomUUID(), myself, notification.getNeighbour(), null, ops), broadcastId);
     }
 
-    private void uponReplyVectorClockNotification(ReplyVectorClockNotification notification, short sourceProto) {
-        Host neighbour = notification.getNeighbour();
-        logger.debug("Received {} with {}", notification, neighbour);
-        List<byte[]> ops = null;
-        try {
-            ops = getMissingSerializedOperations(notification.getVectorClock());
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        sendRequest(new SyncOpsRequest(UUID.randomUUID(), myself, notification.getNeighbour(), ops), broadcastId);
-    }
+//    private void uponReplyVectorClockNotification(ReplyVectorClockNotification notification, short sourceProto) {
+//        Host neighbour = notification.getNeighbour();
+//        logger.debug("Received {} with {}", notification, neighbour);
+//        List<byte[]> ops = null;
+//        try {
+//            ops = getMissingSerializedOperations(notification.getVectorClock());
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
+//        sendRequest(new SyncOpsRequest(UUID.randomUUID(), myself, notification.getNeighbour(), ops), broadcastId);
+//    }
 
     private void uponSyncOpsNotification(SyncOpsNotification notification, short sourceProto) {
+        logger.info("Received {} from {}", notification, notification.getNeighbour());
+
         try {
+            //Reply to synchronization op with your ops
+            if(notification.getVectorClock() != null) {
+                List<byte[]> ops = getMissingSerializedOperations(notification.getVectorClock());
+                sendRequest(new SyncOpsRequest(UUID.randomUUID(), myself, notification.getNeighbour(), null, ops), broadcastId);
+            }
+
             //Execute operations from synchronization
             for (byte[] serOp : notification.getOperations()) {
                 Operation op = deserializeOperation(serOp);
-                logger.info("Executing sync operation: {}", op);
+                logger.info("Sync operation with {}: {}", notification.getNeighbour(), op);
                 executeOperation(notification.getNeighbour(), op);
+                receivedOps++;
             }
 
             //Execute buffered operations
-            for(Operation op : bufferedOps) {
+            for(byte[] serOp : bufferedOps) {
+                Operation op = deserializeOperation(serOp);
                 Host h = op.getSender();
                 int clock = op.getSenderClock();
                 if(this.vectorClock.getHostClock(h) < clock) {
-                    logger.info("Executing buffered operation: {}", op);
+                    logger.info("Buffered operation: {}", op);
                     executeOperation(h, op);
                 }
                 //TODO: test

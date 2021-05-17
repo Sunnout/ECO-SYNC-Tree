@@ -6,6 +6,7 @@ import java.util.Properties;
 import java.util.UUID;
 
 import crdts.interfaces.GenericCRDT;
+import crdts.operations.Operation;
 import protocols.replication.*;
 import protocols.replication.OpCounterCRDT.CounterOpType;
 import protocols.replication.LWWRegisterCRDT.RegisterOpType;
@@ -30,10 +31,10 @@ public class CRDTApp extends GenericProtocol {
 
     //RUN = 0 --> counter; 1 --> register; 2 --> set; 3 --> map; 4 --> 8 registers;
     //5 --> 8 sets; 6 --> 8 maps; 7 --> 1 of each CRDT
-    private static final int RUN = 0;
+    private static final int RUN = 7;
 
     //True for several periodic ops, false for 1 op per crdt from each app
-    private static final boolean PERIODIC_OPS = false;
+    private static final boolean PERIODIC_OPS = true;
 
     private static final String COUNTER = "counter";
     private static final String LWW_REGISTER = "lww_register";
@@ -261,7 +262,9 @@ public class CRDTApp extends GenericProtocol {
         logger.info("Number of sent operations: {}", ReplicationKernel.sentOps);
         logger.info("Number of received operations: {}", ReplicationKernel.receivedOps);
         logger.info("Number of executed operations: {}", ReplicationKernel.executedOps);
-        logger.info("Ordered operations: {}", ReplicationKernel.causallyOrderedOps);
+        for(Operation op : ReplicationKernel.causallyOrderedOps) {
+            logger.info("{}", op.getSender().toString() + "-" + op.getSenderClock());
+        }
 
         if(run == 0) {
             logger.info("--------------------> Integer value of {}: {}", CRDT0, getCounterValue(CRDT0));

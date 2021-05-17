@@ -53,6 +53,8 @@ public class PlumTree extends GenericProtocol {
 
     private final LazyQueuePolicy policy;
 
+    private boolean syncRequested;
+
     private boolean channelReady;
 
     public PlumTree(Properties properties, Host myself) throws HandlerRegistrationException {
@@ -74,6 +76,8 @@ public class PlumTree extends GenericProtocol {
 
         this.timeout1 = Long.parseLong(properties.getProperty("timeout1", "1000"));
         this.timeout2 = Long.parseLong(properties.getProperty("timeout2", "500"));
+
+        this.syncRequested = false;
 
         this.channelReady = false;
 
@@ -97,7 +101,7 @@ public class PlumTree extends GenericProtocol {
 
     /*--------------------------------- Messages ---------------------------------------- */
     private void uponReceiveGossip(GossipMessage msg, Host from, short sourceProto, int channelId) {
-        logger.trace("Received {} from {}", msg, from);
+        logger.debug("Received {} from {}", msg, from);
         UUID mid = msg.getMid();
         if(!received.containsKey(msg.getMid())) {
             triggerNotification(new DeliverNotification(msg.getMid(), from, msg.getContent()));
@@ -112,8 +116,8 @@ public class PlumTree extends GenericProtocol {
             if((tid = onGoingTimers.remove(mid)) != null) {
                 cancelTimer(tid);
             }
-            eagerPush(msg, msg.getRound() +1, from);
-            lazyPush(msg, msg.getRound() +1, from);
+            eagerPush(msg, msg.getRound() + 1, from);
+            lazyPush(msg, msg.getRound() + 1, from);
 
             if(eager.add(from)) {
                 logger.trace("Added {} to eager {}", from, eager);
@@ -127,7 +131,7 @@ public class PlumTree extends GenericProtocol {
             optimize(msg, msg.getRound(), from);
         } else {
             if(eager.remove(from)) {
-                logger.trace("Removed {} from eager {}", from, eager);
+                logger.debug("Removed {} from eager {}", from, eager);
                 logger.debug("Removed {} from eager", from);
             } if(lazy.add(from)) {
                 logger.trace("Added {} to lazy {}", from, lazy);
@@ -145,6 +149,7 @@ public class PlumTree extends GenericProtocol {
             logger.trace("Removed {} from eager {}", from, eager);
             logger.debug("Removed {} from eager", from);
         }
+
         if(lazy.add(from)) {
             logger.trace("Added {} to lazy {}", from, lazy);
             logger.debug("Added {} to lazy", from);
@@ -157,7 +162,11 @@ public class PlumTree extends GenericProtocol {
         if(eager.add(from)) {
             logger.trace("Added {} to eager {}", from, eager);
             logger.debug("Added {} to eager", from);
-        } if(lazy.remove(from)) {
+            //TODO: fazer com que rep kernel entre em modo de grafting e dê buffer às ops
+            //TODO: send neighbour up que dá trigger a envio de vector clock
+        }
+
+        if(lazy.remove(from)) {
             logger.trace("Removed {} from lazy {}", from, lazy);
             logger.debug("Removed {} from lazy", from);
         }
@@ -180,18 +189,18 @@ public class PlumTree extends GenericProtocol {
     }
 
     private void uponOriginalVectorClock(OriginalVectorClockMessage msg, Host from, short sourceProto, int channelId) {
-        logger.debug("Received {} from {}", msg, from);
+        logger.info("Received {} from {}", msg, from);
         triggerNotification(new OriginalVectorClockNotification(msg.getSender(), msg.getVectorClock()));
     }
 
     private void uponReplyVectorClock(ReplyVectorClockMessage msg, Host from, short sourceProto, int channelId) {
-        logger.debug("Received {} from {}", msg, from);
+        logger.info("Received {} from {}", msg, from);
         triggerNotification(new ReplyVectorClockNotification(msg.getSender(), msg.getVectorClock()));
     }
 
     private void uponSyncOps(SyncOpsMessage msg, Host from, short sourceProto, int channelId) {
-        logger.debug("Received {} from {}", msg, from);
-        triggerNotification(new SyncOpsNotification(from, msg.getOperations()));
+        logger.info("Received {} from {}", msg, from);
+        triggerNotification(new SyncOpsNotification(from, msg.getVectorClock(), msg.getOperations()));
     }
 
     /*--------------------------------- Timers ---------------------------------------- */
@@ -205,6 +214,8 @@ public class PlumTree extends GenericProtocol {
                 if (eager.add(msgSrc.peer)) {
                     logger.trace("Added {} to eager {}", msgSrc.peer, eager);
                     logger.debug("Added {} to eager", msgSrc.peer);
+                    //TODO: fazer com que rep kernel entre em modo de grafting e dê buffer às ops
+                    //TODO: send neighbour up que dá trigger a envio de vector clock
                 }
                 if (lazy.remove(msgSrc.peer)) {
                     logger.trace("Removed {} from lazy {}", msgSrc.peer, lazy);
@@ -225,6 +236,7 @@ public class PlumTree extends GenericProtocol {
 
         UUID mid = request.getMsgId();
         GossipMessage msg = new GossipMessage(mid, request.getSender(), 0, request.getMsg());
+        logger.debug("Sent {} to {}", msg, eager);
         eagerPush(msg, 0, myself);
         lazyPush(msg, 0, myself);
         triggerNotification(new DeliverNotification(mid, request.getSender(), msg.getContent()));
@@ -242,7 +254,7 @@ public class PlumTree extends GenericProtocol {
 
         OriginalVectorClockMessage msg = new OriginalVectorClockMessage(request.getMsgId(), request.getSender(), request.getVectorClock());
         sendMessage(msg, request.getTo());
-        logger.trace("Sent {} to {}", msg, request.getTo());
+        logger.info("Sent {} to {}", msg, request.getTo());
     }
 
     private void uponMyVectorClockReply(MyVectorClockReply request, short sourceProto) {
@@ -251,16 +263,16 @@ public class PlumTree extends GenericProtocol {
 
         ReplyVectorClockMessage msg = new ReplyVectorClockMessage(request.getMsgId(), request.getSender(), request.getVectorClock());
         sendMessage(msg, request.getTo());
-        logger.trace("Sent {} to {}", msg, request.getTo());
+        logger.info("Sent {} to {}", msg, request.getTo());
     }
 
     private void uponSyncOpsRequest(SyncOpsRequest request, short sourceProto) {
         if (!channelReady)
             return;
 
-        SyncOpsMessage msg = new SyncOpsMessage(request.getOperations());
+        SyncOpsMessage msg = new SyncOpsMessage(request.getVectorClock(), request.getOperations());
         sendMessage(msg, request.getTo());
-        logger.trace("Sent {} to {}", msg, request.getTo());
+        logger.info("Sent {} to {}", msg, request.getTo());
     }
 
     /*--------------------------------- Notifications ---------------------------------------- */
@@ -269,9 +281,16 @@ public class PlumTree extends GenericProtocol {
         if(eager.add(notification.getNeighbour())) {
             logger.trace("Added {} to eager {}", notification.getNeighbour(), eager);
             logger.debug("Added {} to eager", notification.getNeighbour());
-            triggerNotification(new PendingSyncNotification(notification.getNeighbour()));
-        } else
+
+            //Sync with first neighbour
+            if(!syncRequested) {
+                logger.info("Sent pending sync notification with {} to {}", notification.getNeighbour(), myself);
+                triggerNotification(new PendingSyncNotification(notification.getNeighbour()));
+                this.syncRequested = true;
+            }
+        } else {
             logger.trace("Received neigh up but {} is already in eager {}", notification.getNeighbour(), eager);
+        }
     }
 
 //    private void uponNeighbourUp(NeighbourUp notification, short sourceProto) {
@@ -284,7 +303,7 @@ public class PlumTree extends GenericProtocol {
 
     private void uponNeighbourDown(NeighbourDown notification, short sourceProto) {
         if(eager.remove(notification.getNeighbour())) {
-            logger.trace("Removed {} from eager {}", notification.getNeighbour(), eager);
+            logger.debug("Removed {} from eager {}", notification.getNeighbour(), eager);
             logger.debug("Removed {} from eager", notification.getNeighbour());
         }
         if(lazy.remove(notification.getNeighbour())) {
@@ -306,7 +325,7 @@ public class PlumTree extends GenericProtocol {
         for(Host peer : eager) {
             if(!peer.equals(from)) {
                 sendMessage(msg.setRound(round), peer);
-                logger.trace("Sent {} to {}", msg, peer);
+                logger.debug("Sent {} to {}", msg, peer);
             }
         }
     }

@@ -264,7 +264,7 @@ public class HyParView extends GenericProtocol {
         logger.debug("Received {} from {}", msg, from);
         if(active.containsPeer(from)) {
             active.removePeer(from);
-            logger.trace("Removed from {} active{}", from, active);
+            logger.info("Removed from {} active{}", from, active);
             handleDropFromActive(from);
 
             if(active.getPeers().isEmpty()) {
@@ -375,7 +375,7 @@ public class HyParView extends GenericProtocol {
     /* --------------------------------- Channel Events ---------------------------- */
 
     private void uponOutConnectionDown(OutConnectionDown event, int channelId) {
-        logger.trace("Host {} is down, active{}, cause: {}", event.getNode(), active, event.getCause());
+        logger.info("Host {} is down, active{}, cause: {}", event.getNode(), active, event.getCause());
         if(active.removePeer(event.getNode())) {
             triggerNotification(new NeighbourDown(event.getNode()));
             if(!active.fullWithPending(pending)){
@@ -386,7 +386,7 @@ public class HyParView extends GenericProtocol {
     }
 
     private void uponOutConnectionFailed(OutConnectionFailed event, int channelId) {
-        logger.trace("Connection to host {} failed, cause: {}", event.getNode(), event.getCause());
+        logger.info("Connection to host {} failed, cause: {}", event.getNode(), event.getCause());
         if(active.removePeer(event.getNode())) {
             triggerNotification(new NeighbourDown(event.getNode()));
             if(!active.fullWithPending(pending)){

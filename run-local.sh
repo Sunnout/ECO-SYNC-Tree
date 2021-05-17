@@ -25,8 +25,8 @@ do
 	sleep 1
 done
 
-sleep 30
-(java -DlogFilename=results/results-$(hostname)-$[$port+$i] -jar target/PlumtreeOpLogs.jar -conf config.properties address=$(hostname) port=$[$port+$i] contact=$(hostname):$port | sed "s/^/[$(($port + $i))] /")&
+sleep 40
+(java -DlogFilename=results/results-$(hostname)-$[$port+$i] -jar target/PlumtreeOpLogs.jar -conf config-newnode.properties address=$(hostname) port=$[$port+$i] contact=$(hostname):$port | sed "s/^/[$(($port + $i))] /")&
 echo "launched process on port $[$port+$i]"
 
 read -p "------------- Press enter to kill servers. --------------------"

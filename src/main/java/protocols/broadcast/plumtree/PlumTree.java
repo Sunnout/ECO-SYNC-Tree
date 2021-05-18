@@ -3,11 +3,10 @@ package protocols.broadcast.plumtree;
 import protocols.broadcast.common.BroadcastRequest;
 import protocols.broadcast.common.DeliverNotification;
 import protocols.broadcast.plumtree.messages.*;
-import protocols.broadcast.plumtree.notifications.PendingSyncNotification;
-import protocols.broadcast.plumtree.notifications.OriginalVectorClockNotification;
-import protocols.broadcast.plumtree.notifications.ReplyVectorClockNotification;
+import protocols.broadcast.plumtree.notifications.NewPendingNeighbourNotification;
+import protocols.broadcast.plumtree.notifications.VectorClockNotification;
 import protocols.broadcast.plumtree.notifications.SyncOpsNotification;
-import protocols.broadcast.plumtree.requests.MyVectorClockReply;
+import protocols.broadcast.plumtree.requests.AddPendingToEagerRequest;
 import protocols.broadcast.plumtree.requests.SyncOpsRequest;
 import protocols.membership.common.notifications.ChannelCreated;
 import protocols.broadcast.plumtree.requests.MyVectorClockRequest;
@@ -43,6 +42,9 @@ public class PlumTree extends GenericProtocol {
     private final Set<Host> eager;
     private final Set<Host> lazy;
 
+    private final Queue<Host> pending;
+    private Host currentPending;
+
     private final Map<UUID, Queue<MessageSource>> missing;
     private final Map<UUID, GossipMessage> received;
 
@@ -52,8 +54,6 @@ public class PlumTree extends GenericProtocol {
     private final Queue<AddressedIHaveMessage> lazyQueue;
 
     private final LazyQueuePolicy policy;
-
-    private boolean syncRequested;
 
     private boolean channelReady;
 
@@ -67,6 +67,8 @@ public class PlumTree extends GenericProtocol {
         this.eager = new HashSet<>();
         this.lazy = new HashSet<>();
 
+        this.pending = new LinkedList<>();
+
         this.missing = new HashMap<>();
         this.received = new HashMap<>();
         this.onGoingTimers = new HashMap<>();
@@ -77,8 +79,6 @@ public class PlumTree extends GenericProtocol {
         this.timeout1 = Long.parseLong(properties.getProperty("timeout1", "1000"));
         this.timeout2 = Long.parseLong(properties.getProperty("timeout2", "500"));
 
-        this.syncRequested = false;
-
         this.channelReady = false;
 
         /*--------------------- Register Timer Handlers ----------------------------- */
@@ -88,9 +88,8 @@ public class PlumTree extends GenericProtocol {
         /*--------------------- Register Request Handlers ----------------------------- */
         registerRequestHandler(BroadcastRequest.REQUEST_ID, this::uponBroadcast);
         registerRequestHandler(MyVectorClockRequest.REQUEST_ID, this::uponMyVectorClockRequest);
-        registerRequestHandler(MyVectorClockReply.REQUEST_ID, this::uponMyVectorClockReply);
         registerRequestHandler(SyncOpsRequest.REQUEST_ID, this::uponSyncOpsRequest);
-
+        registerRequestHandler(AddPendingToEagerRequest.REQUEST_ID, this::uponAddPendingToEagerRequest);
 
         /*--------------------- Register Notification Handlers ----------------------------- */
         subscribeNotification(NeighbourUp.NOTIFICATION_ID, this::uponNeighbourUp);
@@ -158,13 +157,9 @@ public class PlumTree extends GenericProtocol {
 
     private void uponReceiveGraft(GraftMessage msg, Host from, short sourceProto, int channelId) {
         UUID mid = msg.getMid();
-        logger.debug("Received {} from {}", msg, from);
-        if(eager.add(from)) {
-            logger.trace("Added {} to eager {}", from, eager);
-            logger.debug("Added {} to eager", from);
-            //TODO: fazer com que rep kernel entre em modo de grafting e dê buffer às ops
-            //TODO: send neighbour up que dá trigger a envio de vector clock
-        }
+        logger.info("Received {} from {}", msg, from);
+
+        startSynchronization(from);
 
         if(lazy.remove(from)) {
             logger.trace("Removed {} from lazy {}", from, lazy);
@@ -188,19 +183,14 @@ public class PlumTree extends GenericProtocol {
         }
     }
 
-    private void uponOriginalVectorClock(OriginalVectorClockMessage msg, Host from, short sourceProto, int channelId) {
+    private void uponVectorClockMessage(VectorClockMessage msg, Host from, short sourceProto, int channelId) {
         logger.info("Received {} from {}", msg, from);
-        triggerNotification(new OriginalVectorClockNotification(msg.getSender(), msg.getVectorClock()));
+        triggerNotification(new VectorClockNotification(msg.getSender(), msg.getVectorClock()));
     }
 
-    private void uponReplyVectorClock(ReplyVectorClockMessage msg, Host from, short sourceProto, int channelId) {
+    private void uponSyncOpsMessage(SyncOpsMessage msg, Host from, short sourceProto, int channelId) {
         logger.info("Received {} from {}", msg, from);
-        triggerNotification(new ReplyVectorClockNotification(msg.getSender(), msg.getVectorClock()));
-    }
-
-    private void uponSyncOps(SyncOpsMessage msg, Host from, short sourceProto, int channelId) {
-        logger.info("Received {} from {}", msg, from);
-        triggerNotification(new SyncOpsNotification(from, msg.getVectorClock(), msg.getOperations()));
+        triggerNotification(new SyncOpsNotification(from, msg.getOperations()));
     }
 
     /*--------------------------------- Timers ---------------------------------------- */
@@ -210,19 +200,16 @@ public class PlumTree extends GenericProtocol {
             if (msgSrc != null) {
                 long tid = setupTimer(timeout, timeout2);
                 onGoingTimers.put(timeout.getMid(), tid);
+                Host neighbour = msgSrc.peer;
 
-                if (eager.add(msgSrc.peer)) {
-                    logger.trace("Added {} to eager {}", msgSrc.peer, eager);
-                    logger.debug("Added {} to eager", msgSrc.peer);
-                    //TODO: fazer com que rep kernel entre em modo de grafting e dê buffer às ops
-                    //TODO: send neighbour up que dá trigger a envio de vector clock
-                }
-                if (lazy.remove(msgSrc.peer)) {
-                    logger.trace("Removed {} from lazy {}", msgSrc.peer, lazy);
-                    logger.debug("Removed {} from lazy", msgSrc.peer);
+                startSynchronization(neighbour);
+
+                if (lazy.remove(neighbour)) {
+                    logger.trace("Removed {} from lazy {}", neighbour, lazy);
+                    logger.debug("Removed {} from lazy", neighbour);
                 }
 
-                sendMessage(new GraftMessage(timeout.getMid(), msgSrc.round), msgSrc.peer);
+                sendMessage(new GraftMessage(timeout.getMid(), msgSrc.round), neighbour);
             }
         }
     }
@@ -252,16 +239,8 @@ public class PlumTree extends GenericProtocol {
         if (!channelReady)
             return;
 
-        OriginalVectorClockMessage msg = new OriginalVectorClockMessage(request.getMsgId(), request.getSender(), request.getVectorClock());
-        sendMessage(msg, request.getTo());
-        logger.info("Sent {} to {}", msg, request.getTo());
-    }
-
-    private void uponMyVectorClockReply(MyVectorClockReply request, short sourceProto) {
-        if (!channelReady)
-            return;
-
-        ReplyVectorClockMessage msg = new ReplyVectorClockMessage(request.getMsgId(), request.getSender(), request.getVectorClock());
+        VectorClockMessage msg = new VectorClockMessage(request.getMsgId(), request.getSender(),
+                request.getVectorClock());
         sendMessage(msg, request.getTo());
         logger.info("Sent {} to {}", msg, request.getTo());
     }
@@ -270,56 +249,80 @@ public class PlumTree extends GenericProtocol {
         if (!channelReady)
             return;
 
-        SyncOpsMessage msg = new SyncOpsMessage(request.getVectorClock(), request.getOperations());
+        SyncOpsMessage msg = new SyncOpsMessage(request.getOperations());
         sendMessage(msg, request.getTo());
         logger.info("Sent {} to {}", msg, request.getTo());
+    }
+
+    private void uponAddPendingToEagerRequest(AddPendingToEagerRequest request, short sourceProto) {
+        if (!channelReady)
+            return;
+
+        //TODO: might not need pending in request
+        if(eager.add(currentPending)) {
+            logger.info("Added {} to eager {}", currentPending, eager);
+            logger.debug("Added {} to eager", currentPending);
+        }
+
+        currentPending = pending.poll();
+        if(currentPending != null) {
+            logger.info("{} is my currentPending", currentPending);
+            sendNewPendingNeighbourNotification(currentPending);
+        }
+
     }
 
     /*--------------------------------- Notifications ---------------------------------------- */
 
     private void uponNeighbourUp(NeighbourUp notification, short sourceProto) {
-        if(eager.add(notification.getNeighbour())) {
-            logger.trace("Added {} to eager {}", notification.getNeighbour(), eager);
-            logger.debug("Added {} to eager", notification.getNeighbour());
-
-            //Sync with first neighbour
-            if(!syncRequested) {
-                logger.info("Sent pending sync notification with {} to {}", notification.getNeighbour(), myself);
-                triggerNotification(new PendingSyncNotification(notification.getNeighbour()));
-                this.syncRequested = true;
-            }
-        } else {
-            logger.trace("Received neigh up but {} is already in eager {}", notification.getNeighbour(), eager);
-        }
+        startSynchronization(notification.getNeighbour());
     }
 
-//    private void uponNeighbourUp(NeighbourUp notification, short sourceProto) {
-//        if(eager.contains(notification.getNeighbour())) {
-//            logger.trace("Received neigh up but {} is already in eager {}", notification.getNeighbour(), eager);
-//        } else {
-//            triggerNotification(new PendingSyncNotification(notification.getNeighbour()));
-//        }
-//    }
-
     private void uponNeighbourDown(NeighbourDown notification, short sourceProto) {
-        if(eager.remove(notification.getNeighbour())) {
-            logger.debug("Removed {} from eager {}", notification.getNeighbour(), eager);
-            logger.debug("Removed {} from eager", notification.getNeighbour());
-        }
-        if(lazy.remove(notification.getNeighbour())) {
-            logger.trace("Removed {} from lazy {}", notification.getNeighbour(), lazy);
-            logger.debug("Removed {} from lazy", notification.getNeighbour());
+        Host neighbour = notification.getNeighbour();
+        if(eager.remove(neighbour)) {
+            logger.debug("Removed {} from eager {}", neighbour, eager);
+            logger.debug("Removed {} from eager", neighbour);
         }
 
-        MessageSource msgSrc  = new MessageSource(notification.getNeighbour(), 0);
+        if(lazy.remove(neighbour)) {
+            logger.trace("Removed {} from lazy {}", neighbour, lazy);
+            logger.debug("Removed {} from lazy", neighbour);
+        }
+
+        if(pending.remove(neighbour)) {
+            logger.trace("Removed {} from pending {}", neighbour, lazy);
+            logger.debug("Removed {} from pending", neighbour);
+        }
+
+        MessageSource msgSrc  = new MessageSource(neighbour, 0);
         for(Queue<MessageSource> iHaves : missing.values()) {
             iHaves.remove(msgSrc);
         }
-        closeConnection(notification.getNeighbour());
+        closeConnection(neighbour);
     }
 
 
     /*--------------------------------- Auxiliary Methods ---------------------------------------- */
+
+    private void startSynchronization(Host neighbour) {
+        if(!eager.contains(neighbour) && !pending.contains(neighbour) ) {
+            if(currentPending == null) {
+                currentPending = neighbour;
+                logger.info("Added {} to currentPending", neighbour);
+                sendNewPendingNeighbourNotification(currentPending);
+            } else {
+                pending.add(neighbour);
+                logger.info("Added {} to pending {}", neighbour, pending);
+            }
+        }
+    }
+
+    private void sendNewPendingNeighbourNotification(Host neighbour) {
+        NewPendingNeighbourNotification notification = new NewPendingNeighbourNotification(neighbour);
+        triggerNotification(notification);
+        logger.info("Sent {} to kernel", notification);
+    }
 
     private void eagerPush(GossipMessage msg, int round, Host from) {
         for(Host peer : eager) {
@@ -347,7 +350,6 @@ public class PlumTree extends GenericProtocol {
         lazyQueue.removeAll(announcements);
     }
 
-
     private void optimize(GossipMessage msg, int round, Host from) {
 
     }
@@ -370,8 +372,7 @@ public class PlumTree extends GenericProtocol {
         registerMessageSerializer(channelId, GraftMessage.MSG_ID, GraftMessage.serializer);
         registerMessageSerializer(channelId, IHaveMessage.MSG_ID, IHaveMessage.serializer);
 
-        registerMessageSerializer(channelId, OriginalVectorClockMessage.MSG_ID, OriginalVectorClockMessage.serializer);
-        registerMessageSerializer(channelId, ReplyVectorClockMessage.MSG_ID, ReplyVectorClockMessage.serializer);
+        registerMessageSerializer(channelId, VectorClockMessage.MSG_ID, VectorClockMessage.serializer);
         registerMessageSerializer(channelId, SyncOpsMessage.MSG_ID, SyncOpsMessage.serializer);
 
 
@@ -383,9 +384,8 @@ public class PlumTree extends GenericProtocol {
             registerMessageHandler(channelId, GraftMessage.MSG_ID, this::uponReceiveGraft);
             registerMessageHandler(channelId, IHaveMessage.MSG_ID, this::uponReceiveIHave);
 
-            registerMessageHandler(channelId, OriginalVectorClockMessage.MSG_ID, this::uponOriginalVectorClock);
-            registerMessageHandler(channelId, ReplyVectorClockMessage.MSG_ID, this::uponReplyVectorClock);
-            registerMessageHandler(channelId, SyncOpsMessage.MSG_ID, this::uponSyncOps);
+            registerMessageHandler(channelId, VectorClockMessage.MSG_ID, this::uponVectorClockMessage);
+            registerMessageHandler(channelId, SyncOpsMessage.MSG_ID, this::uponSyncOpsMessage);
 
         } catch (HandlerRegistrationException e) {
             logger.error("Error registering message handler: " + e.getMessage());

@@ -1,29 +1,28 @@
 package protocols.broadcast.plumtree.notifications;
 
-import crdts.utils.VectorClock;
 import pt.unl.fct.di.novasys.babel.generic.ProtoNotification;
 import pt.unl.fct.di.novasys.network.data.Host;
 
 
-public class ReplyVectorClockNotification extends ProtoNotification {
+public class NewPendingNeighbourNotification extends ProtoNotification {
 
-    public static final short NOTIFICATION_ID = 903;
+    public static final short NOTIFICATION_ID = 902;
 
     private final Host neighbour;
-    private final VectorClock vc;
 
-    public ReplyVectorClockNotification(Host neighbour, VectorClock vc) {
+    public NewPendingNeighbourNotification(Host neighbour) {
         super(NOTIFICATION_ID);
         this.neighbour = neighbour;
-        this.vc = vc;
     }
 
     public Host getNeighbour() {
         return this.neighbour;
     }
 
-    public VectorClock getVectorClock() {
-        return vc;
+    @Override
+    public String toString() {
+        return "PendingSyncNotification{" +
+                "neighbour=" + neighbour +
+                '}';
     }
-
 }

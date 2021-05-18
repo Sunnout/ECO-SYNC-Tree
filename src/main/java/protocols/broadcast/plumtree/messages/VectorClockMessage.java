@@ -9,7 +9,7 @@ import pt.unl.fct.di.novasys.network.data.Host;
 import java.io.IOException;
 import java.util.UUID;
 
-public class OriginalVectorClockMessage extends ProtoMessage {
+public class VectorClockMessage extends ProtoMessage {
     public static final short MSG_ID = 905;
 
     private final UUID mid;
@@ -18,14 +18,14 @@ public class OriginalVectorClockMessage extends ProtoMessage {
 
     @Override
     public String toString() {
-        return "OriginalVectorClockMessage{" +
+        return "VectorClockMessage{" +
                 "mid=" + mid +
                 "sender=" + sender +
                 "vc=" + vc +
                 '}';
     }
 
-    public OriginalVectorClockMessage(UUID mid, Host sender, VectorClock vc) {
+    public VectorClockMessage(UUID mid, Host sender, VectorClock vc) {
         super(MSG_ID);
         this.mid = mid;
         this.sender = sender;
@@ -44,24 +44,23 @@ public class OriginalVectorClockMessage extends ProtoMessage {
         return vc;
     }
 
-
-    public static ISerializer<OriginalVectorClockMessage> serializer = new ISerializer<OriginalVectorClockMessage>() {
+    public static ISerializer<VectorClockMessage> serializer = new ISerializer<VectorClockMessage>() {
         @Override
-        public void serialize(OriginalVectorClockMessage originalVectorClockMessage, ByteBuf out) throws IOException {
-            out.writeLong(originalVectorClockMessage.mid.getMostSignificantBits());
-            out.writeLong(originalVectorClockMessage.mid.getLeastSignificantBits());
-            Host.serializer.serialize(originalVectorClockMessage.sender, out);
-            VectorClock.serializer.serialize(originalVectorClockMessage.vc, out);
+        public void serialize(VectorClockMessage vectorClockMessage, ByteBuf out) throws IOException {
+            out.writeLong(vectorClockMessage.mid.getMostSignificantBits());
+            out.writeLong(vectorClockMessage.mid.getLeastSignificantBits());
+            Host.serializer.serialize(vectorClockMessage.sender, out);
+            VectorClock.serializer.serialize(vectorClockMessage.vc, out);
         }
 
         @Override
-        public OriginalVectorClockMessage deserialize(ByteBuf in) throws IOException {
+        public VectorClockMessage deserialize(ByteBuf in) throws IOException {
             long firstLong = in.readLong();
             long secondLong = in.readLong();
             UUID mid = new UUID(firstLong, secondLong);
             Host sender = Host.serializer.deserialize(in);
             VectorClock vc = VectorClock.serializer.deserialize(in);
-            return new OriginalVectorClockMessage(mid, sender, vc);
+            return new VectorClockMessage(mid, sender, vc);
         }
     };
 }

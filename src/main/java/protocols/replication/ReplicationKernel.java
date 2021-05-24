@@ -64,7 +64,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     private Map<String, Set<Host>> hostsByCrdt; //Map that stores the hosts that replicate a given CRDT
 
     public static List<Operation> causallyOrderedOps; //List of causally ordered received operations
-    private int seqNumber;
+    private int seqNumber; //Counter of local operation
 
     //Debug variables
     public static int sentOps;
@@ -178,6 +178,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         Host sender = notification.getSender();
         try {
             if (!sender.equals(myself)) {
+                logger.info("Received {}", notification);
                 Operation op = deserializeOperation(notification.getMsg());
                 logger.debug("Executing operation");
                 executeOperation(op.getSender(), op);
@@ -219,6 +220,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
                 Host h = op.getSender();
                 int clock = op.getSenderClock();
                 if(this.vectorClock.getHostClock(h) < clock) {
+                    logger.info("Sync {} received from with {}", op, notification.getNeighbour());
                     executeOperation(h, op);
                 }
             }

@@ -30,4 +30,12 @@ public class DeliverNotification extends ProtoNotification {
     public byte[] getMsg() {
         return msg;
     }
+
+    @Override
+    public String toString() {
+        return "DeliverNotification{" +
+                "msgId=" + msgId + ", " +
+                "sender=" + sender +
+                '}';
+    }
 }

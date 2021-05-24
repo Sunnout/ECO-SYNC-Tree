@@ -118,10 +118,13 @@ public class PlumTree extends GenericProtocol {
             eagerPush(msg, msg.getRound() + 1, from);
             lazyPush(msg, msg.getRound() + 1, from);
 
-            if(eager.add(from)) {
-                logger.trace("Added {} to eager {}", from, eager);
-                logger.debug("Added {} to eager", from);
-            }
+//            if(eager.add(from)) {
+//                logger.info("Added {} to eager without sync {}", from, eager);
+//                logger.debug("Added {} to eager", from);
+//            }
+
+            startSynchronization(from, true); //TODO: check both doing this
+
             if(lazy.remove(from)) {
                 logger.trace("Removed {} from lazy {}", from, lazy);
                 logger.debug("Removed {} from lazy", from);
@@ -130,7 +133,7 @@ public class PlumTree extends GenericProtocol {
             optimize(msg, msg.getRound(), from);
         } else {
             if(eager.remove(from)) {
-                logger.debug("Removed {} from eager {}", from, eager);
+                logger.info("Removed {} from eager {}", from, eager);
                 logger.debug("Removed {} from eager", from);
             } if(lazy.add(from)) {
                 logger.trace("Added {} to lazy {}", from, lazy);
@@ -145,7 +148,7 @@ public class PlumTree extends GenericProtocol {
     private void uponReceivePrune(PruneMessage msg, Host from, short sourceProto, int channelId) {
         logger.debug("Received {} from {}", msg, from);
         if(eager.remove(from)) {
-            logger.trace("Removed {} from eager {}", from, eager);
+            logger.info("Removed {} from eager {}", from, eager);
             logger.debug("Removed {} from eager", from);
         }
 
@@ -159,7 +162,7 @@ public class PlumTree extends GenericProtocol {
         UUID mid = msg.getMid();
         logger.info("Received {} from {}", msg, from);
 
-        startSynchronization(from);
+        startSynchronization(from, false);
 
         if(lazy.remove(from)) {
             logger.trace("Removed {} from lazy {}", from, lazy);
@@ -202,7 +205,7 @@ public class PlumTree extends GenericProtocol {
                 onGoingTimers.put(timeout.getMid(), tid);
                 Host neighbour = msgSrc.peer;
 
-                startSynchronization(neighbour);
+                startSynchronization(neighbour, false);
 
                 if (lazy.remove(neighbour)) {
                     logger.trace("Removed {} from lazy {}", neighbour, lazy);
@@ -275,7 +278,7 @@ public class PlumTree extends GenericProtocol {
     /*--------------------------------- Notifications ---------------------------------------- */
 
     private void uponNeighbourUp(NeighbourUp notification, short sourceProto) {
-        startSynchronization(notification.getNeighbour());
+        startSynchronization(notification.getNeighbour(), false);
     }
 
     private void uponNeighbourDown(NeighbourDown notification, short sourceProto) {
@@ -305,11 +308,13 @@ public class PlumTree extends GenericProtocol {
 
     /*--------------------------------- Auxiliary Methods ---------------------------------------- */
 
-    private void startSynchronization(Host neighbour) {
-        if(!eager.contains(neighbour) && !pending.contains(neighbour) ) {
+    private void startSynchronization(Host neighbour, boolean fromGossip) {
+        if(!neighbour.equals(currentPending) && !eager.contains(neighbour) && !pending.contains(neighbour)) {
+            if(fromGossip)
+                logger.info("Sync with {} was from gossip", neighbour);
             if(currentPending == null) {
                 currentPending = neighbour;
-                logger.info("Added {} to currentPending", neighbour);
+                logger.info("{} is my currentPending", neighbour);
                 sendNewPendingNeighbourNotification(currentPending);
             } else {
                 pending.add(neighbour);
@@ -328,7 +333,7 @@ public class PlumTree extends GenericProtocol {
         for(Host peer : eager) {
             if(!peer.equals(from)) {
                 sendMessage(msg.setRound(round), peer);
-                logger.debug("Sent {} to {}", msg, peer);
+                logger.info("Sent {} to {}", msg, peer);
             }
         }
     }

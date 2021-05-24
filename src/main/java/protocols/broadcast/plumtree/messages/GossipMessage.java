@@ -18,8 +18,9 @@ public class GossipMessage extends ProtoMessage {
 
     @Override
     public String toString() {
-        return "PlumtreeGossipMessage{" +
-                "mid=" + mid +
+        return "GossipMessage{" +
+                "mid=" + mid + ", " +
+                "sender=" + sender +
                 '}';
     }
 

@@ -21,7 +21,7 @@ public class NewPendingNeighbourNotification extends ProtoNotification {
 
     @Override
     public String toString() {
-        return "PendingSyncNotification{" +
+        return "NewPendingNeighbourNotification{" +
                 "neighbour=" + neighbour +
                 '}';
     }

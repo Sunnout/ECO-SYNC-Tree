@@ -43,7 +43,9 @@ public class MapOperation extends Operation {
     @Override
     public String toString() {
         return "MapOperation{" +
-                "opType=" + opType +
+                "sender=" + sender +
+                ", senderClock=" + senderClock +
+                ", opType=" + opType +
                 ", crdtId=" + crdtId +
                 ", key=" + key +
                 ", elem=" + elem +

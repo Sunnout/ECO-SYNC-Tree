@@ -34,7 +34,9 @@ public class RegisterOperation extends Operation {
     @Override
     public String toString() {
         return "RegisterOperation{" +
-                "opType=" + opType +
+                "sender=" + sender +
+                ", senderClock=" + senderClock +
+                ", opType=" + opType +
                 ", crdtId=" + crdtId +
                 ", crdtType=" + crdtType +
                 ", value=" + value +

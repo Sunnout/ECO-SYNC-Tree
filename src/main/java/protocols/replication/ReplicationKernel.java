@@ -11,11 +11,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import protocols.broadcast.common.BroadcastRequest;
 import protocols.broadcast.common.DeliverNotification;
+import protocols.broadcast.plumtree.notifications.SendVectorClockNotification;
 import protocols.broadcast.plumtree.notifications.VectorClockNotification;
 import protocols.broadcast.plumtree.notifications.NewPendingNeighbourNotification;
 import protocols.broadcast.plumtree.notifications.SyncOpsNotification;
 import protocols.broadcast.plumtree.requests.AddPendingToEagerRequest;
 import protocols.broadcast.plumtree.requests.MyVectorClockRequest;
+import protocols.broadcast.plumtree.requests.SendVectorClockRequest;
 import protocols.broadcast.plumtree.requests.SyncOpsRequest;
 import protocols.replication.notifications.*;
 import protocols.replication.requests.*;
@@ -97,6 +99,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         subscribeNotification(DeliverNotification.NOTIFICATION_ID, this::uponDeliverNotification);
         subscribeNotification(NewPendingNeighbourNotification.NOTIFICATION_ID, this::uponNewPendingNeighbourNotification);
         subscribeNotification(VectorClockNotification.NOTIFICATION_ID, this::uponVectorClockNotification);
+        subscribeNotification(SendVectorClockNotification.NOTIFICATION_ID, this::uponSendVectorClockNotification);
         subscribeNotification(SyncOpsNotification.NOTIFICATION_ID, this::uponSyncOpsNotification);
 
     }
@@ -178,10 +181,13 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         Host sender = notification.getSender();
         try {
             if (!sender.equals(myself)) {
-                logger.info("Received {}", notification);
                 Operation op = deserializeOperation(notification.getMsg());
-                logger.debug("Executing operation");
-                executeOperation(op.getSender(), op);
+                logger.info("Received {}: {}-{}", notification.getMsgId(), op.getSender(), op.getSenderClock());
+                Host h = op.getSender();
+                int clock = op.getSenderClock();
+                if(this.vectorClock.getHostClock(h) < clock) {
+                    executeOperation(op.getSender(), op);
+                }
             } else {
                 executedOps++;
                 sentOps++;
@@ -194,7 +200,8 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     private void uponNewPendingNeighbourNotification(NewPendingNeighbourNotification notification, short sourceProto) {
         Host neighbour = notification.getNeighbour();
         logger.info("Received {} with {}", notification, neighbour);
-        sendRequest(new MyVectorClockRequest(UUID.randomUUID(), myself, neighbour, this.vectorClock), broadcastId);
+        sendRequest(new SendVectorClockRequest(UUID.randomUUID(), myself, neighbour), broadcastId);
+//        sendRequest(new MyVectorClockRequest(UUID.randomUUID(), myself, neighbour, this.vectorClock), broadcastId);
     }
 
     private void uponVectorClockNotification(VectorClockNotification notification, short sourceProto) {
@@ -209,6 +216,12 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         sendRequest(new SyncOpsRequest(UUID.randomUUID(), myself, notification.getNeighbour(), ops), broadcastId);
     }
 
+    private void uponSendVectorClockNotification(SendVectorClockNotification notification, short sourceProto) {
+        Host neighbour = notification.getNeighbour();
+        logger.info("Received {} from {}", notification, neighbour);
+        sendRequest(new MyVectorClockRequest(UUID.randomUUID(), myself, neighbour, this.vectorClock), broadcastId);
+    }
+
     private void uponSyncOpsNotification(SyncOpsNotification notification, short sourceProto) {
         logger.info("Received {} from {}", notification, notification.getNeighbour());
 
@@ -220,11 +233,11 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
                 Host h = op.getSender();
                 int clock = op.getSenderClock();
                 if(this.vectorClock.getHostClock(h) < clock) {
-                    logger.info("Sync {} received from with {}", op, notification.getNeighbour());
+                    logger.info("Sync {} received from {}", op, notification.getNeighbour());
                     executeOperation(h, op);
                 }
             }
-            sendRequest(new AddPendingToEagerRequest(UUID.randomUUID(), myself), broadcastId);
+            sendRequest(new AddPendingToEagerRequest(UUID.randomUUID(), notification.getNeighbour()), broadcastId);
 
         } catch (IOException e) {
             e.printStackTrace();
@@ -319,7 +332,8 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         logger.debug("Creating new CRDT with id {} and type {}", crdtId, crdtType);
         KernelCRDT crdt = createNewCrdt(crdtId, crdtType, dataTypes, sender);
         triggerNotification(new ReturnCRDTNotification(msgId, sender, crdt));
-        CreateOperation op = new CreateOperation(myself, ++seqNumber, CREATE_CRDT, crdtId, crdtType, dataTypes);
+        CreateOperation op = new CreateOperation(null, 0, CREATE_CRDT, crdtId, crdtType, dataTypes);
+        incrementAndSetVectorClock(op);
         causallyOrderedOps.add(op);
         broadcastOperation(true, msgId, sender, op);
     }
@@ -509,6 +523,8 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         op.setSender(myself);
         op.setSenderClock(++seqNumber);
         logger.debug("Set local seqNumber to {}", seqNumber);
+        logger.debug("Set local vc on my pos to {}", this.vectorClock.getHostClock(myself));
+
     }
 
 }

@@ -1,6 +1,5 @@
 package crdts.operations;
 
-import crdts.utils.VectorClock;
 import io.netty.buffer.ByteBuf;
 import pt.unl.fct.di.novasys.network.data.Host;
 import serializers.MyOpSerializer;
@@ -25,7 +24,9 @@ public class CreateOperation extends Operation {
     @Override
     public String toString() {
         return "CreateOperation{" +
-                "opType=" + opType +
+                "sender=" + sender +
+                ", senderClock=" + senderClock +
+                ", opType=" + opType +
                 ", crdtId=" + crdtId +
                 ", crdtType=" + crdtType +
                 '}';

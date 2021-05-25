@@ -27,7 +27,9 @@ public class SetOperation extends Operation {
     @Override
     public String toString() {
         return "SetOperation{" +
-                "opType=" + opType +
+                "sender=" + sender +
+                ", senderClock=" + senderClock +
+                ", opType=" + opType +
                 ", crdtId=" + crdtId +
                 ", crdtType=" + crdtType +
                 ", set=" + set +

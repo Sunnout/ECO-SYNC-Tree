@@ -143,9 +143,11 @@ public class HyParView extends GenericProtocol {
         openConnection(from);
         Host h = active.addPeer(from);
         logger.trace("Added to {} active{}", from, active);
-        triggerNotification(new NeighbourUp(from));
         sendMessage( new JoinReplyMessage(), from); //TODO: maybe send reply before neigh up
         logger.debug("Sent JoinReplyMessage to {}", from);
+        triggerNotification(new NeighbourUp(from));
+//        sendMessage( new JoinReplyMessage(), from); //TODO: maybe send reply before neigh up
+//        logger.debug("Sent JoinReplyMessage to {}", from);
         handleDropFromActive(h);
 
         for(Host peer : active.getPeers()) {
@@ -182,9 +184,11 @@ public class HyParView extends GenericProtocol {
                 openConnection(msg.getNewHost());
                 Host h = active.addPeer(msg.getNewHost());
                 logger.trace("Added to {} active{}", msg.getNewHost(), active);
-                triggerNotification(new NeighbourUp(from));
                 sendMessage(new JoinReplyMessage(), msg.getNewHost()); //TODO: maybe send reply before neigh up
                 logger.debug("Sent JoinReplyMessage to {}", msg.getNewHost());
+                triggerNotification(new NeighbourUp(from));
+//                sendMessage(new JoinReplyMessage(), msg.getNewHost()); //TODO: maybe send reply before neigh up
+//                logger.debug("Sent JoinReplyMessage to {}", msg.getNewHost());
                 handleDropFromActive(h);
             }
         } else {
@@ -205,6 +209,8 @@ public class HyParView extends GenericProtocol {
         openConnection(from);
 
         if(msg.isPriority()) {
+            sendMessage(new HelloReplyMessage(true), from); //TODO: maybe send reply first
+            logger.debug("Sent HelloReplyMessage to {}", from);
             if(!active.containsPeer(from)) {
                 pending.remove(from);
                 logger.trace("Removed from {} pending{}", from, pending);
@@ -215,13 +221,15 @@ public class HyParView extends GenericProtocol {
                 triggerNotification(new NeighbourUp(from));
                 handleDropFromActive(h);
             }
-            sendMessage(new HelloReplyMessage(true), from); //TODO: maybe send reply first
-            logger.debug("Sent HelloReplyMessage to {}", from);
+//            sendMessage(new HelloReplyMessage(true), from); //TODO: maybe send reply first
+//            logger.debug("Sent HelloReplyMessage to {}", from);
 
         } else {
             pending.remove(from);
             logger.trace("Removed from {} pending{}", from, pending);
             if(!active.fullWithPending(pending) || active.containsPeer(from)) {
+                sendMessage(new HelloReplyMessage(true), from);  //TODO: maybe send reply first
+                logger.debug("Sent HelloReplyMessage to {}", from);
                 if(!active.containsPeer(from)) {
                     passive.removePeer(from);
                     logger.trace("Removed from {} passive{}", from, passive);
@@ -229,8 +237,8 @@ public class HyParView extends GenericProtocol {
                     logger.trace("Added to {} active{}", from, active);
                     triggerNotification(new NeighbourUp(from));
                 }
-                sendMessage(new HelloReplyMessage(true), from);  //TODO: maybe send reply first
-                logger.debug("Sent HelloReplyMessage to {}", from);
+//                sendMessage(new HelloReplyMessage(true), from);  //TODO: maybe send reply first
+//                logger.debug("Sent HelloReplyMessage to {}", from);
             } else {
                 sendMessage(new HelloReplyMessage(false), from, TCPChannel.CONNECTION_IN);
                 logger.debug("Sent HelloReplyMessage to {}", from);
@@ -265,7 +273,7 @@ public class HyParView extends GenericProtocol {
         logger.debug("Received {} from {}", msg, from);
         if(active.containsPeer(from)) {
             active.removePeer(from);
-            logger.info("Removed from {} active{}", from, active);
+            logger.debug("Removed from {} active{}", from, active);
             handleDropFromActive(from);
 
             if(active.getPeers().isEmpty()) {

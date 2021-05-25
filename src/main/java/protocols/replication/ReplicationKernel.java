@@ -33,12 +33,10 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class ReplicationKernel extends GenericProtocol implements CRDTCommunicationInterface {
 
-    private static final Logger logger = LogManager.getLogger(ReplicationKernel.class);
-
     //Protocol information, to register in babel
     public static final String PROTOCOL_NAME = "ReplicationKernel";
     public static final short PROTOCOL_ID = 600;
-
+    private static final Logger logger = LogManager.getLogger(ReplicationKernel.class);
     private static final String CREATE_CRDT = "create";
 
     //CRDT Types
@@ -56,26 +54,21 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     private static final String STRING = "string";
     private static final String BOOLEAN = "boolean";
     private static final String BYTE = "byte";
-
-    private short broadcastId; //Broadcast protocol ID
-    private final Host myself;
-
-    //Replication kernel variables
-    private VectorClock vectorClock; //Local vector clock
-    private Map<String, KernelCRDT> crdtsById; //Map that stores CRDTs by their ID
-    private Map<String, Set<Host>> hostsByCrdt; //Map that stores the hosts that replicate a given CRDT
-
     public static List<Operation> causallyOrderedOps; //List of causally ordered received operations
-    private int seqNumber; //Counter of local operation
-
     //Debug variables
     public static int sentOps;
     public static int receivedOps;
     public static int executedOps;
-
     //Serializers
     public static Map<String, MyOpSerializer> opSerializers = initializeOperationSerializers(); //Static map of operation serializers for each crdt type
+    private final Host myself;
     public Map<String, List<MySerializer>> dataSerializers; //Map of data type serializers by crdt ID
+    private short broadcastId; //Broadcast protocol ID
+    //Replication kernel variables
+    private VectorClock vectorClock; //Local vector clock
+    private Map<String, KernelCRDT> crdtsById; //Map that stores CRDTs by their ID
+    private Map<String, Set<Host>> hostsByCrdt; //Map that stores the hosts that replicate a given CRDT
+    private int seqNumber; //Counter of local operation
 
 
     public ReplicationKernel(Properties properties, Host myself, short broadcastId) throws HandlerRegistrationException {
@@ -104,12 +97,26 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
 
     }
 
+    /**
+     * Creates a map with the operation serializers for each crdt type.
+     *
+     * @return the created map.
+     */
+    private static Map<String, MyOpSerializer> initializeOperationSerializers() {
+        Map<String, MyOpSerializer> map = new HashMap<>();
+        map.put(COUNTER, CounterOperation.serializer);
+        map.put(LWW_REGISTER, RegisterOperation.serializer);
+        map.put(OR_SET, SetOperation.serializer);
+        map.put(OR_MAP, MapOperation.serializer);
+        return map;
+    }
+
+    /* --------------------------------- Requests --------------------------------- */
+
     @Override
     public void init(Properties props) {
         //Nothing to do here, we just wait for event from the application
     }
-
-    /* --------------------------------- Requests --------------------------------- */
 
     private void uponGetCRDTRequest(GetCRDTRequest request, short sourceProto) {
         try {
@@ -122,8 +129,8 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
             logger.debug("Received get CRDT with id {} and type {} request: {}", crdtId, crdtType, msgId);
 
             KernelCRDT crdt = crdtsById.get(crdtId);
-            if(crdt != null) {
-                if(validateCrdtType(crdt, crdtType)) {
+            if (crdt != null) {
+                if (validateCrdtType(crdt, crdtType)) {
                     logger.debug("Sending CRDT with id {} to app", crdtId);
                     addHostToReplicationSet(crdtId, sender);
                     triggerNotification(new ReturnCRDTNotification(msgId, sender, crdt));
@@ -149,9 +156,13 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         logger.debug("After: {}", hostsByCrdt.get(crdtId));
     }
 
+
+    /* --------------------------------- Notifications --------------------------------- */
+
     /**
      * Propagates local operations to other replication kernels after incrementing
      * and setting the operation's vector clock.
+     *
      * @param request
      * @param sourceProto
      */
@@ -169,11 +180,9 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         }
     }
 
-
-    /* --------------------------------- Notifications --------------------------------- */
-
     /**
      * Processes operations received from other replication kernels.
+     *
      * @param notification
      * @param sourceProto
      */
@@ -182,11 +191,18 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         try {
             if (!sender.equals(myself)) {
                 Operation op = deserializeOperation(notification.getMsg());
-                logger.info("Received {}: {}-{}", notification.getMsgId(), op.getSender(), op.getSenderClock());
                 Host h = op.getSender();
                 int clock = op.getSenderClock();
-                if(this.vectorClock.getHostClock(h) < clock) {
-                    executeOperation(op.getSender(), op);
+                if (this.vectorClock.getHostClock(h) == clock - 1) {
+                    logger.info("Accepted op {}-{} : {} from {}, Clock {}",
+                            h, clock, notification.getMsgId(), sender, vectorClock.getHostClock(h));
+                    executeOperation(h, op);
+                } else if (this.vectorClock.getHostClock(h) < clock - 1) {
+                    logger.error("Out-of-order op {}-{} : {} from {}, Clock {}",
+                            h, clock, notification.getMsgId(), sender, vectorClock.getHostClock(h));
+                } else {
+                    logger.info("Ignored old op {}-{} : {} from {}, Clock {}",
+                            h, clock, notification.getMsgId(), sender, vectorClock.getHostClock(h));
                 }
             } else {
                 executedOps++;
@@ -222,9 +238,12 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         sendRequest(new MyVectorClockRequest(UUID.randomUUID(), myself, neighbour, this.vectorClock), broadcastId);
     }
 
-    private void uponSyncOpsNotification(SyncOpsNotification notification, short sourceProto) {
-        logger.info("Received {} from {}", notification, notification.getNeighbour());
 
+    /* --------------------------------- Interface Methods --------------------------------- */
+
+    private void uponSyncOpsNotification(SyncOpsNotification notification, short sourceProto) {
+        //logger.info("Received {} from {}", notification, notification.getNeighbour());
+        logger.info("SyncOpsNotification from {}, size {}", notification.getNeighbour(), notification.getOperations().size());
         try {
             //Execute operations from synchronization
             for (byte[] serOp : notification.getOperations()) {
@@ -232,28 +251,35 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
 //                logger.info("Sync operation with {}: {}", notification.getNeighbour(), op);
                 Host h = op.getSender();
                 int clock = op.getSenderClock();
-                if(this.vectorClock.getHostClock(h) < clock) {
-                    logger.info("Sync {} received from {}", op, notification.getNeighbour());
+
+                if (this.vectorClock.getHostClock(h) == clock - 1) {
+                    logger.info("Sync op {}-{} from {}, Clock {}",
+                            h, clock, notification.getNeighbour(), vectorClock.getHostClock(h));
                     executeOperation(h, op);
+                } else if (this.vectorClock.getHostClock(h) < clock - 1) {
+                    logger.error("Sync Out-of-order op {}-{} from {} , Clock {}",
+                            h, clock, notification.getNeighbour(), vectorClock.getHostClock(h));
+                } else {
+                    logger.info("Sync Ignored old op {}-{} from {} , Clock {}",
+                            h, clock, notification.getNeighbour(), vectorClock.getHostClock(h));
                 }
+
             }
             sendRequest(new AddPendingToEagerRequest(UUID.randomUUID(), notification.getNeighbour()), broadcastId);
 
         } catch (IOException e) {
+            logger.error("EXCEPTION: {}", e.getMessage());
             e.printStackTrace();
         }
     }
 
 
-    /* --------------------------------- Interface Methods --------------------------------- */
+    /* --------------------------------- Auxiliary Methods --------------------------------- */
 
     public void downstream(DownstreamRequest request, short sourceProto) {
         Operation op = request.getOperation();
         sendRequest(new DownstreamRequest(request.getMsgId(), request.getSender(), op), PROTOCOL_ID);
     }
-
-
-    /* --------------------------------- Auxiliary Methods --------------------------------- */
 
     private List<byte[]> getMissingSerializedOperations(VectorClock neighbourClock) throws IOException {
         int index = 0;
@@ -266,7 +292,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         }
         List<byte[]> ops = new LinkedList<>();
 
-        for(int i = index; i < causallyOrderedOps.size(); i++) {
+        for (int i = index; i < causallyOrderedOps.size(); i++) {
             Operation op = causallyOrderedOps.get(i);
             byte[] serializedOp = serializeOperation(op instanceof CreateOperation, op);
             ops.add(serializedOp);
@@ -292,8 +318,8 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
 
     private byte[] serializeOperation(boolean isCreateOp, Operation op) throws IOException {
         ByteBuf buf = Unpooled.buffer();
-        if(isCreateOp) {
-            CreateOperation.serializer.serialize((CreateOperation)op, null, buf);
+        if (isCreateOp) {
+            CreateOperation.serializer.serialize((CreateOperation) op, null, buf);
         } else {
             MySerializer[] serializers = dataSerializers.get(op.getCrdtId()).toArray(new MySerializer[2]);
             opSerializers.get(op.getCrdtType()).serialize(op, serializers, buf);
@@ -315,9 +341,9 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         String crdtId = op.getCrdtId();
         String crdtType = op.getCrdtType();
 
-        if(op instanceof CreateOperation) {
+        if (op instanceof CreateOperation) {
             if (crdtsById.get(crdtId) == null) {
-                createNewCrdt(crdtId, crdtType, ((CreateOperation)op).getDataTypes(), sender);
+                createNewCrdt(crdtId, crdtType, ((CreateOperation) op).getDataTypes(), sender);
             } else {
                 addHostToReplicationSet(crdtId, sender);
             }
@@ -339,24 +365,12 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     }
 
     /**
-     * Creates a map with the operation serializers for each crdt type.
-     * @return the created map.
-     */
-    private static Map<String, MyOpSerializer> initializeOperationSerializers() {
-        Map<String, MyOpSerializer> map = new HashMap<>();
-        map.put(COUNTER, CounterOperation.serializer);
-        map.put(LWW_REGISTER, RegisterOperation.serializer);
-        map.put(OR_SET, SetOperation.serializer);
-        map.put(OR_MAP, MapOperation.serializer);
-        return map;
-    }
-
-    /**
      * Maps each CRDT to its own dataType serializer. If the CRDT is a map
      * two serializers must be added (the first for the key, the second for
      * the value).
-     * @param crdtId - ID of the CRDT.
-     * @param crdtType - type of the CRDT.
+     *
+     * @param crdtId    - ID of the CRDT.
+     * @param crdtType  - type of the CRDT.
      * @param dataTypes - data types of the CRDT.
      */
     private void registerDataSerializer(String crdtId, String crdtType, String[] dataTypes) {
@@ -390,13 +404,14 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
                 throw new NoSuchDataType(dataTypes[0]);
         }
         dataSerializers.put(crdtId, serializerList);
-        if(crdtType.equals(OR_MAP))
+        if (crdtType.equals(OR_MAP))
             addExtraDataSerializerForMap(crdtId, dataTypes);
     }
 
     /**
      * Maps the second serializer (value serializer) for map CRDTs.
-     * @param crdtId - ID of the CRDT.
+     *
+     * @param crdtId    - ID of the CRDT.
      * @param dataTypes - data types of the CRDT.
      */
     private void addExtraDataSerializerForMap(String crdtId, String[] dataTypes) {
@@ -432,12 +447,13 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
 
     /**
      * Validates that the CRDT is of the given crdtType.
-     * @param crdt - CRDT to validate.
+     *
+     * @param crdt     - CRDT to validate.
      * @param crdtType - type to check against.
      * @return true if the crdt is of crdtType, false otherwise.
      */
     private boolean validateCrdtType(KernelCRDT crdt, String crdtType) {
-        switch(crdtType) {
+        switch (crdtType) {
             case COUNTER:
                 return crdt instanceof OpCounterCRDT;
             case LWW_REGISTER:
@@ -455,15 +471,16 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
      * Creates a new CRDT of the given dataType with the given ID
      * and registers it in the kernel. Adds the host to the replication
      * set of this replica and registers its serializers.
-     * @param crdtId - ID of the CRDT.
-     * @param crdtType - type of the CRDT.
+     *
+     * @param crdtId    - ID of the CRDT.
+     * @param crdtType  - type of the CRDT.
      * @param dataTypes - data types of the CRDT.
-     * @param sender - host that created the CRDT.
+     * @param sender    - host that created the CRDT.
      * @return the new crdt.
      */
     private KernelCRDT createNewCrdt(String crdtId, String crdtType, String[] dataTypes, Host sender) {
         KernelCRDT crdt;
-        switch(crdtType) {
+        switch (crdtType) {
             case COUNTER:
                 crdt = new OpCounterCRDT(this, crdtId);
                 break;
@@ -487,12 +504,13 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
 
     /**
      * Adds the host to the replication set of the crdt with the given ID.
+     *
      * @param crdtId - ID of the CRDT.
-     * @param host - host to add to the replication set.
+     * @param host   - host to add to the replication set.
      */
     private void addHostToReplicationSet(String crdtId, Host host) {
         Set<Host> replicas = hostsByCrdt.get(crdtId);
-        if(replicas != null)
+        if (replicas != null)
             replicas.add(host);
         else {
             replicas = new HashSet<>();
@@ -503,8 +521,9 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
 
     /**
      * Removes the host from the replication set of the crdt with the given ID.
+     *
      * @param crdtId - ID of the CRDT.
-     * @param host - host to remove from the replication set.
+     * @param host   - host to remove from the replication set.
      */
     private void removeHostFromReplicationSet(String crdtId, Host host) {
         Set<Host> replicas = hostsByCrdt.get(crdtId);

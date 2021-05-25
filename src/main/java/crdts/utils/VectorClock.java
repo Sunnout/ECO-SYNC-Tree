@@ -34,7 +34,7 @@ public class VectorClock {
     }
 
     public int getHostClock(Host host) {
-        return this.clock.getOrDefault(host,0).intValue();
+        return this.clock.getOrDefault(host,0);
     }
 
     public static MySerializer<VectorClock> serializer = new MySerializer<VectorClock>() {
@@ -44,7 +44,7 @@ public class VectorClock {
             out.writeInt(clocks.entrySet().size());
             for (Map.Entry<Host, Integer> entry : clocks.entrySet()) {
                 Host k = entry.getKey();
-                int v = entry.getValue().intValue();
+                int v = entry.getValue();
                 Host.serializer.serialize(k, out);
                 out.writeInt(v);
             }

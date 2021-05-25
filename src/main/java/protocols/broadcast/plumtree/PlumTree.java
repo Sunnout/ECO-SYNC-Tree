@@ -106,6 +106,7 @@ public class PlumTree extends GenericProtocol {
         logger.debug("Received {} from {}", msg, from);
         UUID mid = msg.getMid();
         if(!received.containsKey(msg.getMid())) {
+            logger.info("Propagating {} to {}", mid, eager);
             triggerNotification(new DeliverNotification(msg.getMid(), from, msg.getContent()));
             received.put(mid, msg);
             stored.add(mid);
@@ -167,6 +168,7 @@ public class PlumTree extends GenericProtocol {
             logger.debug("Removed {} from lazy", from);
         }
 
+        //TODO este if se calhar não é preciso, porque a mensagem vai na sincronizacao
         if(received.getOrDefault(mid, null) != null) {
             sendMessage(received.get(mid), from);
         }
@@ -196,6 +198,7 @@ public class PlumTree extends GenericProtocol {
 
     private void uponSyncOpsMessage(SyncOpsMessage msg, Host from, short sourceProto, int channelId) {
         logger.info("Received {} from {}", msg, from);
+        //TODO read msg ids and cancel timers
         triggerNotification(new SyncOpsNotification(from, msg.getOperations()));
     }
 
@@ -244,7 +247,7 @@ public class PlumTree extends GenericProtocol {
 
         UUID mid = request.getMsgId();
         GossipMessage msg = new GossipMessage(mid, request.getSender(), 0, request.getMsg());
-        logger.debug("Sent {} to {}", msg, eager);
+        logger.info("Propagating my {} to {}", mid, eager);
         eagerPush(msg, 0, myself);
         lazyPush(msg, 0, myself);
         triggerNotification(new DeliverNotification(mid, request.getSender(), msg.getContent()));
@@ -279,6 +282,7 @@ public class PlumTree extends GenericProtocol {
         if (!channelReady)
             return;
 
+        //TODO SyncOpsMessage needs msg ids
         SyncOpsMessage msg = new SyncOpsMessage(request.getOperations());
         sendMessage(msg, request.getTo());
         logger.info("Sent {} to {}", msg, request.getTo());
@@ -301,6 +305,7 @@ public class PlumTree extends GenericProtocol {
 
     private void uponNeighbourDown(NeighbourDown notification, short sourceProto) {
         Host neighbour = notification.getNeighbour();
+        logger.info("Neighbour In Down {}", neighbour);
         if(eager.remove(neighbour)) {
             logger.debug("Removed {} from eager {}", neighbour, eager);
             logger.debug("Removed {} from eager", neighbour);

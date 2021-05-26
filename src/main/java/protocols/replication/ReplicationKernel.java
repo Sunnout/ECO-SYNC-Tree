@@ -33,13 +33,14 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class ReplicationKernel extends GenericProtocol implements CRDTCommunicationInterface {
 
+    private static final Logger logger = LogManager.getLogger(ReplicationKernel.class);
+
     //Protocol information, to register in babel
     public static final String PROTOCOL_NAME = "ReplicationKernel";
     public static final short PROTOCOL_ID = 600;
-    private static final Logger logger = LogManager.getLogger(ReplicationKernel.class);
-    private static final String CREATE_CRDT = "create";
 
     //CRDT Types
+    private static final String CREATE_CRDT = "create";
     private static final String COUNTER = "counter";
     private static final String LWW_REGISTER = "lww_register";
     private static final String OR_SET = "or_set";
@@ -54,21 +55,25 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     private static final String STRING = "string";
     private static final String BOOLEAN = "boolean";
     private static final String BYTE = "byte";
+
+    private final Host myself;
+    private short broadcastId; //Broadcast protocol ID
+
+    //Replication kernel variables
+    private VectorClock vectorClock; //Local vector clock
+    private int seqNumber; //Counter of local operation
+    private Map<String, KernelCRDT> crdtsById; //Map that stores CRDTs by their ID
+    private Map<String, Set<Host>> hostsByCrdt; //Map that stores the hosts that replicate a given CRDT
     public static List<Operation> causallyOrderedOps; //List of causally ordered received operations
+
+    //Serializers
+    public static Map<String, MyOpSerializer> opSerializers = initializeOperationSerializers(); //Static map of operation serializers for each crdt type
+    public Map<String, List<MySerializer>> dataSerializers; //Map of data type serializers by crdt ID
+
     //Debug variables
     public static int sentOps;
     public static int receivedOps;
     public static int executedOps;
-    //Serializers
-    public static Map<String, MyOpSerializer> opSerializers = initializeOperationSerializers(); //Static map of operation serializers for each crdt type
-    private final Host myself;
-    public Map<String, List<MySerializer>> dataSerializers; //Map of data type serializers by crdt ID
-    private short broadcastId; //Broadcast protocol ID
-    //Replication kernel variables
-    private VectorClock vectorClock; //Local vector clock
-    private Map<String, KernelCRDT> crdtsById; //Map that stores CRDTs by their ID
-    private Map<String, Set<Host>> hostsByCrdt; //Map that stores the hosts that replicate a given CRDT
-    private int seqNumber; //Counter of local operation
 
 
     public ReplicationKernel(Properties properties, Host myself, short broadcastId) throws HandlerRegistrationException {
@@ -97,26 +102,13 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
 
     }
 
-    /**
-     * Creates a map with the operation serializers for each crdt type.
-     *
-     * @return the created map.
-     */
-    private static Map<String, MyOpSerializer> initializeOperationSerializers() {
-        Map<String, MyOpSerializer> map = new HashMap<>();
-        map.put(COUNTER, CounterOperation.serializer);
-        map.put(LWW_REGISTER, RegisterOperation.serializer);
-        map.put(OR_SET, SetOperation.serializer);
-        map.put(OR_MAP, MapOperation.serializer);
-        return map;
-    }
-
-    /* --------------------------------- Requests --------------------------------- */
-
     @Override
     public void init(Properties props) {
         //Nothing to do here, we just wait for event from the application
     }
+
+
+    /* --------------------------------- Requests --------------------------------- */
 
     private void uponGetCRDTRequest(GetCRDTRequest request, short sourceProto) {
         try {
@@ -156,9 +148,6 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         logger.debug("After: {}", hostsByCrdt.get(crdtId));
     }
 
-
-    /* --------------------------------- Notifications --------------------------------- */
-
     /**
      * Propagates local operations to other replication kernels after incrementing
      * and setting the operation's vector clock.
@@ -179,6 +168,9 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
             e.printStackTrace();
         }
     }
+
+
+    /* --------------------------------- Notifications --------------------------------- */
 
     /**
      * Processes operations received from other replication kernels.
@@ -238,9 +230,6 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         sendRequest(new MyVectorClockRequest(UUID.randomUUID(), myself, neighbour, this.vectorClock), broadcastId);
     }
 
-
-    /* --------------------------------- Interface Methods --------------------------------- */
-
     private void uponSyncOpsNotification(SyncOpsNotification notification, short sourceProto) {
         //logger.info("Received {} from {}", notification, notification.getNeighbour());
         logger.info("SyncOpsNotification from {}, size {}", notification.getNeighbour(), notification.getOperations().size());
@@ -273,13 +262,15 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         }
     }
 
-
-    /* --------------------------------- Auxiliary Methods --------------------------------- */
+    /* --------------------------------- Interface Methods --------------------------------- */
 
     public void downstream(DownstreamRequest request, short sourceProto) {
         Operation op = request.getOperation();
         sendRequest(new DownstreamRequest(request.getMsgId(), request.getSender(), op), PROTOCOL_ID);
     }
+
+
+    /* --------------------------------- Auxiliary Methods --------------------------------- */
 
     private List<byte[]> getMissingSerializedOperations(VectorClock neighbourClock) throws IOException {
         int index = 0;
@@ -544,6 +535,20 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         logger.debug("Set local seqNumber to {}", seqNumber);
         logger.debug("Set local vc on my pos to {}", this.vectorClock.getHostClock(myself));
 
+    }
+
+    /**
+     * Creates a map with the operation serializers for each crdt type.
+     *
+     * @return the created map.
+     */
+    private static Map<String, MyOpSerializer> initializeOperationSerializers() {
+        Map<String, MyOpSerializer> map = new HashMap<>();
+        map.put(COUNTER, CounterOperation.serializer);
+        map.put(LWW_REGISTER, RegisterOperation.serializer);
+        map.put(OR_SET, SetOperation.serializer);
+        map.put(OR_MAP, MapOperation.serializer);
+        return map;
     }
 
 }

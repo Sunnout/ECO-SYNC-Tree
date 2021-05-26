@@ -146,17 +146,15 @@ public class EagerPushBroadcast extends GenericProtocol {
 	/*--------------------------------- Notifications ---------------------------------------- */
 
 	private void uponNeighbourUp(NeighbourUp notification, short sourceProto) {
-		for (Host h : notification.getNeighbours()) {
-			neighbours.add(h);
-			logger.debug("New neighbour: " + h);
-		}
+		Host h = notification.getNeighbour();
+		neighbours.add(h);
+		logger.debug("New neighbour: " + h);
 	}
 
 	private void uponNeighbourDown(NeighbourDown notification, short sourceProto) {
-		for (Host h : notification.getNeighbours()) {
-			neighbours.remove(h);
-			logger.debug("Neighbour down: " + h);
-		}
+		Host h = notification.getNeighbour();
+		neighbours.remove(h);
+		logger.debug("Neighbour down: " + h);
 	}
 	
 	

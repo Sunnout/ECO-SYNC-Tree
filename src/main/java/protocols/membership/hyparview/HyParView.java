@@ -27,6 +27,10 @@ public class HyParView extends GenericProtocol {
 
     public final static short PROTOCOL_ID = 400;
     public final static String PROTOCOL_NAME = "HyParView";
+
+    protected int channelId;
+    protected final Host myself;
+
     private static final int MAX_BACKOFF = 60000;
 
     private final short ARWL; //param: active random walk length
@@ -39,12 +43,9 @@ public class HyParView extends GenericProtocol {
     private final short kActive; //param: number of active nodes to exchange on shuffle
     private final short kPassive; //param: number of passive nodes to exchange on shuffle
 
-
-    protected int channelId;
-    protected final Host myself;
-
     protected IView active;
     protected IView passive;
+
 
     protected Set<Host> pending;
     private final Map<Short, Host[]> activeShuffles;

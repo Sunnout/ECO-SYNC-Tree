@@ -169,9 +169,9 @@ public class PlumTree extends GenericProtocol {
         }
 
         //TODO este if se calhar não é preciso, porque a mensagem vai na sincronizacao
-        if(received.getOrDefault(mid, null) != null) {
-            sendMessage(received.get(mid), from);
-        }
+//        if(received.getOrDefault(mid, null) != null) {
+//            sendMessage(received.get(mid), from);
+//        }
     }
 
     private void uponReceiveIHave(IHaveMessage msg, Host from, short sourceProto, int channelId) {

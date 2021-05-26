@@ -113,16 +113,14 @@ public class FloodBroadcast extends GenericProtocol {
 
     //When the membership protocol notifies of a new neighbour (or leaving one) simply update my list of neighbours.
     private void uponNeighbourUp(NeighbourUp notification, short sourceProto) {
-        for(Host h: notification.getNeighbours()) {
-        	neighbours.add(h);
-        	logger.debug("New neighbour: " + h);
-        }
+        Host h = notification.getNeighbour();
+        neighbours.add(h);
+        logger.debug("New neighbour: " + h);
     }
 
     private void uponNeighbourDown(NeighbourDown notification, short sourceProto) {
-        for(Host h: notification.getNeighbours()) {
-	    	neighbours.remove(h);
-	        logger.debug("Neighbour down: " + h);
-	    }
+        Host h = notification.getNeighbour();
+        neighbours.remove(h);
+        logger.debug("Neighbour down: " + h);
     }
 }

@@ -89,10 +89,10 @@ public class PlumTree extends GenericProtocol {
 
         /*--------------------- Register Request Handlers ----------------------------- */
         registerRequestHandler(BroadcastRequest.REQUEST_ID, this::uponBroadcast);
-        registerRequestHandler(MyVectorClockRequest.REQUEST_ID, this::uponMyVectorClockRequest);
-        registerRequestHandler(SendVectorClockRequest.REQUEST_ID, this::uponSendVectorClockRequest);
-        registerRequestHandler(SyncOpsRequest.REQUEST_ID, this::uponSyncOpsRequest);
-        registerRequestHandler(AddPendingToEagerRequest.REQUEST_ID, this::uponAddPendingToEagerRequest);
+        registerRequestHandler(MyVectorClockRequest.REQUEST_ID, this::uponMyVectorClock);
+        registerRequestHandler(SendVectorClockRequest.REQUEST_ID, this::uponSendVectorClock);
+        registerRequestHandler(SyncOpsRequest.REQUEST_ID, this::uponSyncOps);
+        registerRequestHandler(AddPendingToEagerRequest.REQUEST_ID, this::uponAddPendingToEager);
 
         /*--------------------- Register Notification Handlers ----------------------------- */
         subscribeNotification(NeighbourUp.NOTIFICATION_ID, this::uponNeighbourUp);
@@ -102,6 +102,7 @@ public class PlumTree extends GenericProtocol {
 
 
     /*--------------------------------- Messages ---------------------------------------- */
+
     private void uponReceiveGossip(GossipMessage msg, Host from, short sourceProto, int channelId) {
         logger.debug("Received {} from {}", msg, from);
         UUID mid = msg.getMid();
@@ -141,8 +142,6 @@ public class PlumTree extends GenericProtocol {
             sendMessage(new PruneMessage(), from);
         }
     }
-
-
 
     private void uponReceivePrune(PruneMessage msg, Host from, short sourceProto, int channelId) {
         logger.debug("Received {} from {}", msg, from);
@@ -186,38 +185,24 @@ public class PlumTree extends GenericProtocol {
         }
     }
 
-    private void uponVectorClockMessage(VectorClockMessage msg, Host from, short sourceProto, int channelId) {
+    private void uponReceiveVectorClock(VectorClockMessage msg, Host from, short sourceProto, int channelId) {
         logger.info("Received {} from {}", msg, from);
         triggerNotification(new VectorClockNotification(msg.getSender(), msg.getVectorClock()));
     }
 
-    private void uponSendVectorClockMessage(SendVectorClockMessage msg, Host from, short sourceProto, int channelId) {
+    private void uponReceiveSendVectorClock(SendVectorClockMessage msg, Host from, short sourceProto, int channelId) {
         logger.info("Received {} from {}", msg, from);
         triggerNotification(new SendVectorClockNotification(msg.getSender()));
     }
 
-    private void uponSyncOpsMessage(SyncOpsMessage msg, Host from, short sourceProto, int channelId) {
+    private void uponReceiveSyncOps(SyncOpsMessage msg, Host from, short sourceProto, int channelId) {
         logger.info("Received {} from {}", msg, from);
         //TODO read msg ids and cancel timers
         triggerNotification(new SyncOpsNotification(from, msg.getOperations()));
     }
 
-    private void uponAddPendingToEagerMessage(AddPendingToEagerMessage msg, Host from, short sourceProto, int channelId) {
-        logger.info("Received {} from {}", msg, from);
-
-        if(eager.add(currentPending)) {
-            logger.info("Added {} to eager {}", currentPending, eager);
-            logger.debug("Added {} to eager", currentPending);
-        }
-
-        currentPending = pending.poll();
-        if(currentPending != null) {
-            logger.info("{} is my currentPending", currentPending);
-            sendNewPendingNeighbourNotification(currentPending);
-        }
-    }
-
     /*--------------------------------- Timers ---------------------------------------- */
+
     private void uponIHaveTimeout(IHaveTimeout timeout, long timerId) {
         if(!received.containsKey(timeout.getMid())) {
             MessageSource msgSrc = missing.get(timeout.getMid()).poll();
@@ -259,17 +244,16 @@ public class PlumTree extends GenericProtocol {
         }
     }
 
-    private void uponMyVectorClockRequest(MyVectorClockRequest request, short sourceProto) {
+    private void uponMyVectorClock(MyVectorClockRequest request, short sourceProto) {
         if (!channelReady)
             return;
 
-        VectorClockMessage msg = new VectorClockMessage(request.getMsgId(), request.getSender(),
-                request.getVectorClock());
+        VectorClockMessage msg = new VectorClockMessage(request.getMsgId(), request.getSender(), request.getVectorClock());
         sendMessage(msg, request.getTo());
         logger.info("Sent {} to {}", msg, request.getTo());
     }
 
-    private void uponSendVectorClockRequest(SendVectorClockRequest request, short sourceProto) {
+    private void uponSendVectorClock(SendVectorClockRequest request, short sourceProto) {
         if (!channelReady)
             return;
 
@@ -278,7 +262,7 @@ public class PlumTree extends GenericProtocol {
         logger.info("Sent {} to {}", msg, request.getTo());
     }
 
-    private void uponSyncOpsRequest(SyncOpsRequest request, short sourceProto) {
+    private void uponSyncOps(SyncOpsRequest request, short sourceProto) {
         if (!channelReady)
             return;
 
@@ -288,7 +272,7 @@ public class PlumTree extends GenericProtocol {
         logger.info("Sent {} to {}", msg, request.getTo());
     }
 
-    private void uponAddPendingToEagerRequest(AddPendingToEagerRequest request, short sourceProto) {
+    private void uponAddPendingToEager(AddPendingToEagerRequest request, short sourceProto) {
         if (!channelReady)
             return;
 
@@ -299,13 +283,12 @@ public class PlumTree extends GenericProtocol {
             logger.debug("Added {} to eager", currentPending);
         }
 
-        //TODO TEST
-//        //Adicionar logo à eager
-//        AddPendingToEagerMessage msg = new AddPendingToEagerMessage(UUID.randomUUID(), myself);
-//        sendMessage(msg, request.getSender());
-//        logger.info("Sent {} to {}", msg, request.getSender());
+        currentPending = pending.poll();
+        if(currentPending != null) {
+            logger.info("{} is my currentPending", currentPending);
+            sendNewPendingNeighbourNotification(currentPending);
+        }
     }
-
 
 
     /*--------------------------------- Notifications ---------------------------------------- */
@@ -414,9 +397,6 @@ public class PlumTree extends GenericProtocol {
         registerMessageSerializer(channelId, SendVectorClockMessage.MSG_ID, SendVectorClockMessage.serializer);
         registerMessageSerializer(channelId, VectorClockMessage.MSG_ID, VectorClockMessage.serializer);
         registerMessageSerializer(channelId, SyncOpsMessage.MSG_ID, SyncOpsMessage.serializer);
-        registerMessageSerializer(channelId, AddPendingToEagerMessage.MSG_ID, AddPendingToEagerMessage.serializer);
-
-
 
         try {
 
@@ -426,10 +406,9 @@ public class PlumTree extends GenericProtocol {
             registerMessageHandler(channelId, GraftMessage.MSG_ID, this::uponReceiveGraft);
             registerMessageHandler(channelId, IHaveMessage.MSG_ID, this::uponReceiveIHave);
 
-            registerMessageHandler(channelId, SendVectorClockMessage.MSG_ID, this::uponSendVectorClockMessage);
-            registerMessageHandler(channelId, VectorClockMessage.MSG_ID, this::uponVectorClockMessage);
-            registerMessageHandler(channelId, SyncOpsMessage.MSG_ID, this::uponSyncOpsMessage);
-            registerMessageHandler(channelId, AddPendingToEagerMessage.MSG_ID, this::uponAddPendingToEagerMessage);
+            registerMessageHandler(channelId, SendVectorClockMessage.MSG_ID, this::uponReceiveSendVectorClock);
+            registerMessageHandler(channelId, VectorClockMessage.MSG_ID, this::uponReceiveVectorClock);
+            registerMessageHandler(channelId, SyncOpsMessage.MSG_ID, this::uponReceiveSyncOps);
 
         } catch (HandlerRegistrationException e) {
             logger.error("Error registering message handler: " + e.getMessage());

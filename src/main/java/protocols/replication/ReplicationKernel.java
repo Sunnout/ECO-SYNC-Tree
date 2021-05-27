@@ -221,7 +221,6 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
             e.printStackTrace();
         }
         sendRequest(new SyncOpsRequest(UUID.randomUUID(), myself, neighbour, ops), broadcastId);
-        //TODO TEST
         sendRequest(new AddPendingToEagerRequest(UUID.randomUUID(), neighbour), broadcastId);
     }
 
@@ -256,8 +255,6 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
                 }
 
             }
-            //TODO TEST
-//            sendRequest(new AddPendingToEagerRequest(UUID.randomUUID(), notification.getNeighbour()), broadcastId);
 
         } catch (IOException e) {
             logger.error("EXCEPTION: {}", e.getMessage());

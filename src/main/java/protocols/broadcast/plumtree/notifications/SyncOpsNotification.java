@@ -10,16 +10,22 @@ public class SyncOpsNotification extends ProtoNotification {
     public static final short NOTIFICATION_ID = 903;
 
     private final Host neighbour;
+    private final List<byte[]> ids;
     private final List<byte[]> ops;
 
-    public SyncOpsNotification(Host neighbour, List<byte[]> ops) {
+    public SyncOpsNotification(Host neighbour, List<byte[]> ids, List<byte[]> ops) {
         super(NOTIFICATION_ID);
         this.neighbour = neighbour;
+        this.ids = ids;
         this.ops = ops;
     }
 
     public Host getNeighbour() {
         return neighbour;
+    }
+
+    public List<byte[]> getIds() {
+        return ids;
     }
 
     public List<byte[]> getOperations() {
@@ -29,8 +35,9 @@ public class SyncOpsNotification extends ProtoNotification {
     @Override
     public String toString() {
         return "SyncOpsNotification{" +
-                "neighbour=" + neighbour + ", " +
-                "ops=" + ops +
+                "neighbour=" + neighbour +
+                ", ids=" + ids +
+                ", ops=" + ops +
                 '}';
     }
 

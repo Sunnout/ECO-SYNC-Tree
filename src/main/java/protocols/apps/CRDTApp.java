@@ -19,6 +19,7 @@ import org.apache.logging.log4j.Logger;
 import protocols.apps.timers.*;
 import protocols.replication.notifications.*;
 import protocols.replication.requests.*;
+import protocols.replication.utils.OperationAndID;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.network.data.Host;
@@ -258,8 +259,8 @@ public class CRDTApp extends GenericProtocol {
         logger.info("Number of sent operations: {}", ReplicationKernel.sentOps);
         logger.info("Number of received operations: {}", ReplicationKernel.receivedOps);
         logger.info("Number of executed operations: {}", ReplicationKernel.executedOps);
-        for(Operation op : ReplicationKernel.causallyOrderedOps) {
-            logger.info("{}", op.getSender().toString() + " " + op.getSenderClock());
+        for(OperationAndID opAndId : ReplicationKernel.causallyOrderedOps) {
+            logger.info("{} {}", opAndId.getId(), opAndId.getOp().getSender().toString() + " " + opAndId.getOp().getSenderClock());
         }
 
         if(run == 0) {

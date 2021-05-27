@@ -1,5 +1,8 @@
 package protocols.broadcast.plumtree;
 
+import crdts.operations.Operation;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import protocols.broadcast.common.BroadcastRequest;
 import protocols.broadcast.common.DeliverNotification;
 import protocols.broadcast.plumtree.messages.*;
@@ -197,8 +200,34 @@ public class PlumTree extends GenericProtocol {
 
     private void uponReceiveSyncOps(SyncOpsMessage msg, Host from, short sourceProto, int channelId) {
         logger.info("Received {} from {}", msg, from);
-        //TODO read msg ids and cancel timers
-        triggerNotification(new SyncOpsNotification(from, msg.getOperations()));
+
+        Iterator<byte[]> opIt = msg.getOperations().iterator();
+        Iterator<byte[]> idIt = msg.getIds().iterator();
+
+        while (opIt.hasNext() && idIt.hasNext()) {
+            byte[] serOp = opIt.next();
+            byte[] serId = idIt.next();
+            UUID mid = deserializeId(serId);
+
+            if(!received.containsKey(mid)) {
+                //TODO: check se o from aqui é o que envia ou o sender original
+                GossipMessage gossipMessage = new GossipMessage(mid, from, 0, serOp);
+                received.put(mid, gossipMessage);
+                stored.add(mid);
+                if (stored.size() > space) {
+                    UUID toRemove = stored.poll();
+                    received.put(toRemove, null);
+                }
+
+                Long tid;
+                if ((tid = onGoingTimers.remove(mid)) != null) {
+                    logger.info("SyncTimer for {} cancelled", mid);
+                    cancelTimer(tid);
+                }
+            }
+
+        }
+        triggerNotification(new SyncOpsNotification(from, msg.getIds(), msg.getOperations()));
     }
 
     /*--------------------------------- Timers ---------------------------------------- */
@@ -266,8 +295,7 @@ public class PlumTree extends GenericProtocol {
         if (!channelReady)
             return;
 
-        //TODO SyncOpsMessage needs msg ids
-        SyncOpsMessage msg = new SyncOpsMessage(request.getOperations());
+        SyncOpsMessage msg = new SyncOpsMessage(request.getIds(), request.getOperations());
         sendMessage(msg, request.getTo());
         logger.info("Sent {} to {}", msg, request.getTo());
     }
@@ -344,6 +372,13 @@ public class PlumTree extends GenericProtocol {
         NewPendingNeighbourNotification notification = new NewPendingNeighbourNotification(neighbour);
         triggerNotification(notification);
         logger.info("Sent {} to kernel", notification);
+    }
+
+    private UUID deserializeId(byte[] msg) {
+        ByteBuf buf = Unpooled.buffer().writeBytes(msg);
+        long firstLong = buf.readLong();
+        long secondLong = buf.readLong();
+        return new UUID(firstLong, secondLong);
     }
 
     private void eagerPush(GossipMessage msg, int round, Host from) {

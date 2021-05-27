@@ -14,13 +14,15 @@ public class SyncOpsRequest extends ProtoRequest {
     private final UUID msgId;
     private final Host sender;
     private final Host to;
+    private final List<byte[]> ids;
     private final List<byte[]> ops;
 
-    public SyncOpsRequest(UUID msgId, Host sender, Host to, List<byte[]> ops) {
+    public SyncOpsRequest(UUID msgId, Host sender, Host to, List<byte[]> ids, List<byte[]> ops) {
         super(REQUEST_ID);
         this.msgId = msgId;
         this.sender = sender;
         this.to = to;
+        this.ids = ids;
         this.ops = ops;
     }
 
@@ -34,6 +36,10 @@ public class SyncOpsRequest extends ProtoRequest {
 
     public Host getTo() {
         return to;
+    }
+
+    public List<byte[]> getIds() {
+        return ids;
     }
 
     public List<byte[]> getOperations() {

@@ -292,10 +292,21 @@ public class PlumTree extends GenericProtocol {
         if (!channelReady)
             return;
 
-        AddPendingToEagerMessage msg = new AddPendingToEagerMessage(UUID.randomUUID(), myself);
-        sendMessage(msg, request.getSender());
-        logger.info("Sent {} to {}", msg, request.getSender());
+        logger.info("Received {}", request);
+
+        if(eager.add(currentPending)) {
+            logger.info("Added {} to eager {}", currentPending, eager);
+            logger.debug("Added {} to eager", currentPending);
+        }
+
+        //TODO TEST
+//        //Adicionar logo à eager
+//        AddPendingToEagerMessage msg = new AddPendingToEagerMessage(UUID.randomUUID(), myself);
+//        sendMessage(msg, request.getSender());
+//        logger.info("Sent {} to {}", msg, request.getSender());
     }
+
+
 
     /*--------------------------------- Notifications ---------------------------------------- */
 

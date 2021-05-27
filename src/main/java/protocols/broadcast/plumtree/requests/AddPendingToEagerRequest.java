@@ -27,4 +27,11 @@ public class AddPendingToEagerRequest extends ProtoRequest {
         return sender;
     }
 
+    @Override
+    public String toString() {
+        return "AddPendingToEagerRequest{" +
+                "sender=" + sender +
+                '}';
+    }
+
 }

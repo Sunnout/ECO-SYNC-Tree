@@ -40,4 +40,13 @@ public class MyVectorClockRequest extends ProtoRequest {
         return vc;
     }
 
+    @Override
+    public String toString() {
+        return "MyVectorClockRequest{" +
+                "sender=" + sender +
+                ", to=" + to +
+                ", vc=" + vc +
+                '}';
+    }
+
 }

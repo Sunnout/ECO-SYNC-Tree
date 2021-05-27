@@ -209,7 +209,6 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         Host neighbour = notification.getNeighbour();
         logger.info("Received {} with {}", notification, neighbour);
         sendRequest(new SendVectorClockRequest(UUID.randomUUID(), myself, neighbour), broadcastId);
-//        sendRequest(new MyVectorClockRequest(UUID.randomUUID(), myself, neighbour, this.vectorClock), broadcastId);
     }
 
     private void uponVectorClockNotification(VectorClockNotification notification, short sourceProto) {
@@ -221,13 +220,16 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         } catch (IOException e) {
             e.printStackTrace();
         }
-        sendRequest(new SyncOpsRequest(UUID.randomUUID(), myself, notification.getNeighbour(), ops), broadcastId);
+        sendRequest(new SyncOpsRequest(UUID.randomUUID(), myself, neighbour, ops), broadcastId);
+        //TODO TEST
+        sendRequest(new AddPendingToEagerRequest(UUID.randomUUID(), neighbour), broadcastId);
     }
 
     private void uponSendVectorClockNotification(SendVectorClockNotification notification, short sourceProto) {
         Host neighbour = notification.getNeighbour();
-        logger.info("Received {} from {}", notification, neighbour);
-        sendRequest(new MyVectorClockRequest(UUID.randomUUID(), myself, neighbour, this.vectorClock), broadcastId);
+        MyVectorClockRequest request = new MyVectorClockRequest(UUID.randomUUID(), myself, neighbour, this.vectorClock);
+        logger.info("Sent {} to {}", request, neighbour);
+        sendRequest(request, broadcastId);
     }
 
     private void uponSyncOpsNotification(SyncOpsNotification notification, short sourceProto) {
@@ -254,7 +256,8 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
                 }
 
             }
-            sendRequest(new AddPendingToEagerRequest(UUID.randomUUID(), notification.getNeighbour()), broadcastId);
+            //TODO TEST
+//            sendRequest(new AddPendingToEagerRequest(UUID.randomUUID(), notification.getNeighbour()), broadcastId);
 
         } catch (IOException e) {
             logger.error("EXCEPTION: {}", e.getMessage());

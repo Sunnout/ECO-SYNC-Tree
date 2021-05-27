@@ -27,7 +27,6 @@ public class CRDTApp extends GenericProtocol {
 
     private static final Logger logger = LogManager.getLogger(CRDTApp.class);
     private static final int TO_MILLIS = 1000;
-    private static final int VAL = 5;
 
     //RUN = 0 --> counter; 1 --> register; 2 --> set; 3 --> map; 4 --> 8 registers;
     //5 --> 8 sets; 6 --> 8 maps; 7 --> 1 of each CRDT
@@ -50,9 +49,6 @@ public class CRDTApp extends GenericProtocol {
     private static final String CRDT6 = "CRDT6";
     private static final String CRDT7 = "CRDT7";
     private static final String CRDT8 = "CRDT8";
-    private static final String CRDT9 = "CRDT9";
-    private static final String CRDT10 = "CRDT10";
-
 
     //Protocol information, to register in babel
     public static final String PROTO_NAME = "CRDTApp";

@@ -256,11 +256,8 @@ public class CRDTApp extends GenericProtocol {
     }
 
     private void printFinalValues(int run) {
-        logger.info("Number of sent operations: {}", ReplicationKernel.sentOps);
-        logger.info("Number of received operations: {}", ReplicationKernel.receivedOps);
-        logger.info("Number of executed operations: {}", ReplicationKernel.executedOps);
         for(OperationAndID opAndId : ReplicationKernel.causallyOrderedOps) {
-            logger.info("{} {}", opAndId.getId(), opAndId.getOp().getSender().toString() + " " + opAndId.getOp().getSenderClock());
+            logger.info("{} [OP] {}", opAndId.getId(), opAndId.getOp().getSender().toString() + " " + opAndId.getOp().getSenderClock());
         }
 
         if(run == 0) {
@@ -314,6 +311,10 @@ public class CRDTApp extends GenericProtocol {
             logger.info("--------------------> Keys of {}: {}", CRDT3, getMapKeys(CRDT3));
             logger.info("--------------------> Values of {}: {}", CRDT3, getMapValues(CRDT3));
         }
+
+        logger.info("Number of sent operations: {}", ReplicationKernel.sentOps);
+        logger.info("Number of received operations: {}", ReplicationKernel.receivedOps);
+        logger.info("Number of executed operations: {}", ReplicationKernel.executedOps);
     }
 
     private void getCRDT(String crdtType, String[] dataType, String crdtId) {

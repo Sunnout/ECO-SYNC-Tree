@@ -215,7 +215,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
 
     private void uponVectorClockNotification(VectorClockNotification notification, short sourceProto) {
         Host neighbour = notification.getNeighbour();
-        logger.info("Received {} with {}", notification, neighbour);
+        logger.info("Received {}", notification);
         try {
             sendMissingSyncOperations(neighbour, notification.getVectorClock());
         } catch (IOException e) {
@@ -233,7 +233,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
 
     private void uponSyncOpsNotification(SyncOpsNotification notification, short sourceProto) {
         //logger.info("Received {} from {}", notification, notification.getNeighbour());
-        logger.info("SyncOpsNotification {} from {}, size {}", notification.getNeighbour(), notification.getOperations().size());
+        logger.info("SyncOpsNotification from {}, size {}", notification.getNeighbour(), notification.getOperations().size());
         try {
 
             Iterator<byte[]> opIt = notification.getOperations().iterator();
@@ -250,15 +250,16 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
                 Host h = op.getSender();
                 int clock = op.getSenderClock();
                 if (this.vectorClock.getHostClock(h) == clock - 1) {
-                    logger.info("Sync op {}-{} from {}, Clock {}",
-                            h, clock, notification.getNeighbour(), vectorClock.getHostClock(h));
-                    executeOperation(h, op, msgId);
+                    logger.info("Sync op {}-{} : {} from {}, Clock {}",
+                            h, clock, msgId, notification.getNeighbour(), vectorClock.getHostClock(h));
+//                    executeOperation(h, op, msgId);
+                    sendRequest(new BroadcastRequest(msgId, h, serOp), broadcastId);
                 } else if (this.vectorClock.getHostClock(h) < clock - 1) {
-                    logger.error("Sync Out-of-order op {}-{} from {} , Clock {}",
-                            h, clock, notification.getNeighbour(), vectorClock.getHostClock(h));
+                    logger.error("Sync Out-of-order op {}-{} : {} from {}, Clock {}",
+                            h, clock, msgId, notification.getNeighbour(), vectorClock.getHostClock(h));
                 } else {
-                    logger.info("Sync Ignored old op {}-{} from {} , Clock {}",
-                            h, clock, notification.getNeighbour(), vectorClock.getHostClock(h));
+                    logger.info("Sync Ignored old op {}-{} : {} from {}, Clock {}",
+                            h, clock, msgId, notification.getNeighbour(), vectorClock.getHostClock(h));
                 }
 
             }
@@ -285,6 +286,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
             Operation op = opAndId.getOp();
             Host h = op.getSender();
             int opClock = op.getSenderClock();
+//            logger.info("{}-{} < {}", h, neighbourClock.getHostClock(h), opClock);
             if (neighbourClock.getHostClock(h) < opClock)
                 break;
             index++;

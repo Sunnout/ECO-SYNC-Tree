@@ -1,6 +1,5 @@
 package protocols.broadcast.plumtree;
 
-import crdts.operations.Operation;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import protocols.broadcast.common.BroadcastRequest;
@@ -135,6 +134,8 @@ public class PlumTree extends GenericProtocol {
 
             optimize(msg, msg.getRound(), from);
         } else {
+            logger.info("Received duplicate msg from {}", from);
+
             if(eager.remove(from)) {
                 logger.trace("Removed {} from eager {}", from, eager);
                 logger.debug("Removed {} from eager", from);
@@ -147,7 +148,7 @@ public class PlumTree extends GenericProtocol {
     }
 
     private void uponReceivePrune(PruneMessage msg, Host from, short sourceProto, int channelId) {
-        logger.debug("Received {} from {}", msg, from);
+        logger.info("Received {} from {}", msg, from);
         if(eager.remove(from)) {
             logger.trace("Removed {} from eager {}", from, eager);
             logger.debug("Removed {} from eager", from);
@@ -160,7 +161,6 @@ public class PlumTree extends GenericProtocol {
     }
 
     private void uponReceiveGraft(GraftMessage msg, Host from, short sourceProto, int channelId) {
-        UUID mid = msg.getMid();
         logger.debug("Received {} from {}", msg, from);
 
         startSynchronization(from, false);
@@ -170,10 +170,6 @@ public class PlumTree extends GenericProtocol {
             logger.debug("Removed {} from lazy", from);
         }
 
-        //TODO este if se calhar não é preciso, porque a mensagem vai na sincronizacao
-//        if(received.getOrDefault(mid, null) != null) {
-//            sendMessage(received.get(mid), from);
-//        }
     }
 
     private void uponReceiveIHave(IHaveMessage msg, Host from, short sourceProto, int channelId) {
@@ -212,6 +208,13 @@ public class PlumTree extends GenericProtocol {
             if(!received.containsKey(mid)) {
                 //TODO: check se o from aqui é o que envia ou o sender original
                 GossipMessage gossipMessage = new GossipMessage(mid, from, 0, serOp);
+
+                //TODO: test
+                logger.info("Propagating my {} to {}", mid, eager);
+                eagerPush(gossipMessage, 0, myself);
+                lazyPush(gossipMessage, 0, myself);
+                triggerNotification(new DeliverNotification(mid, gossipMessage.getSender(), serOp));
+
                 received.put(mid, gossipMessage);
                 stored.add(mid);
                 if (stored.size() > space) {
@@ -227,7 +230,7 @@ public class PlumTree extends GenericProtocol {
             }
 
         }
-        triggerNotification(new SyncOpsNotification(from, msg.getIds(), msg.getOperations()));
+//        triggerNotification(new SyncOpsNotification(from, msg.getIds(), msg.getOperations()));
     }
 
     /*--------------------------------- Timers ---------------------------------------- */
@@ -260,26 +263,29 @@ public class PlumTree extends GenericProtocol {
             return;
 
         UUID mid = request.getMsgId();
-        GossipMessage msg = new GossipMessage(mid, request.getSender(), 0, request.getMsg());
+        Host sender = request.getSender();
+        GossipMessage msg = new GossipMessage(mid, sender, 0, request.getMsg());
         logger.info("Propagating my {} to {}", mid, eager);
         eagerPush(msg, 0, myself);
         lazyPush(msg, 0, myself);
-        triggerNotification(new DeliverNotification(mid, request.getSender(), msg.getContent()));
+        triggerNotification(new DeliverNotification(mid, sender, msg.getContent()));
         received.put(mid, msg);
         stored.add(mid);
         if (stored.size() > space) {
             UUID toRemove = stored.poll();
             received.put(toRemove, null);
         }
+
     }
 
     private void uponMyVectorClock(MyVectorClockRequest request, short sourceProto) {
         if (!channelReady)
             return;
 
+        Host neighbour = request.getTo();
         VectorClockMessage msg = new VectorClockMessage(request.getMsgId(), request.getSender(), request.getVectorClock());
-        sendMessage(msg, request.getTo());
-        logger.info("Sent {} to {}", msg, request.getTo());
+        sendMessage(msg, neighbour);
+        logger.info("Sent {} to {}", msg, neighbour);
     }
 
     private void uponSendVectorClock(SendVectorClockRequest request, short sourceProto) {
@@ -327,8 +333,8 @@ public class PlumTree extends GenericProtocol {
 
     private void uponNeighbourDown(NeighbourDown notification, short sourceProto) {
         Host neighbour = notification.getNeighbour();
-        logger.info("Neighbour In Down {}", neighbour);
         if(eager.remove(neighbour)) {
+            logger.info("Neighbour {} died", neighbour);
             logger.debug("Removed {} from eager {}", neighbour, eager);
             logger.debug("Removed {} from eager", neighbour);
         }
@@ -355,8 +361,10 @@ public class PlumTree extends GenericProtocol {
 
     private void startSynchronization(Host neighbour, boolean fromGossip) {
         if(!neighbour.equals(currentPending) && !eager.contains(neighbour) && !pending.contains(neighbour)) {
-            if(fromGossip)
+            if(fromGossip) {
                 logger.info("Sync with {} was from gossip", neighbour);
+                openConnection(neighbour);
+            }
             if(currentPending == null) {
                 currentPending = neighbour;
                 logger.info("{} is my currentPending", neighbour);

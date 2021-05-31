@@ -75,8 +75,8 @@ public class SyncOpsMessage extends ProtoMessage {
     @Override
     public String toString() {
         return "SyncOpsMessage{" +
-                "ids=" + ids +
-                ", ops=" + ops +
+                "nIds=" + ids.size() +
+                ", nOps=" + ops.size() +
                 '}';
     }
 }

@@ -110,7 +110,6 @@ public class PlumTree extends GenericProtocol {
         UUID mid = msg.getMid();
         if(!received.containsKey(msg.getMid())) {
             if(!lazy.contains(from)) {
-                logger.info("Propagating {} to {}", mid, eager);
                 triggerNotification(new DeliverNotification(msg.getMid(), from, msg.getContent(), false));
                 received.put(mid, msg);
                 stored.add(mid);

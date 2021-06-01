@@ -109,7 +109,8 @@ public class PlumTree extends GenericProtocol {
         logger.info("Received {} from {}", msg.getMid(), from);
         UUID mid = msg.getMid();
         if(!received.containsKey(msg.getMid())) {
-            if(!lazy.contains(from)) {
+            //TODO: receber mensagens de alguém que não está em nenhum lado
+            if(eager.contains(from) || pending.contains(from) || from.equals(currentPending)) {
                 triggerNotification(new DeliverNotification(msg.getMid(), from, msg.getContent(), false));
                 received.put(mid, msg);
                 stored.add(mid);

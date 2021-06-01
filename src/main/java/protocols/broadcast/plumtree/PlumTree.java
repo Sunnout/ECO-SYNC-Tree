@@ -106,12 +106,12 @@ public class PlumTree extends GenericProtocol {
     /*--------------------------------- Messages ---------------------------------------- */
 
     private void uponReceiveGossip(GossipMessage msg, Host from, short sourceProto, int channelId) {
-        logger.debug("Received {} from {}", msg, from);
+        logger.info("Received {} from {}", msg.getMid(), from);
         UUID mid = msg.getMid();
         if(!received.containsKey(msg.getMid())) {
             if(!lazy.contains(from)) {
                 logger.info("Propagating {} to {}", mid, eager);
-                triggerNotification(new DeliverNotification(msg.getMid(), from, msg.getContent()));
+                triggerNotification(new DeliverNotification(msg.getMid(), from, msg.getContent(), false));
                 received.put(mid, msg);
                 stored.add(mid);
                 if (stored.size() > space) {
@@ -127,26 +127,27 @@ public class PlumTree extends GenericProtocol {
                 eagerPush(msg, msg.getRound() + 1, from);
                 lazyPush(msg, msg.getRound() + 1, from);
             } else {
-                //TODO: perceber como crlh isto acontece
-                logger.info("Received {} from lazy {}", mid, from);
+                logger.info("{} was received from lazy {}", mid, from);
                 handleIHaveAnnouncement(mid, from, msg.getRound());
-                startSynchronization(from, true); //TODO: check both doing this
+                //TODO: talvez ligar assim seja mau pq podes fazer sync logo após prune
+//                startSynchronization(from, true);
 
-                if(lazy.remove(from)) {
-                    logger.debug("Removed {} from lazy {}", from, lazy);
-                }
+                //TODO check works
+//                if(lazy.remove(from)) {
+//                    logger.info("Removed {} from lazy because I asked for sync {}", from, lazy);
+//                }
             }
 
         } else {
-            logger.info("Received duplicate msg from {}", from);
+            logger.info("{} was duplicated msg from {}", mid, from);
 
             if(eager.remove(from)) {
-                logger.debug("Removed {} from eager {}", from, eager);
+                logger.info("Removed {} from eager due to duplicate {}", from, eager);
                 sendMessage(new PruneMessage(), from);
             }
 
             if(lazy.add(from)) {
-                logger.debug("Added {} to lazy {}", from, lazy);
+                logger.info("Added {} to lazy due to duplicate {}", from, lazy);
             }
         }
     }
@@ -154,22 +155,23 @@ public class PlumTree extends GenericProtocol {
     private void uponReceivePrune(PruneMessage msg, Host from, short sourceProto, int channelId) {
         logger.info("Received {} from {}", msg, from);
         if(eager.remove(from)) {
-            logger.debug("Removed {} from eager {}", from, eager);
+            logger.info("Removed {} from eager due to prune {}", from, eager);
         }
 
         if(lazy.add(from)) {
-            logger.debug("Added {} to lazy {}", from, lazy);
+            logger.info("Added {} to lazy due to prune {}", from, lazy);
         }
     }
 
     private void uponReceiveGraft(GraftMessage msg, Host from, short sourceProto, int channelId) {
-        logger.debug("Received {} from {}", msg, from);
+        logger.info("Received {} from {}", msg, from);
 
         startSynchronization(from, false);
 
-        if(lazy.remove(from)) {
-            logger.debug("Removed {} from lazy {}", from, lazy);
-        }
+        //TODO check works
+//        if(lazy.remove(from)) {
+//            logger.debug("Removed {} from lazy due to sync from graft {}", from, lazy);
+//        }
 
     }
 
@@ -210,16 +212,16 @@ public class PlumTree extends GenericProtocol {
             byte[] serId = idIt.next();
             UUID mid = deserializeId(serId);
 
-            //TODO: delivered even if duplicated because of out of order
-//            if(!received.containsKey(mid)) {
+            //TODO: not delivered even if duplicated because of out of order
+            if(!received.containsKey(mid)) {
                 //TODO: check se o from aqui é o que envia ou o sender original
                 GossipMessage gossipMessage = new GossipMessage(mid, from, 0, serOp);
 
                 //TODO: test
-                logger.info("Propagating my {} to {}", mid, eager);
-                eagerPush(gossipMessage, 0, myself);
-                lazyPush(gossipMessage, 0, myself);
-                triggerNotification(new DeliverNotification(mid, gossipMessage.getSender(), serOp));
+                logger.info("Propagating sync op {} to {}", mid, eager);
+                eagerPush(gossipMessage, 0, from);
+                lazyPush(gossipMessage, 0, from);
+                triggerNotification(new DeliverNotification(mid, from, serOp, true));
 
                 received.put(mid, gossipMessage);
                 stored.add(mid);
@@ -233,7 +235,7 @@ public class PlumTree extends GenericProtocol {
                     logger.info("SyncTimer for {} cancelled", mid);
                     cancelTimer(tid);
                 }
-//            }
+            }
 
         }
 //        triggerNotification(new SyncOpsNotification(from, msg.getIds(), msg.getOperations()));
@@ -251,9 +253,10 @@ public class PlumTree extends GenericProtocol {
 
                 startSynchronization(neighbour, false);
 
-                if (lazy.remove(neighbour)) {
-                    logger.debug("Removed {} from lazy {}", neighbour, lazy);
-                }
+                //TODO check works
+//                if (lazy.remove(neighbour)) {
+//                    logger.info("Removed {} from lazy due to sync from timeout {}", neighbour, lazy);
+//                }
 
                 sendMessage(new GraftMessage(timeout.getMid(), msgSrc.round), neighbour);
             }
@@ -273,7 +276,7 @@ public class PlumTree extends GenericProtocol {
         logger.info("Propagating my {} to {}", mid, eager);
         eagerPush(msg, 0, myself);
         lazyPush(msg, 0, myself);
-        triggerNotification(new DeliverNotification(mid, sender, msg.getContent()));
+        triggerNotification(new DeliverNotification(mid, sender, msg.getContent(), false));
         received.put(mid, msg);
         stored.add(mid);
         if (stored.size() > space) {
@@ -322,6 +325,10 @@ public class PlumTree extends GenericProtocol {
             logger.debug("Added {} to eager", currentPending);
         }
 
+        if(lazy.remove(currentPending)) {
+            logger.info("Removed {} from lazy due to sync {}", currentPending, lazy);
+        }
+
         currentPending = pending.poll();
         if(currentPending != null) {
             logger.info("{} is my currentPending", currentPending);
@@ -333,22 +340,22 @@ public class PlumTree extends GenericProtocol {
     /*--------------------------------- Notifications ---------------------------------------- */
 
     private void uponNeighbourUp(NeighbourUp notification, short sourceProto) {
+        logger.info("Trying sync from neighbour {} up", notification.getNeighbour());
         startSynchronization(notification.getNeighbour(), false);
     }
 
     private void uponNeighbourDown(NeighbourDown notification, short sourceProto) {
         Host neighbour = notification.getNeighbour();
         if(eager.remove(neighbour)) {
-            logger.info("Neighbour {} died", neighbour);
-            logger.debug("Removed {} from eager {}", neighbour, eager);
+            logger.info("Removed {} from eager due to death {}", neighbour, eager);
         }
 
         if(lazy.remove(neighbour)) {
-            logger.debug("Removed {} from lazy {}", neighbour, lazy);
+            logger.info("Removed {} from lazy due to death {}", neighbour, lazy);
         }
 
         if(pending.remove(neighbour)) {
-            logger.debug("Removed {} from pending {}", neighbour, lazy);
+            logger.info("Removed {} from pending due to death {}", neighbour, lazy);
         }
 
         MessageSource msgSrc  = new MessageSource(neighbour, 0);
@@ -395,7 +402,7 @@ public class PlumTree extends GenericProtocol {
         for(Host peer : eager) {
             if(!peer.equals(from)) {
                 sendMessage(msg.setRound(round), peer);
-                logger.info("Sent {} received from {} to {}", msg, from, peer);
+                logger.info("Forward {} received from {} to {}", msg.getMid(), from, peer);
             }
         }
     }
@@ -412,6 +419,7 @@ public class PlumTree extends GenericProtocol {
     private void dispatch() {
         Set<AddressedIHaveMessage> announcements = policy.apply(lazyQueue);
         for(AddressedIHaveMessage msg : announcements) {
+            logger.debug("Sent {} to {}", msg.msg, msg.to);
             sendMessage(msg.msg, msg.to);
         }
         lazyQueue.removeAll(announcements);

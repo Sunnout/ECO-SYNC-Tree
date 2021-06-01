@@ -11,12 +11,14 @@ public class DeliverNotification extends ProtoNotification {
     private final Host sender;
     private final UUID msgId;
     private final byte[] msg;
+    private final boolean fromSync;
 
-    public DeliverNotification(UUID msgId, Host sender, byte[] msg) {
+    public DeliverNotification(UUID msgId, Host sender, byte[] msg, boolean fromSync) {
         super(NOTIFICATION_ID);
         this.msgId = msgId;
         this.sender = sender;
         this.msg = msg;
+        this.fromSync = fromSync;
     }
 
     public Host getSender() {
@@ -31,11 +33,17 @@ public class DeliverNotification extends ProtoNotification {
         return msg;
     }
 
+    public boolean isFromSync() {
+        return fromSync;
+    }
+
+
     @Override
     public String toString() {
         return "DeliverNotification{" +
-                "msgId=" + msgId + ", " +
-                "sender=" + sender +
+                "msgId=" + msgId +
+                ", sender=" + sender +
+                ", fromSync=" + fromSync +
                 '}';
     }
 }

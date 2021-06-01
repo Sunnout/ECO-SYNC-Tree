@@ -115,7 +115,7 @@ public class EagerPushBroadcast extends GenericProtocol {
 		// If we already received it once, do nothing
 		if (!receivedTimes.containsKey(msgId)) {
 			receivedTimes.put(msgId, receivedTime);
-			triggerNotification(new DeliverNotification(msg.getMid(), msg.getSender(), msg.getContent()));
+			triggerNotification(new DeliverNotification(msg.getMid(), msg.getSender(), msg.getContent(), false));
 
 			Set<Host> sample = getRandomSubsetExcluding(neighbours, fanout, from);
 			// Simply send the message to a subset of size fanout of known neighbours

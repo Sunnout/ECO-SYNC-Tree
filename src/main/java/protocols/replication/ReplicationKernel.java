@@ -188,14 +188,14 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
                 Host h = op.getSender();
                 int clock = op.getSenderClock();
                 if (this.vectorClock.getHostClock(h) == clock - 1) {
-                    logger.info("Accepted op {}-{} : {} from {}, Clock {}",
+                    logger.info("[{}] Accepted op {}-{} : {} from {}, Clock {}", notification.isFromSync(),
                             h, clock, notification.getMsgId(), sender, vectorClock.getHostClock(h));
                     executeOperation(h, op, msgId);
                 } else if (this.vectorClock.getHostClock(h) < clock - 1) {
-                    logger.error("Out-of-order op {}-{} : {} from {}, Clock {}",
+                    logger.error("[{}] Out-of-order op {}-{} : {} from {}, Clock {}", notification.isFromSync(),
                             h, clock, notification.getMsgId(), sender, vectorClock.getHostClock(h));
                 } else {
-                    logger.info("Ignored old op {}-{} : {} from {}, Clock {}",
+                    logger.info("[{}] Ignored old op {}-{} : {} from {}, Clock {}", notification.isFromSync(),
                             h, clock, notification.getMsgId(), sender, vectorClock.getHostClock(h));
                 }
             } else {
@@ -357,7 +357,6 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     }
 
     private void executeOperation(Host sender, Operation op, UUID msgId) throws IOException {
-        receivedOps++;
         causallyOrderedOps.add(new OperationAndID(op, msgId));
 
         String crdtId = op.getCrdtId();
@@ -374,6 +373,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         }
         this.vectorClock.incrementClock(sender);
         executedOps++;
+        receivedOps++;
     }
 
     private void handleCRDTCreation(String crdtId, String crdtType, String[] dataTypes, Host sender, UUID msgId) throws IOException {

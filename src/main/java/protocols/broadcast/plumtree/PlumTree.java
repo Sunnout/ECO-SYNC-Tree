@@ -358,6 +358,14 @@ public class PlumTree extends GenericProtocol {
             logger.info("Removed {} from pending due to death {}", neighbour, lazy);
         }
 
+        if(neighbour.equals(currentPending)) {
+            currentPending = pending.poll();
+            if(currentPending != null) {
+                logger.info("{} is my currentPending", currentPending);
+                sendNewPendingNeighbourNotification(currentPending);
+            }
+        }
+
         MessageSource msgSrc  = new MessageSource(neighbour, 0);
         for(Queue<MessageSource> iHaves : missing.values()) {
             iHaves.remove(msgSrc);

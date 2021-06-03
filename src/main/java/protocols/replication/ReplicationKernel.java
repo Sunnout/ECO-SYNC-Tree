@@ -95,7 +95,6 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
 
         /* --------------------- Register Notification Handlers --------------------- */
         subscribeNotification(DeliverNotification.NOTIFICATION_ID, this::uponDeliver);
-//        subscribeNotification(NewPendingNeighbourNotification.NOTIFICATION_ID, this::uponNewPendingNeighbour);
         subscribeNotification(VectorClockNotification.NOTIFICATION_ID, this::uponVectorClock);
         subscribeNotification(SendVectorClockNotification.NOTIFICATION_ID, this::uponSendVectorClock);
 
@@ -204,12 +203,6 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
             e.printStackTrace();
         }
     }
-
-//    private void uponNewPendingNeighbour(NewPendingNeighbourNotification notification, short sourceProto) {
-//        Host neighbour = notification.getNeighbour();
-//        logger.info("Received {} with {}", notification, neighbour);
-//        sendRequest(new SendVectorClockRequest(UUID.randomUUID(), myself, neighbour), broadcastId);
-//    }
 
     private void uponVectorClock(VectorClockNotification notification, short sourceProto) {
         Host neighbour = notification.getNeighbour();

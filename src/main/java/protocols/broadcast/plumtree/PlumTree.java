@@ -94,7 +94,6 @@ public class PlumTree extends GenericProtocol {
         /*--------------------- Register Request Handlers ----------------------------- */
         registerRequestHandler(BroadcastRequest.REQUEST_ID, this::uponBroadcast);
         registerRequestHandler(VectorClockRequest.REQUEST_ID, this::uponVectorClock);
-//        registerRequestHandler(SendVectorClockRequest.REQUEST_ID, this::uponSendVectorClock);
         registerRequestHandler(SyncOpsRequest.REQUEST_ID, this::uponSyncOps);
         registerRequestHandler(AddPendingToEagerRequest.REQUEST_ID, this::uponAddPendingToEager);
 
@@ -273,16 +272,6 @@ public class PlumTree extends GenericProtocol {
         sendMessage(msg, neighbour);
         logger.info("Sent {} to {}", msg, neighbour);
     }
-
-//    private void uponSendVectorClock(SendVectorClockRequest request, short sourceProto) {
-//        if (!channelReady)
-//            return;
-//
-//        Host neighbour = request.getTo();
-//        SendVectorClockMessage msg = new SendVectorClockMessage(request.getMsgId(), request.getSender());
-//        sendMessage(msg, neighbour);
-//        logger.info("Sent {} to {}", msg, neighbour);
-//    }
 
     private void uponSyncOps(SyncOpsRequest request, short sourceProto) {
         if (!channelReady)

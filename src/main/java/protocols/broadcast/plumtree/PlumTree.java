@@ -2,29 +2,28 @@ package protocols.broadcast.plumtree;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import protocols.broadcast.common.BroadcastRequest;
 import protocols.broadcast.common.DeliverNotification;
 import protocols.broadcast.plumtree.messages.*;
 import protocols.broadcast.plumtree.notifications.NewPendingNeighbourNotification;
 import protocols.broadcast.plumtree.notifications.SendVectorClockNotification;
 import protocols.broadcast.plumtree.notifications.VectorClockNotification;
-import protocols.broadcast.plumtree.notifications.SyncOpsNotification;
 import protocols.broadcast.plumtree.requests.AddPendingToEagerRequest;
 import protocols.broadcast.plumtree.requests.SendVectorClockRequest;
 import protocols.broadcast.plumtree.requests.SyncOpsRequest;
-import protocols.membership.common.notifications.ChannelCreated;
-import protocols.broadcast.plumtree.requests.MyVectorClockRequest;
-import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
-import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
-import pt.unl.fct.di.novasys.network.data.Host;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import protocols.broadcast.plumtree.requests.VectorClockRequest;
 import protocols.broadcast.plumtree.timers.IHaveTimeout;
 import protocols.broadcast.plumtree.utils.AddressedIHaveMessage;
 import protocols.broadcast.plumtree.utils.LazyQueuePolicy;
 import protocols.broadcast.plumtree.utils.MessageSource;
+import protocols.membership.common.notifications.ChannelCreated;
 import protocols.membership.common.notifications.NeighbourDown;
 import protocols.membership.common.notifications.NeighbourUp;
+import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
+import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
+import pt.unl.fct.di.novasys.network.data.Host;
 
 import java.io.IOException;
 import java.util.*;
@@ -61,6 +60,9 @@ public class PlumTree extends GenericProtocol {
 
     private boolean channelReady;
 
+
+    /*--------------------------------- Initialization ---------------------------------------- */
+
     public PlumTree(Properties properties, Host myself) throws HandlerRegistrationException {
         super(PROTOCOL_NAME, PROTOCOL_ID);
         this.myself = myself;
@@ -91,8 +93,8 @@ public class PlumTree extends GenericProtocol {
 
         /*--------------------- Register Request Handlers ----------------------------- */
         registerRequestHandler(BroadcastRequest.REQUEST_ID, this::uponBroadcast);
-        registerRequestHandler(MyVectorClockRequest.REQUEST_ID, this::uponMyVectorClock);
-        registerRequestHandler(SendVectorClockRequest.REQUEST_ID, this::uponSendVectorClock);
+        registerRequestHandler(VectorClockRequest.REQUEST_ID, this::uponVectorClock);
+//        registerRequestHandler(SendVectorClockRequest.REQUEST_ID, this::uponSendVectorClock);
         registerRequestHandler(SyncOpsRequest.REQUEST_ID, this::uponSyncOps);
         registerRequestHandler(AddPendingToEagerRequest.REQUEST_ID, this::uponAddPendingToEager);
 
@@ -101,340 +103,6 @@ public class PlumTree extends GenericProtocol {
         subscribeNotification(NeighbourDown.NOTIFICATION_ID, this::uponNeighbourDown);
         subscribeNotification(ChannelCreated.NOTIFICATION_ID, this::uponChannelCreated);
     }
-
-
-    /*--------------------------------- Messages ---------------------------------------- */
-
-    private void uponReceiveGossip(GossipMessage msg, Host from, short sourceProto, int channelId) {
-        logger.info("Received {} from {}", msg.getMid(), from);
-        UUID mid = msg.getMid();
-        if(!received.containsKey(msg.getMid())) {
-            //TODO: receber mensagens de alguém que não está em nenhum lado
-            if(eager.contains(from) || pending.contains(from) || from.equals(currentPending)) {
-                triggerNotification(new DeliverNotification(msg.getMid(), from, msg.getContent(), false));
-                received.put(mid, msg);
-                stored.add(mid);
-                if (stored.size() > space) {
-                    UUID toRemove = stored.poll();
-                    received.put(toRemove, null);
-                }
-
-                Long tid;
-                if((tid = onGoingTimers.remove(mid)) != null) {
-                    cancelTimer(tid);
-                }
-
-                eagerPush(msg, msg.getRound() + 1, from);
-                lazyPush(msg, msg.getRound() + 1, from);
-            } else {
-                logger.info("{} was received from lazy {}", mid, from);
-                handleIHaveAnnouncement(mid, from, msg.getRound());
-                //TODO: talvez ligar assim seja mau pq podes fazer sync logo após prune
-//                startSynchronization(from, true);
-
-                //TODO check works
-//                if(lazy.remove(from)) {
-//                    logger.info("Removed {} from lazy because I asked for sync {}", from, lazy);
-//                }
-            }
-
-        } else {
-            logger.info("{} was duplicated msg from {}", mid, from);
-
-            if(eager.remove(from)) {
-                logger.info("Removed {} from eager due to duplicate {}", from, eager);
-                sendMessage(new PruneMessage(), from);
-            }
-
-            if(lazy.add(from)) {
-                logger.info("Added {} to lazy due to duplicate {}", from, lazy);
-            }
-        }
-    }
-
-    private void uponReceivePrune(PruneMessage msg, Host from, short sourceProto, int channelId) {
-        logger.info("Received {} from {}", msg, from);
-        if(eager.remove(from)) {
-            logger.info("Removed {} from eager due to prune {}", from, eager);
-        }
-
-        if(lazy.add(from)) {
-            logger.info("Added {} to lazy due to prune {}", from, lazy);
-        }
-    }
-
-    private void uponReceiveGraft(GraftMessage msg, Host from, short sourceProto, int channelId) {
-        logger.info("Received {} from {}", msg, from);
-
-        startSynchronization(from, false);
-
-        //TODO check works
-//        if(lazy.remove(from)) {
-//            logger.debug("Removed {} from lazy due to sync from graft {}", from, lazy);
-//        }
-
-    }
-
-    private void uponReceiveIHave(IHaveMessage msg, Host from, short sourceProto, int channelId) {
-        UUID mid = msg.getMid();
-        logger.debug("Received {} from {}", msg, from);
-        handleIHaveAnnouncement(mid, from, msg.getRound());
-    }
-
-    private void handleIHaveAnnouncement(UUID mid, Host from, int round) {
-        if(!received.containsKey(mid)) {
-            if(!onGoingTimers.containsKey(mid)) {
-                long tid = setupTimer(new IHaveTimeout(mid), timeout1);
-                onGoingTimers.put(mid, tid);
-            }
-            missing.computeIfAbsent(mid, v-> new LinkedList<>()).add(new MessageSource(from, round));
-        }
-    }
-
-    private void uponReceiveVectorClock(VectorClockMessage msg, Host from, short sourceProto, int channelId) {
-        logger.info("Received {} from {}", msg, from);
-        triggerNotification(new VectorClockNotification(msg.getSender(), msg.getVectorClock()));
-    }
-
-    private void uponReceiveSendVectorClock(SendVectorClockMessage msg, Host from, short sourceProto, int channelId) {
-        logger.info("Received {} from {}", msg, from);
-        triggerNotification(new SendVectorClockNotification(msg.getSender()));
-    }
-
-    private void uponReceiveSyncOps(SyncOpsMessage msg, Host from, short sourceProto, int channelId) {
-        logger.info("Received {} from {}", msg, from);
-
-        Iterator<byte[]> opIt = msg.getOperations().iterator();
-        Iterator<byte[]> idIt = msg.getIds().iterator();
-
-        while (opIt.hasNext() && idIt.hasNext()) {
-            byte[] serOp = opIt.next();
-            byte[] serId = idIt.next();
-            UUID mid = deserializeId(serId);
-
-            //TODO: not delivered even if duplicated because of out of order
-            if(!received.containsKey(mid)) {
-                //TODO: check se o from aqui é o que envia ou o sender original
-                GossipMessage gossipMessage = new GossipMessage(mid, from, 0, serOp);
-
-                //TODO: test
-                logger.info("Propagating sync op {} to {}", mid, eager);
-                eagerPush(gossipMessage, 0, from);
-                lazyPush(gossipMessage, 0, from);
-                triggerNotification(new DeliverNotification(mid, from, serOp, true));
-
-                received.put(mid, gossipMessage);
-                stored.add(mid);
-                if (stored.size() > space) {
-                    UUID toRemove = stored.poll();
-                    received.put(toRemove, null);
-                }
-
-                Long tid;
-                if ((tid = onGoingTimers.remove(mid)) != null) {
-                    logger.info("SyncTimer for {} cancelled", mid);
-                    cancelTimer(tid);
-                }
-            }
-
-        }
-//        triggerNotification(new SyncOpsNotification(from, msg.getIds(), msg.getOperations()));
-    }
-
-    /*--------------------------------- Timers ---------------------------------------- */
-
-    private void uponIHaveTimeout(IHaveTimeout timeout, long timerId) {
-        if(!received.containsKey(timeout.getMid())) {
-            MessageSource msgSrc = missing.get(timeout.getMid()).poll();
-            if (msgSrc != null) {
-                long tid = setupTimer(timeout, timeout2);
-                onGoingTimers.put(timeout.getMid(), tid);
-                Host neighbour = msgSrc.peer;
-
-                startSynchronization(neighbour, false);
-
-                //TODO check works
-//                if (lazy.remove(neighbour)) {
-//                    logger.info("Removed {} from lazy due to sync from timeout {}", neighbour, lazy);
-//                }
-
-                sendMessage(new GraftMessage(timeout.getMid(), msgSrc.round), neighbour);
-            }
-        }
-    }
-
-
-    /*--------------------------------- Requests ---------------------------------------- */
-
-    private void uponBroadcast(BroadcastRequest request, short sourceProto) {
-        if (!channelReady)
-            return;
-
-        UUID mid = request.getMsgId();
-        Host sender = request.getSender();
-        GossipMessage msg = new GossipMessage(mid, sender, 0, request.getMsg());
-        logger.info("Propagating my {} to {}", mid, eager);
-        eagerPush(msg, 0, myself);
-        lazyPush(msg, 0, myself);
-        triggerNotification(new DeliverNotification(mid, sender, msg.getContent(), false));
-        received.put(mid, msg);
-        stored.add(mid);
-        if (stored.size() > space) {
-            UUID toRemove = stored.poll();
-            received.put(toRemove, null);
-        }
-
-    }
-
-    private void uponMyVectorClock(MyVectorClockRequest request, short sourceProto) {
-        if (!channelReady)
-            return;
-
-        Host neighbour = request.getTo();
-        VectorClockMessage msg = new VectorClockMessage(request.getMsgId(), request.getSender(), request.getVectorClock());
-        sendMessage(msg, neighbour);
-        logger.info("Sent {} to {}", msg, neighbour);
-    }
-
-    private void uponSendVectorClock(SendVectorClockRequest request, short sourceProto) {
-        if (!channelReady)
-            return;
-
-        SendVectorClockMessage msg = new SendVectorClockMessage(request.getMsgId(), request.getSender());
-        sendMessage(msg, request.getTo());
-        logger.info("Sent {} to {}", msg, request.getTo());
-    }
-
-    private void uponSyncOps(SyncOpsRequest request, short sourceProto) {
-        if (!channelReady)
-            return;
-
-        SyncOpsMessage msg = new SyncOpsMessage(request.getIds(), request.getOperations());
-        sendMessage(msg, request.getTo());
-        logger.info("Sent {} to {}", msg, request.getTo());
-    }
-
-    private void uponAddPendingToEager(AddPendingToEagerRequest request, short sourceProto) {
-        if (!channelReady)
-            return;
-
-        logger.info("Received {}", request);
-
-        if(eager.add(currentPending)) {
-            logger.info("Added {} to eager {} : pending list {}", currentPending, eager, pending);
-            logger.debug("Added {} to eager", currentPending);
-        }
-
-        if(lazy.remove(currentPending)) {
-            logger.info("Removed {} from lazy due to sync {}", currentPending, lazy);
-        }
-
-        currentPending = pending.poll();
-        if(currentPending != null) {
-            logger.info("{} is my currentPending", currentPending);
-            sendNewPendingNeighbourNotification(currentPending);
-        }
-    }
-
-
-    /*--------------------------------- Notifications ---------------------------------------- */
-
-    private void uponNeighbourUp(NeighbourUp notification, short sourceProto) {
-        logger.info("Trying sync from neighbour {} up", notification.getNeighbour());
-        startSynchronization(notification.getNeighbour(), false);
-    }
-
-    private void uponNeighbourDown(NeighbourDown notification, short sourceProto) {
-        Host neighbour = notification.getNeighbour();
-        if(eager.remove(neighbour)) {
-            logger.info("Removed {} from eager due to death {}", neighbour, eager);
-        }
-
-        if(lazy.remove(neighbour)) {
-            logger.info("Removed {} from lazy due to death {}", neighbour, lazy);
-        }
-
-        if(pending.remove(neighbour)) {
-            logger.info("Removed {} from pending due to death {}", neighbour, lazy);
-        }
-
-        if(neighbour.equals(currentPending)) {
-            currentPending = pending.poll();
-            if(currentPending != null) {
-                logger.info("{} is my currentPending", currentPending);
-                sendNewPendingNeighbourNotification(currentPending);
-            }
-        }
-
-        MessageSource msgSrc  = new MessageSource(neighbour, 0);
-        for(Queue<MessageSource> iHaves : missing.values()) {
-            iHaves.remove(msgSrc);
-        }
-        closeConnection(neighbour);
-    }
-
-
-    /*--------------------------------- Auxiliary Methods ---------------------------------------- */
-
-    private void startSynchronization(Host neighbour, boolean fromGossip) {
-        if(!neighbour.equals(currentPending) && !eager.contains(neighbour) && !pending.contains(neighbour)) {
-            if(fromGossip) {
-                logger.info("Sync with {} was from gossip", neighbour);
-                openConnection(neighbour);
-            }
-            if(currentPending == null) {
-                currentPending = neighbour;
-                logger.info("{} is my currentPending", neighbour);
-                sendNewPendingNeighbourNotification(currentPending);
-            } else {
-                pending.add(neighbour);
-                logger.info("Added {} to pending {}", neighbour, pending);
-            }
-        }
-    }
-
-    private void sendNewPendingNeighbourNotification(Host neighbour) {
-        NewPendingNeighbourNotification notification = new NewPendingNeighbourNotification(neighbour);
-        triggerNotification(notification);
-        logger.info("Sent {} to kernel", notification);
-    }
-
-    private UUID deserializeId(byte[] msg) {
-        ByteBuf buf = Unpooled.buffer().writeBytes(msg);
-        long firstLong = buf.readLong();
-        long secondLong = buf.readLong();
-        return new UUID(firstLong, secondLong);
-    }
-
-    private void eagerPush(GossipMessage msg, int round, Host from) {
-        for(Host peer : eager) {
-            if(!peer.equals(from)) {
-                sendMessage(msg.setRound(round), peer);
-                logger.info("Forward {} received from {} to {}", msg.getMid(), from, peer);
-            }
-        }
-    }
-
-    private void lazyPush(GossipMessage msg, int round, Host from) {
-        for(Host peer : lazy) {
-            if(!peer.equals(from)) {
-                lazyQueue.add(new AddressedIHaveMessage(new IHaveMessage(msg.getMid(), round), peer));
-            }
-        }
-        dispatch();
-    }
-
-    private void dispatch() {
-        Set<AddressedIHaveMessage> announcements = policy.apply(lazyQueue);
-        for(AddressedIHaveMessage msg : announcements) {
-            logger.debug("Sent {} to {}", msg.msg, msg.to);
-            sendMessage(msg.msg, msg.to);
-        }
-        lazyQueue.removeAll(announcements);
-    }
-
-
-    /*--------------------------------- Initialization ---------------------------------------- */
 
     @Override
     public void init(Properties props) throws HandlerRegistrationException, IOException {
@@ -475,4 +143,300 @@ public class PlumTree extends GenericProtocol {
 
         this.channelReady = true;
     }
+
+
+    /*--------------------------------- Messages ---------------------------------------- */
+
+    private void uponReceiveGossip(GossipMessage msg, Host from, short sourceProto, int channelId) {
+        logger.info("Received {} from {}", msg.getMid(), from);
+        UUID mid = msg.getMid();
+        if (!received.containsKey(mid)) {
+            int round = msg.getRound();
+            //TODO: estava receber mensagens de alguém que não está em nenhum lado quando tinha !lazy.contains(from)??
+            if (eager.contains(from) || pending.contains(from) || from.equals(currentPending)) {
+                triggerNotification(new DeliverNotification(mid, from, msg.getContent(), false));
+                handleGossipMessage(mid, msg, round + 1, from);
+                //Se eu não adicionar aqui ao eager e remover do lazy então no início não se forma a árvore otimizada?
+                //Ou forma pq o hyparview é simétrico e se alguém me mandar uma msg no início é pq tb me tem na eager?
+            } else {
+                logger.info("{} was received from lazy {}", mid, from);
+                handleAnnouncement(mid, from, round);
+                //TODO: talvez ligar assim seja mau pq podes fazer sync logo após prune
+//                startSynchronization(from, true);
+            }
+
+        } else {
+            logger.info("{} was duplicated msg from {}", mid, from);
+
+            if (eager.remove(from)) {
+                logger.info("Removed {} from eager due to duplicate {}", from, eager);
+                sendMessage(new PruneMessage(), from);
+            }
+
+            if (lazy.add(from)) {
+                logger.info("Added {} to lazy due to duplicate {}", from, lazy);
+            }
+        }
+    }
+
+    private void uponReceivePrune(PruneMessage msg, Host from, short sourceProto, int channelId) {
+        logger.info("Received {} from {}", msg, from);
+        if (eager.remove(from)) {
+            logger.info("Removed {} from eager due to prune {}", from, eager);
+        }
+
+        if (lazy.add(from)) {
+            logger.info("Added {} to lazy due to prune {}", from, lazy);
+        }
+    }
+
+    private void uponReceiveGraft(GraftMessage msg, Host from, short sourceProto, int channelId) {
+        logger.info("Received {} from {}", msg, from);
+        startSynchronization(from, false);
+    }
+
+    private void uponReceiveIHave(IHaveMessage msg, Host from, short sourceProto, int channelId) {
+        logger.debug("Received {} from {}", msg, from);
+        handleAnnouncement(msg.getMid(), from, msg.getRound());
+    }
+
+
+    private void uponReceiveVectorClock(VectorClockMessage msg, Host from, short sourceProto, int channelId) {
+        logger.info("Received {} from {}", msg, from);
+        triggerNotification(new VectorClockNotification(msg.getSender(), msg.getVectorClock()));
+    }
+
+    private void uponReceiveSendVectorClock(SendVectorClockMessage msg, Host from, short sourceProto, int channelId) {
+        logger.info("Received {} from {}", msg, from);
+        triggerNotification(new SendVectorClockNotification(msg.getSender()));
+    }
+
+    private void uponReceiveSyncOps(SyncOpsMessage msg, Host from, short sourceProto, int channelId) {
+        logger.info("Received {} from {}", msg, from);
+
+        Iterator<byte[]> opIt = msg.getOperations().iterator();
+        Iterator<byte[]> idIt = msg.getIds().iterator();
+
+        while (opIt.hasNext() && idIt.hasNext()) {
+            byte[] serOp = opIt.next();
+            byte[] serId = idIt.next();
+            UUID mid = deserializeId(serId);
+
+            //These are not delivered if duplicated due to out of order
+            if (!received.containsKey(mid)) {
+                //TODO: check se o from aqui é o que envia ou o sender original
+                GossipMessage gossipMessage = new GossipMessage(mid, from, 0, serOp);
+                triggerNotification(new DeliverNotification(mid, from, serOp, true));
+                logger.info("Propagating sync op {} to {}", mid, eager);
+                handleGossipMessage(mid, gossipMessage, 0, from);
+            }
+        }
+    }
+
+    /*--------------------------------- Timers ---------------------------------------- */
+
+    private void uponIHaveTimeout(IHaveTimeout timeout, long timerId) {
+        UUID mid = timeout.getMid();
+        if (!received.containsKey(mid)) {
+            MessageSource msgSrc = missing.get(mid).poll();
+            if (msgSrc != null) {
+                long tid = setupTimer(timeout, timeout2);
+                onGoingTimers.put(mid, tid);
+                Host neighbour = msgSrc.peer;
+                startSynchronization(neighbour, false);
+                sendMessage(new GraftMessage(mid, msgSrc.round), neighbour);
+            }
+        }
+    }
+
+
+    /*--------------------------------- Requests ---------------------------------------- */
+
+    private void uponBroadcast(BroadcastRequest request, short sourceProto) {
+        if (!channelReady)
+            return;
+
+        UUID mid = request.getMsgId();
+        Host sender = request.getSender();
+        GossipMessage msg = new GossipMessage(mid, sender, 0, request.getMsg());
+        logger.info("Propagating my {} to {}", mid, eager);
+        triggerNotification(new DeliverNotification(mid, sender, msg.getContent(), false));
+        handleGossipMessage(mid, msg, 0, myself);
+    }
+
+    private void uponVectorClock(VectorClockRequest request, short sourceProto) {
+        if (!channelReady)
+            return;
+
+        Host neighbour = request.getTo();
+        VectorClockMessage msg = new VectorClockMessage(request.getMsgId(), request.getSender(), request.getVectorClock());
+        sendMessage(msg, neighbour);
+        logger.info("Sent {} to {}", msg, neighbour);
+    }
+
+//    private void uponSendVectorClock(SendVectorClockRequest request, short sourceProto) {
+//        if (!channelReady)
+//            return;
+//
+//        Host neighbour = request.getTo();
+//        SendVectorClockMessage msg = new SendVectorClockMessage(request.getMsgId(), request.getSender());
+//        sendMessage(msg, neighbour);
+//        logger.info("Sent {} to {}", msg, neighbour);
+//    }
+
+    private void uponSyncOps(SyncOpsRequest request, short sourceProto) {
+        if (!channelReady)
+            return;
+
+        Host neighbour = request.getTo();
+        SyncOpsMessage msg = new SyncOpsMessage(request.getMsgId(), request.getIds(), request.getOperations());
+        sendMessage(msg, neighbour);
+        logger.info("Sent {} to {}", msg, neighbour);
+    }
+
+    private void uponAddPendingToEager(AddPendingToEagerRequest request, short sourceProto) {
+        if (!channelReady)
+            return;
+
+        logger.info("Received {}", request);
+
+        if (eager.add(currentPending)) {
+            logger.info("Added {} to eager {} : pending list {}", currentPending, eager, pending);
+        }
+
+        //Passei a remover da lazy só no fim em vez de remover mal começo sync
+        if (lazy.remove(currentPending)) {
+            logger.info("Removed {} from lazy due to sync {}", currentPending, lazy);
+        }
+
+        currentPending = pending.poll();
+        if (currentPending != null) {
+            logger.info("{} is my currentPending", currentPending);
+            requestVectorClock(currentPending);
+        }
+    }
+
+
+    /*--------------------------------- Notifications ---------------------------------------- */
+
+    private void uponNeighbourUp(NeighbourUp notification, short sourceProto) {
+        Host neighbour = notification.getNeighbour();
+        logger.info("Trying sync from neighbour {} up", neighbour);
+        startSynchronization(neighbour, false);
+    }
+
+    private void uponNeighbourDown(NeighbourDown notification, short sourceProto) {
+        Host neighbour = notification.getNeighbour();
+        if (eager.remove(neighbour)) {
+            logger.info("Removed {} from eager due to down {}", neighbour, eager);
+        }
+
+        if (lazy.remove(neighbour)) {
+            logger.info("Removed {} from lazy due to down {}", neighbour, lazy);
+        }
+
+        if (pending.remove(neighbour)) {
+            logger.info("Removed {} from pending due to down {}", neighbour, pending);
+        }
+
+        if (neighbour.equals(currentPending)) {
+            currentPending = pending.poll();
+            if (currentPending != null) {
+                logger.info("{} is my currentPending", currentPending);
+                requestVectorClock(currentPending);
+            }
+        }
+
+        MessageSource msgSrc = new MessageSource(neighbour, 0);
+        for (Queue<MessageSource> iHaves : missing.values()) {
+            iHaves.remove(msgSrc);
+        }
+        closeConnection(neighbour);
+    }
+
+
+    /*--------------------------------- Procedures ---------------------------------------- */
+
+    private void startSynchronization(Host neighbour, boolean fromGossip) {
+        if (!neighbour.equals(currentPending) && !eager.contains(neighbour) && !pending.contains(neighbour)) {
+            if (fromGossip) {
+                logger.info("Sync with {} was from gossip", neighbour);
+                openConnection(neighbour);
+            }
+            if (currentPending == null) {
+                currentPending = neighbour;
+                logger.info("{} is my currentPending", neighbour);
+                requestVectorClock(currentPending);
+            } else {
+                pending.add(neighbour);
+                logger.info("Added {} to pending {}", neighbour, pending);
+            }
+        }
+    }
+
+    private void requestVectorClock(Host neighbour) {
+        SendVectorClockMessage msg = new SendVectorClockMessage(UUID.randomUUID(), myself);
+        sendMessage(msg, neighbour);
+        logger.info("Sent {} to {}", msg, neighbour);
+    }
+
+    private void handleGossipMessage(UUID mid, GossipMessage msg, int round, Host sender) {
+        received.put(mid, msg);
+        stored.add(mid);
+        if (stored.size() > space) {
+            UUID toRemove = stored.poll();
+            received.put(toRemove, null);
+        }
+
+        Long tid;
+        if ((tid = onGoingTimers.remove(mid)) != null) {
+            cancelTimer(tid);
+        }
+
+        eagerPush(msg, round, sender);
+        lazyPush(msg, round, sender);
+    }
+
+    private void eagerPush(GossipMessage msg, int round, Host from) {
+        for (Host peer : eager) {
+            if (!peer.equals(from)) {
+                sendMessage(msg.setRound(round), peer);
+                logger.info("Forward {} received from {} to {}", msg.getMid(), from, peer);
+            }
+        }
+    }
+
+    private void lazyPush(GossipMessage msg, int round, Host from) {
+        for (Host peer : lazy) {
+            if (!peer.equals(from)) {
+                lazyQueue.add(new AddressedIHaveMessage(new IHaveMessage(msg.getMid(), round), peer));
+            }
+        }
+        dispatch();
+    }
+
+    private void handleAnnouncement(UUID mid, Host from, int round) {
+        if (!received.containsKey(mid)) {
+            if (!onGoingTimers.containsKey(mid)) {
+                long tid = setupTimer(new IHaveTimeout(mid), timeout1);
+                onGoingTimers.put(mid, tid);
+            }
+            missing.computeIfAbsent(mid, v -> new LinkedList<>()).add(new MessageSource(from, round));
+        }
+    }
+
+    private void dispatch() {
+        Set<AddressedIHaveMessage> announcements = policy.apply(lazyQueue);
+        for (AddressedIHaveMessage msg : announcements) {
+            logger.debug("Sent {} to {}", msg.msg, msg.to);
+            sendMessage(msg.msg, msg.to);
+        }
+        lazyQueue.removeAll(announcements);
+    }
+
+    private UUID deserializeId(byte[] msg) {
+        ByteBuf buf = Unpooled.buffer().writeBytes(msg);
+        return new UUID(buf.readLong(), buf.readLong());
+    }
+
 }

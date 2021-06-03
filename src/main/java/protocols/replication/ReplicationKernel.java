@@ -14,9 +14,8 @@ import protocols.broadcast.common.DeliverNotification;
 import protocols.broadcast.plumtree.notifications.SendVectorClockNotification;
 import protocols.broadcast.plumtree.notifications.VectorClockNotification;
 import protocols.broadcast.plumtree.notifications.NewPendingNeighbourNotification;
-import protocols.broadcast.plumtree.notifications.SyncOpsNotification;
 import protocols.broadcast.plumtree.requests.AddPendingToEagerRequest;
-import protocols.broadcast.plumtree.requests.MyVectorClockRequest;
+import protocols.broadcast.plumtree.requests.VectorClockRequest;
 import protocols.broadcast.plumtree.requests.SendVectorClockRequest;
 import protocols.broadcast.plumtree.requests.SyncOpsRequest;
 import protocols.replication.notifications.*;
@@ -90,16 +89,15 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         this.dataSerializers = new HashMap<>();
 
         /* --------------------- Register Request Handlers --------------------- */
-        registerRequestHandler(GetCRDTRequest.REQUEST_ID, this::uponGetCRDTRequest);
-        registerRequestHandler(ReleaseCRDTRequest.REQUEST_ID, this::uponReleaseCRDTRequest);
-        registerRequestHandler(DownstreamRequest.REQUEST_ID, this::uponDownstreamRequest);
+        registerRequestHandler(GetCRDTRequest.REQUEST_ID, this::uponGetCRDT);
+        registerRequestHandler(ReleaseCRDTRequest.REQUEST_ID, this::uponReleaseCRDT);
+        registerRequestHandler(DownstreamRequest.REQUEST_ID, this::uponDownstream);
 
         /* --------------------- Register Notification Handlers --------------------- */
-        subscribeNotification(DeliverNotification.NOTIFICATION_ID, this::uponDeliverNotification);
-        subscribeNotification(NewPendingNeighbourNotification.NOTIFICATION_ID, this::uponNewPendingNeighbourNotification);
-        subscribeNotification(VectorClockNotification.NOTIFICATION_ID, this::uponVectorClockNotification);
-        subscribeNotification(SendVectorClockNotification.NOTIFICATION_ID, this::uponSendVectorClockNotification);
-        subscribeNotification(SyncOpsNotification.NOTIFICATION_ID, this::uponSyncOpsNotification);
+        subscribeNotification(DeliverNotification.NOTIFICATION_ID, this::uponDeliver);
+//        subscribeNotification(NewPendingNeighbourNotification.NOTIFICATION_ID, this::uponNewPendingNeighbour);
+        subscribeNotification(VectorClockNotification.NOTIFICATION_ID, this::uponVectorClock);
+        subscribeNotification(SendVectorClockNotification.NOTIFICATION_ID, this::uponSendVectorClock);
 
     }
 
@@ -111,7 +109,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
 
     /* --------------------------------- Requests --------------------------------- */
 
-    private void uponGetCRDTRequest(GetCRDTRequest request, short sourceProto) {
+    private void uponGetCRDT(GetCRDTRequest request, short sourceProto) {
         try {
             String crdtId = request.getCrdtId();
             String crdtType = request.getCrdtType();
@@ -140,7 +138,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         }
     }
 
-    private void uponReleaseCRDTRequest(ReleaseCRDTRequest request, short sourceProto) {
+    private void uponReleaseCRDT(ReleaseCRDTRequest request, short sourceProto) {
         String crdtId = request.getCrdtId();
         Host sender = request.getSender();
         logger.debug("Received release CRDT with id {} request from {}: {}", crdtId, sender, request.getMsgId());
@@ -156,7 +154,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
      * @param request
      * @param sourceProto
      */
-    private void uponDownstreamRequest(DownstreamRequest request, short sourceProto) {
+    private void uponDownstream(DownstreamRequest request, short sourceProto) {
         UUID msgId = request.getMsgId();
         logger.debug("Received downstream request: {}", msgId);
 
@@ -179,7 +177,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
      * @param notification
      * @param sourceProto
      */
-    private void uponDeliverNotification(DeliverNotification notification, short sourceProto) {
+    private void uponDeliver(DeliverNotification notification, short sourceProto) {
         Host sender = notification.getSender();
         UUID msgId = notification.getMsgId();
         try {
@@ -207,13 +205,13 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         }
     }
 
-    private void uponNewPendingNeighbourNotification(NewPendingNeighbourNotification notification, short sourceProto) {
-        Host neighbour = notification.getNeighbour();
-        logger.info("Received {} with {}", notification, neighbour);
-        sendRequest(new SendVectorClockRequest(UUID.randomUUID(), myself, neighbour), broadcastId);
-    }
+//    private void uponNewPendingNeighbour(NewPendingNeighbourNotification notification, short sourceProto) {
+//        Host neighbour = notification.getNeighbour();
+//        logger.info("Received {} with {}", notification, neighbour);
+//        sendRequest(new SendVectorClockRequest(UUID.randomUUID(), myself, neighbour), broadcastId);
+//    }
 
-    private void uponVectorClockNotification(VectorClockNotification notification, short sourceProto) {
+    private void uponVectorClock(VectorClockNotification notification, short sourceProto) {
         Host neighbour = notification.getNeighbour();
         logger.info("Received {}", notification);
         try {
@@ -224,50 +222,11 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         sendRequest(new AddPendingToEagerRequest(UUID.randomUUID(), neighbour), broadcastId);
     }
 
-    private void uponSendVectorClockNotification(SendVectorClockNotification notification, short sourceProto) {
+    private void uponSendVectorClock(SendVectorClockNotification notification, short sourceProto) {
         Host neighbour = notification.getNeighbour();
-        MyVectorClockRequest request = new MyVectorClockRequest(UUID.randomUUID(), myself, neighbour, this.vectorClock);
+        VectorClockRequest request = new VectorClockRequest(UUID.randomUUID(), myself, neighbour, this.vectorClock);
         logger.info("Sent {} to {}", request, neighbour);
         sendRequest(request, broadcastId);
-    }
-
-    private void uponSyncOpsNotification(SyncOpsNotification notification, short sourceProto) {
-        //logger.info("Received {} from {}", notification, notification.getNeighbour());
-        logger.info("SyncOpsNotification from {}, size {}", notification.getNeighbour(), notification.getOperations().size());
-        try {
-
-            Iterator<byte[]> opIt = notification.getOperations().iterator();
-            Iterator<byte[]> idIt = notification.getIds().iterator();
-
-            //Execute operations from synchronization
-            while (opIt.hasNext() && idIt.hasNext()) {
-                byte[] serOp = opIt.next();
-                byte[] serId = idIt.next();
-                Operation op = deserializeOperation(serOp);
-                UUID msgId = deserializeId(serId);
-
-//                logger.info("Sync operation with {}: {}", notification.getNeighbour(), op);
-                Host h = op.getSender();
-                int clock = op.getSenderClock();
-                if (this.vectorClock.getHostClock(h) == clock - 1) {
-                    logger.info("Sync op {}-{} : {} from {}, Clock {}",
-                            h, clock, msgId, notification.getNeighbour(), vectorClock.getHostClock(h));
-//                    executeOperation(h, op, msgId);
-                    sendRequest(new BroadcastRequest(msgId, h, serOp), broadcastId);
-                } else if (this.vectorClock.getHostClock(h) < clock - 1) {
-                    logger.error("Sync Out-of-order op {}-{} : {} from {}, Clock {}",
-                            h, clock, msgId, notification.getNeighbour(), vectorClock.getHostClock(h));
-                } else {
-                    logger.info("Sync Ignored old op {}-{} : {} from {}, Clock {}",
-                            h, clock, msgId, notification.getNeighbour(), vectorClock.getHostClock(h));
-                }
-
-            }
-
-        } catch (IOException e) {
-            logger.error("EXCEPTION: {}", e.getMessage());
-            e.printStackTrace();
-        }
     }
 
     /* --------------------------------- Interface Methods --------------------------------- */
@@ -278,7 +237,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     }
 
 
-    /* --------------------------------- Auxiliary Methods --------------------------------- */
+    /* --------------------------------- Procedures --------------------------------- */
 
     private void sendMissingSyncOperations(Host neighbour, VectorClock neighbourClock) throws IOException {
         int index = 0;

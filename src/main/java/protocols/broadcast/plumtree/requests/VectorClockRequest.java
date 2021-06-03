@@ -7,7 +7,7 @@ import pt.unl.fct.di.novasys.network.data.Host;
 import java.util.UUID;
 
 
-public class MyVectorClockRequest extends ProtoRequest {
+public class VectorClockRequest extends ProtoRequest {
 
     public static final short REQUEST_ID = 902;
 
@@ -16,7 +16,7 @@ public class MyVectorClockRequest extends ProtoRequest {
     private final Host to;
     private final VectorClock vc;
 
-    public MyVectorClockRequest(UUID msgId, Host sender, Host to, VectorClock vc) {
+    public VectorClockRequest(UUID msgId, Host sender, Host to, VectorClock vc) {
         super(REQUEST_ID);
         this.msgId = msgId;
         this.sender = sender;
@@ -42,7 +42,7 @@ public class MyVectorClockRequest extends ProtoRequest {
 
     @Override
     public String toString() {
-        return "MyVectorClockRequest{" +
+        return "VectorClockRequest{" +
                 "sender=" + sender +
                 ", to=" + to +
                 ", vc=" + vc +

@@ -7,11 +7,9 @@ import org.apache.logging.log4j.Logger;
 import protocols.broadcast.common.BroadcastRequest;
 import protocols.broadcast.common.DeliverNotification;
 import protocols.broadcast.plumtree.messages.*;
-import protocols.broadcast.plumtree.notifications.NewPendingNeighbourNotification;
 import protocols.broadcast.plumtree.notifications.SendVectorClockNotification;
 import protocols.broadcast.plumtree.notifications.VectorClockNotification;
 import protocols.broadcast.plumtree.requests.AddPendingToEagerRequest;
-import protocols.broadcast.plumtree.requests.SendVectorClockRequest;
 import protocols.broadcast.plumtree.requests.SyncOpsRequest;
 import protocols.broadcast.plumtree.requests.VectorClockRequest;
 import protocols.broadcast.plumtree.timers.IHaveTimeout;
@@ -199,7 +197,6 @@ public class PlumTree extends GenericProtocol {
         handleAnnouncement(msg.getMid(), from, msg.getRound());
     }
 
-
     private void uponReceiveVectorClock(VectorClockMessage msg, Host from, short sourceProto, int channelId) {
         logger.info("Received {} from {}", msg, from);
         triggerNotification(new VectorClockNotification(msg.getSender(), msg.getVectorClock()));
@@ -257,10 +254,10 @@ public class PlumTree extends GenericProtocol {
 
         UUID mid = request.getMsgId();
         Host sender = request.getSender();
-        GossipMessage msg = new GossipMessage(mid, sender, 0, request.getMsg());
+        byte[] content = request.getMsg();
+        triggerNotification(new DeliverNotification(mid, sender, content, false));
         logger.info("Propagating my {} to {}", mid, eager);
-        triggerNotification(new DeliverNotification(mid, sender, msg.getContent(), false));
-        handleGossipMessage(mid, msg, 0, myself);
+        handleGossipMessage(mid, new GossipMessage(mid, sender, 0, content), 0, myself);
     }
 
     private void uponVectorClock(VectorClockRequest request, short sourceProto) {
@@ -298,11 +295,7 @@ public class PlumTree extends GenericProtocol {
             logger.info("Removed {} from lazy due to sync {}", currentPending, lazy);
         }
 
-        currentPending = pending.poll();
-        if (currentPending != null) {
-            logger.info("{} is my currentPending", currentPending);
-            requestVectorClock(currentPending);
-        }
+        tryNextSync();
     }
 
 
@@ -329,11 +322,7 @@ public class PlumTree extends GenericProtocol {
         }
 
         if (neighbour.equals(currentPending)) {
-            currentPending = pending.poll();
-            if (currentPending != null) {
-                logger.info("{} is my currentPending", currentPending);
-                requestVectorClock(currentPending);
-            }
+            tryNextSync();
         }
 
         MessageSource msgSrc = new MessageSource(neighbour, 0);
@@ -363,6 +352,14 @@ public class PlumTree extends GenericProtocol {
         }
     }
 
+    private void tryNextSync() {
+        currentPending = pending.poll();
+        if (currentPending != null) {
+            logger.info("{} is my currentPending", currentPending);
+            requestVectorClock(currentPending);
+        }
+    }
+
     private void requestVectorClock(Host neighbour) {
         SendVectorClockMessage msg = new SendVectorClockMessage(UUID.randomUUID(), myself);
         sendMessage(msg, neighbour);
@@ -386,6 +383,16 @@ public class PlumTree extends GenericProtocol {
         lazyPush(msg, round, sender);
     }
 
+    private void handleAnnouncement(UUID mid, Host from, int round) {
+        if (!received.containsKey(mid)) {
+            if (!onGoingTimers.containsKey(mid)) {
+                long tid = setupTimer(new IHaveTimeout(mid), timeout1);
+                onGoingTimers.put(mid, tid);
+            }
+            missing.computeIfAbsent(mid, v -> new LinkedList<>()).add(new MessageSource(from, round));
+        }
+    }
+
     private void eagerPush(GossipMessage msg, int round, Host from) {
         for (Host peer : eager) {
             if (!peer.equals(from)) {
@@ -402,16 +409,6 @@ public class PlumTree extends GenericProtocol {
             }
         }
         dispatch();
-    }
-
-    private void handleAnnouncement(UUID mid, Host from, int round) {
-        if (!received.containsKey(mid)) {
-            if (!onGoingTimers.containsKey(mid)) {
-                long tid = setupTimer(new IHaveTimeout(mid), timeout1);
-                onGoingTimers.put(mid, tid);
-            }
-            missing.computeIfAbsent(mid, v -> new LinkedList<>()).add(new MessageSource(from, round));
-        }
     }
 
     private void dispatch() {

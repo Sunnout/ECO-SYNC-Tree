@@ -45,6 +45,7 @@ public class PlumTree extends GenericProtocol {
 
     private final Queue<Host> pending;
     private Host currentPending;
+    private Map<Host, Boolean> synched;
 
     private final Map<UUID, Queue<MessageSource>> missing;
     private final Map<UUID, GossipMessage> received;
@@ -72,6 +73,7 @@ public class PlumTree extends GenericProtocol {
         this.lazy = new HashSet<>();
 
         this.pending = new LinkedList<>();
+        this.synched = new HashMap<>();
 
         this.missing = new HashMap<>();
         this.received = new HashMap<>();
@@ -150,7 +152,7 @@ public class PlumTree extends GenericProtocol {
         if (!received.containsKey(mid)) {
             int round = msg.getRound();
             //TODO: estava receber mensagens de alguém que não está em nenhum lado quando tinha !lazy.contains(from)??
-            if (eager.contains(from) || pending.contains(from) || from.equals(currentPending)) {
+            if (from.equals(currentPending) || eager.contains(from) || pending.contains(from)) {
                 triggerNotification(new DeliverNotification(mid, from, msg.getContent(), false));
                 handleGossipMessage(msg, round + 1, from);
                 //Se eu não adicionar aqui ao eager e remover do lazy então no início não se forma a árvore otimizada?
@@ -173,6 +175,8 @@ public class PlumTree extends GenericProtocol {
             if (lazy.add(from)) {
                 logger.info("Added {} to lazy due to duplicate {}", from, lazy);
             }
+
+            this.synched.put(from, false);
         }
     }
 
@@ -185,6 +189,8 @@ public class PlumTree extends GenericProtocol {
         if (lazy.add(from)) {
             logger.info("Added {} to lazy due to prune {}", from, lazy);
         }
+
+        this.synched.put(from, false);
     }
 
     private void uponReceiveGraft(GraftMessage msg, Host from, short sourceProto, int channelId) {
@@ -227,6 +233,7 @@ public class PlumTree extends GenericProtocol {
                 handleGossipMessage(gossipMessage, 0, from);
             }
         }
+        this.synched.put(from, true);
     }
 
     /*--------------------------------- Timers ---------------------------------------- */
@@ -326,6 +333,8 @@ public class PlumTree extends GenericProtocol {
             iHaves.remove(msgSrc);
         }
 
+        this.synched.put(neighbour, false);
+
         if (neighbour.equals(currentPending)) {
             tryNextSync();
         }
@@ -395,11 +404,17 @@ public class PlumTree extends GenericProtocol {
     }
 
     private void eagerPush(GossipMessage msg, int round, Host from) {
+        msg.setRound(round);
         for (Host peer : eager) {
             if (!peer.equals(from)) {
-                sendMessage(msg.setRound(round), peer);
+                sendMessage(msg, peer);
                 logger.info("Forward {} received from {} to {}", msg.getMid(), from, peer);
             }
+        }
+
+        if(synched.getOrDefault(currentPending, false)) {
+            sendMessage(msg, currentPending);
+            logger.info("Forward {} received from {} to {} because it is already synched", msg.getMid(), from, currentPending);
         }
     }
 

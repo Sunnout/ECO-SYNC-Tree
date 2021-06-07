@@ -152,7 +152,7 @@ public class PlumTree extends GenericProtocol {
             //TODO: estava receber mensagens de alguém que não está em nenhum lado quando tinha !lazy.contains(from)??
             if (eager.contains(from) || pending.contains(from) || from.equals(currentPending)) {
                 triggerNotification(new DeliverNotification(mid, from, msg.getContent(), false));
-                handleGossipMessage(mid, msg, round + 1, from);
+                handleGossipMessage(msg, round + 1, from);
                 //Se eu não adicionar aqui ao eager e remover do lazy então no início não se forma a árvore otimizada?
                 //Ou forma pq o hyparview é simétrico e se alguém me mandar uma msg no início é pq tb me tem na eager?
             } else {
@@ -224,7 +224,7 @@ public class PlumTree extends GenericProtocol {
                 GossipMessage gossipMessage = new GossipMessage(mid, from, 0, serOp);
                 triggerNotification(new DeliverNotification(mid, from, serOp, true));
                 logger.info("Propagating sync op {} to {}", mid, eager);
-                handleGossipMessage(mid, gossipMessage, 0, from);
+                handleGossipMessage(gossipMessage, 0, from);
             }
         }
     }
@@ -257,7 +257,7 @@ public class PlumTree extends GenericProtocol {
         byte[] content = request.getMsg();
         triggerNotification(new DeliverNotification(mid, sender, content, false));
         logger.info("Propagating my {} to {}", mid, eager);
-        handleGossipMessage(mid, new GossipMessage(mid, sender, 0, content), 0, myself);
+        handleGossipMessage(new GossipMessage(mid, sender, 0, content), 0, myself);
     }
 
     private void uponVectorClock(VectorClockRequest request, short sourceProto) {
@@ -321,13 +321,13 @@ public class PlumTree extends GenericProtocol {
             logger.info("Removed {} from pending due to down {}", neighbour, pending);
         }
 
-        if (neighbour.equals(currentPending)) {
-            tryNextSync();
-        }
-
         MessageSource msgSrc = new MessageSource(neighbour, 0);
         for (Queue<MessageSource> iHaves : missing.values()) {
             iHaves.remove(msgSrc);
+        }
+
+        if (neighbour.equals(currentPending)) {
+            tryNextSync();
         }
         closeConnection(neighbour);
     }
@@ -366,7 +366,8 @@ public class PlumTree extends GenericProtocol {
         logger.info("Sent {} to {}", msg, neighbour);
     }
 
-    private void handleGossipMessage(UUID mid, GossipMessage msg, int round, Host sender) {
+    private void handleGossipMessage(GossipMessage msg, int round, Host from) {
+        UUID mid = msg.getMid();
         received.put(mid, msg);
         stored.add(mid);
         if (stored.size() > space) {
@@ -379,8 +380,8 @@ public class PlumTree extends GenericProtocol {
             cancelTimer(tid);
         }
 
-        eagerPush(msg, round, sender);
-        lazyPush(msg, round, sender);
+        eagerPush(msg, round, from);
+        lazyPush(msg, round, from);
     }
 
     private void handleAnnouncement(UUID mid, Host from, int round) {

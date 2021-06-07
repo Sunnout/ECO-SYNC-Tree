@@ -46,7 +46,6 @@ public class HyParView extends GenericProtocol {
     protected IView active;
     protected IView passive;
 
-
     protected Set<Host> pending;
     private final Map<Short, Host[]> activeShuffles;
 
@@ -151,7 +150,6 @@ public class HyParView extends GenericProtocol {
 
         for(Host peer : active.getPeers()) {
             if(!peer.equals(from)) {
-//                openConnection(peer);
                 sendMessage(new ForwardJoinMessage(ARWL, from), peer);
                 logger.debug("Sent ForwardJoinMessage to {}", peer);
             }
@@ -175,23 +173,24 @@ public class HyParView extends GenericProtocol {
 
     private void uponReceiveForwardJoin(ForwardJoinMessage msg, Host from, short sourceProto, int channelId) {
         logger.debug("Received {} from {}", msg, from);
+        Host newHost = msg.getNewHost();
         if(msg.getTtl() == 0 || active.getPeers().size() == 1) {
-            if(!msg.getNewHost().equals(myself) && !active.containsPeer(msg.getNewHost())) {
-                passive.removePeer(msg.getNewHost());
-                pending.remove(msg.getNewHost());
+            if(!newHost.equals(myself) && !active.containsPeer(newHost)) {
+                passive.removePeer(newHost);
+                pending.remove(newHost);
 
-                openConnection(msg.getNewHost());
-                Host h = active.addPeer(msg.getNewHost());
-                logger.trace("Added to {} active{}", msg.getNewHost(), active);
-                sendMessage(new JoinReplyMessage(), msg.getNewHost());
-                logger.debug("Sent JoinReplyMessage to {}", msg.getNewHost());
-                triggerNotification(new NeighbourUp(from));
+                openConnection(newHost);
+                Host h = active.addPeer(newHost);
+                logger.trace("Added to {} active{}", newHost, active);
+                sendMessage(new JoinReplyMessage(), newHost);
+                logger.debug("Sent JoinReplyMessage to {}", newHost);
+                triggerNotification(new NeighbourUp(newHost));
                 handleDropFromActive(h);
             }
         } else {
             if(msg.decrementTtl() == PRWL)  {
-                passive.addPeer(msg.getNewHost());
-                logger.trace("Added to {} passive{}", from, passive);
+                passive.addPeer(newHost);
+                logger.trace("Added to {} passive {}", newHost, passive);
             }
             Host next = active.getRandomDiff(from);
             if(next != null) {
@@ -206,7 +205,7 @@ public class HyParView extends GenericProtocol {
         openConnection(from);
 
         if(msg.isPriority()) {
-            sendMessage(new HelloReplyMessage(true), from); //TODO: maybe send reply first
+            sendMessage(new HelloReplyMessage(true), from);
             logger.debug("Sent HelloReplyMessage to {}", from);
             if(!active.containsPeer(from)) {
                 pending.remove(from);
@@ -218,8 +217,6 @@ public class HyParView extends GenericProtocol {
                 triggerNotification(new NeighbourUp(from));
                 handleDropFromActive(h);
             }
-//            sendMessage(new HelloReplyMessage(true), from); //TODO: maybe send reply first
-//            logger.debug("Sent HelloReplyMessage to {}", from);
 
         } else {
             pending.remove(from);

@@ -257,7 +257,7 @@ public class PlumTree extends GenericProtocol {
         byte[] content = request.getMsg();
         triggerNotification(new DeliverNotification(mid, sender, content, false));
         logger.info("Propagating my {} to {}", mid, eager);
-        handleGossipMessage(new GossipMessage(mid, sender, 0, content), 0, myself);
+        handleGossipMessage(new GossipMessage(mid, sender, 0, content), 0, sender);
     }
 
     private void uponVectorClock(VectorClockRequest request, short sourceProto) {
@@ -405,7 +405,7 @@ public class PlumTree extends GenericProtocol {
 
     private void lazyPush(GossipMessage msg, int round, Host from) {
         for (Host peer : lazy) {
-            if (!peer.equals(from)) {
+            if (!peer.equals(from)) { //TODO: deu null pointer aqui??
                 lazyQueue.add(new AddressedIHaveMessage(new IHaveMessage(msg.getMid(), round), peer));
             }
         }

@@ -45,7 +45,7 @@ public class PlumTree extends GenericProtocol {
 
     private final Queue<Host> pending;
     private Host currentPending;
-    private Map<Host, Boolean> synched; //If currPend has synched with you, send him the ops you received while synching
+//    private Map<Host, Boolean> synched; //If currPend has synched with you, send him the ops you received while synching
     private Queue<GossipMessage> bufferedOps; //Buffer ops received between sending vc to kernel and sending sync ops (and send them after)
     private boolean buffering; //To know if we are between sending vc to kernel and sending ops to neighbour
 
@@ -75,7 +75,7 @@ public class PlumTree extends GenericProtocol {
         this.lazy = new HashSet<>();
 
         this.pending = new LinkedList<>();
-        this.synched = new HashMap<>();
+//        this.synched = new HashMap<>();
         this.bufferedOps = new LinkedList<>();
         this.buffering = false;
 
@@ -182,7 +182,7 @@ public class PlumTree extends GenericProtocol {
                 logger.info("Added {} to lazy due to duplicate {}", from, lazy);
             }
 
-            this.synched.put(from, false);
+//            this.synched.put(from, false);
         }
     }
 
@@ -196,7 +196,7 @@ public class PlumTree extends GenericProtocol {
             logger.info("Added {} to lazy due to prune {}", from, lazy);
         }
 
-        this.synched.put(from, false);
+//        this.synched.put(from, false);
     }
 
     private void uponReceiveGraft(GraftMessage msg, Host from, short sourceProto, int channelId) {
@@ -212,7 +212,6 @@ public class PlumTree extends GenericProtocol {
     private void uponReceiveVectorClock(VectorClockMessage msg, Host from, short sourceProto, int channelId) {
         logger.info("Received {} from {}", msg, from);
         triggerNotification(new VectorClockNotification(msg.getSender(), msg.getVectorClock()));
-        this.buffering = true;
     }
 
     private void uponReceiveSendVectorClock(SendVectorClockMessage msg, Host from, short sourceProto, int channelId) {
@@ -240,7 +239,7 @@ public class PlumTree extends GenericProtocol {
                 handleGossipMessage(gossipMessage, 0, from);
             }
         }
-        this.synched.put(from, true);
+//        this.synched.put(from, true);
     }
 
     /*--------------------------------- Timers ---------------------------------------- */
@@ -341,7 +340,7 @@ public class PlumTree extends GenericProtocol {
             iHaves.remove(msgSrc);
         }
 
-        this.synched.put(neighbour, false);
+//        this.synched.put(neighbour, false);
 
         if (neighbour.equals(currentPending)) {
             tryNextSync();
@@ -381,6 +380,7 @@ public class PlumTree extends GenericProtocol {
         SendVectorClockMessage msg = new SendVectorClockMessage(UUID.randomUUID(), myself);
         sendMessage(msg, neighbour);
         logger.info("Sent {} to {}", msg, neighbour);
+        this.buffering = true;
     }
 
     private void handleGossipMessage(GossipMessage msg, int round, Host from) {
@@ -430,10 +430,10 @@ public class PlumTree extends GenericProtocol {
             }
         }
 
-        if(synched.getOrDefault(currentPending, false)) {
-            sendMessage(msg, currentPending);
-            logger.info("Forward {} received from {} to {} because it is already synched", msg.getMid(), from, currentPending);
-        }
+//        if(synched.getOrDefault(currentPending, false)) {
+//            sendMessage(msg, currentPending);
+//            logger.info("Forward {} received from {} to {} because it is already synched", msg.getMid(), from, currentPending);
+//        }
     }
 
     private void lazyPush(GossipMessage msg, int round, Host from) {

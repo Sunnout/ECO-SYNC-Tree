@@ -13,10 +13,7 @@ import protocols.broadcast.common.BroadcastRequest;
 import protocols.broadcast.common.DeliverNotification;
 import protocols.broadcast.plumtree.notifications.SendVectorClockNotification;
 import protocols.broadcast.plumtree.notifications.VectorClockNotification;
-import protocols.broadcast.plumtree.notifications.NewPendingNeighbourNotification;
-import protocols.broadcast.plumtree.requests.AddPendingToEagerRequest;
 import protocols.broadcast.plumtree.requests.VectorClockRequest;
-import protocols.broadcast.plumtree.requests.SendVectorClockRequest;
 import protocols.broadcast.plumtree.requests.SyncOpsRequest;
 import protocols.replication.notifications.*;
 import protocols.replication.requests.*;
@@ -212,7 +209,6 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         } catch (IOException e) {
             e.printStackTrace();
         }
-        sendRequest(new AddPendingToEagerRequest(UUID.randomUUID(), neighbour), broadcastId);
     }
 
     private void uponSendVectorClock(SendVectorClockNotification notification, short sourceProto) {

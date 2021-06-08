@@ -9,7 +9,6 @@ import protocols.broadcast.common.DeliverNotification;
 import protocols.broadcast.plumtree.messages.*;
 import protocols.broadcast.plumtree.notifications.SendVectorClockNotification;
 import protocols.broadcast.plumtree.notifications.VectorClockNotification;
-import protocols.broadcast.plumtree.requests.AddPendingToEagerRequest;
 import protocols.broadcast.plumtree.requests.SyncOpsRequest;
 import protocols.broadcast.plumtree.requests.VectorClockRequest;
 import protocols.broadcast.plumtree.timers.IHaveTimeout;
@@ -45,7 +44,6 @@ public class PlumTree extends GenericProtocol {
 
     private final Queue<Host> pending;
     private Host currentPending;
-//    private Map<Host, Boolean> synched; //If currPend has synched with you, send him the ops you received while synching
     private Queue<GossipMessage> bufferedOps; //Buffer ops received between sending vc to kernel and sending sync ops (and send them after)
     private boolean buffering; //To know if we are between sending vc to kernel and sending ops to neighbour
 
@@ -75,7 +73,6 @@ public class PlumTree extends GenericProtocol {
         this.lazy = new HashSet<>();
 
         this.pending = new LinkedList<>();
-//        this.synched = new HashMap<>();
         this.bufferedOps = new LinkedList<>();
         this.buffering = false;
 
@@ -94,12 +91,10 @@ public class PlumTree extends GenericProtocol {
         /*--------------------- Register Timer Handlers ----------------------------- */
         registerTimerHandler(IHaveTimeout.TIMER_ID, this::uponIHaveTimeout);
 
-
         /*--------------------- Register Request Handlers ----------------------------- */
         registerRequestHandler(BroadcastRequest.REQUEST_ID, this::uponBroadcast);
         registerRequestHandler(VectorClockRequest.REQUEST_ID, this::uponVectorClock);
         registerRequestHandler(SyncOpsRequest.REQUEST_ID, this::uponSyncOps);
-        registerRequestHandler(AddPendingToEagerRequest.REQUEST_ID, this::uponAddPendingToEager);
 
         /*--------------------- Register Notification Handlers ----------------------------- */
         subscribeNotification(NeighbourUp.NOTIFICATION_ID, this::uponNeighbourUp);
@@ -181,8 +176,6 @@ public class PlumTree extends GenericProtocol {
             if (lazy.add(from)) {
                 logger.info("Added {} to lazy due to duplicate {}", from, lazy);
             }
-
-//            this.synched.put(from, false);
         }
     }
 
@@ -195,8 +188,6 @@ public class PlumTree extends GenericProtocol {
         if (lazy.add(from)) {
             logger.info("Added {} to lazy due to prune {}", from, lazy);
         }
-
-//        this.synched.put(from, false);
     }
 
     private void uponReceiveGraft(GraftMessage msg, Host from, short sourceProto, int channelId) {
@@ -239,7 +230,6 @@ public class PlumTree extends GenericProtocol {
                 handleGossipMessage(gossipMessage, 0, from);
             }
         }
-//        this.synched.put(from, true);
     }
 
     /*--------------------------------- Timers ---------------------------------------- */
@@ -292,24 +282,7 @@ public class PlumTree extends GenericProtocol {
         sendMessage(msg, neighbour);
         logger.info("Sent {} to {}", msg, neighbour);
         handleBufferedOperations(neighbour);
-    }
-
-    private void uponAddPendingToEager(AddPendingToEagerRequest request, short sourceProto) {
-        if (!channelReady)
-            return;
-
-        logger.info("Received {}", request);
-
-        if (eager.add(currentPending)) {
-            logger.info("Added {} to eager {} : pending list {}", currentPending, eager, pending);
-        }
-
-        //Passei a remover da lazy só no fim em vez de remover mal começo sync
-        if (lazy.remove(currentPending)) {
-            logger.info("Removed {} from lazy due to sync {}", currentPending, lazy);
-        }
-
-        tryNextSync();
+        addPendingToEager();
     }
 
 
@@ -366,6 +339,19 @@ public class PlumTree extends GenericProtocol {
                 logger.info("Added {} to pending {}", neighbour, pending);
             }
         }
+    }
+
+    private void addPendingToEager() {
+        if (eager.add(currentPending)) {
+            logger.info("Added {} to eager {} : pending list {}", currentPending, eager, pending);
+        }
+
+        //Passei a remover da lazy só no fim em vez de remover mal começo sync
+        if (lazy.remove(currentPending)) {
+            logger.info("Removed {} from lazy due to sync {}", currentPending, lazy);
+        }
+
+        tryNextSync();
     }
 
     private void tryNextSync() {

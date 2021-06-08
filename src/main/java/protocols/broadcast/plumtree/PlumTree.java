@@ -45,7 +45,9 @@ public class PlumTree extends GenericProtocol {
 
     private final Queue<Host> pending;
     private Host currentPending;
-    private Map<Host, Boolean> synched;
+    private Map<Host, Boolean> synched; //If currPend has synched with you, send him the ops you received while synching
+    private Queue<GossipMessage> bufferedOps; //Buffer ops received between sending vc to kernel and sending sync ops (and send them after)
+    private boolean buffering; //To know if we are between sending vc to kernel and sending ops to neighbour
 
     private final Map<UUID, Queue<MessageSource>> missing;
     private final Map<UUID, GossipMessage> received;
@@ -74,6 +76,8 @@ public class PlumTree extends GenericProtocol {
 
         this.pending = new LinkedList<>();
         this.synched = new HashMap<>();
+        this.bufferedOps = new LinkedList<>();
+        this.buffering = false;
 
         this.missing = new HashMap<>();
         this.received = new HashMap<>();
@@ -155,6 +159,8 @@ public class PlumTree extends GenericProtocol {
             if (from.equals(currentPending) || eager.contains(from) || pending.contains(from)) {
                 triggerNotification(new DeliverNotification(mid, from, msg.getContent(), false));
                 handleGossipMessage(msg, round + 1, from);
+                if(buffering)
+                    this.bufferedOps.add(msg);
                 //Se eu não adicionar aqui ao eager e remover do lazy então no início não se forma a árvore otimizada?
                 //Ou forma pq o hyparview é simétrico e se alguém me mandar uma msg no início é pq tb me tem na eager?
             } else {
@@ -206,6 +212,7 @@ public class PlumTree extends GenericProtocol {
     private void uponReceiveVectorClock(VectorClockMessage msg, Host from, short sourceProto, int channelId) {
         logger.info("Received {} from {}", msg, from);
         triggerNotification(new VectorClockNotification(msg.getSender(), msg.getVectorClock()));
+        this.buffering = true;
     }
 
     private void uponReceiveSendVectorClock(SendVectorClockMessage msg, Host from, short sourceProto, int channelId) {
@@ -285,6 +292,7 @@ public class PlumTree extends GenericProtocol {
         SyncOpsMessage msg = new SyncOpsMessage(request.getMsgId(), request.getIds(), request.getOperations());
         sendMessage(msg, neighbour);
         logger.info("Sent {} to {}", msg, neighbour);
+        handleBufferedOperations(neighbour);
     }
 
     private void uponAddPendingToEager(AddPendingToEagerRequest request, short sourceProto) {
@@ -400,6 +408,16 @@ public class PlumTree extends GenericProtocol {
                 onGoingTimers.put(mid, tid);
             }
             missing.computeIfAbsent(mid, v -> new LinkedList<>()).add(new MessageSource(from, round));
+        }
+    }
+
+    private void handleBufferedOperations(Host neighbour) {
+        this.buffering = false;
+        GossipMessage msg = bufferedOps.poll();
+        while(msg != null) {
+            sendMessage(msg, neighbour);
+            logger.info("Sent buffered {} to {}", msg, neighbour);
+            msg = bufferedOps.poll();
         }
     }
 

@@ -154,8 +154,6 @@ public class PlumTree extends GenericProtocol {
             if (from.equals(currentPending) || eager.contains(from) || pending.contains(from)) {
                 triggerNotification(new DeliverNotification(mid, from, msg.getContent(), false));
                 handleGossipMessage(msg, round + 1, from);
-                if(buffering)
-                    this.bufferedOps.add(msg);
                 //Se eu não adicionar aqui ao eager e remover do lazy então no início não se forma a árvore otimizada?
                 //Ou forma pq o hyparview é simétrico e se alguém me mandar uma msg no início é pq tb me tem na eager?
             } else {
@@ -260,7 +258,8 @@ public class PlumTree extends GenericProtocol {
         byte[] content = request.getMsg();
         triggerNotification(new DeliverNotification(mid, sender, content, false));
         logger.info("Propagating my {} to {}", mid, eager);
-        handleGossipMessage(new GossipMessage(mid, sender, 0, content), 0, sender);
+        GossipMessage msg = new GossipMessage(mid, sender, 0, content);
+        handleGossipMessage(msg, 0, sender);
     }
 
     private void uponVectorClock(VectorClockRequest request, short sourceProto) {
@@ -312,8 +311,6 @@ public class PlumTree extends GenericProtocol {
         for (Queue<MessageSource> iHaves : missing.values()) {
             iHaves.remove(msgSrc);
         }
-
-//        this.synched.put(neighbour, false);
 
         if (neighbour.equals(currentPending)) {
             tryNextSync();
@@ -370,6 +367,9 @@ public class PlumTree extends GenericProtocol {
     }
 
     private void handleGossipMessage(GossipMessage msg, int round, Host from) {
+        if(buffering)
+            this.bufferedOps.add(msg);
+
         UUID mid = msg.getMid();
         received.put(mid, msg);
         stored.add(mid);

@@ -256,9 +256,9 @@ public class CRDTApp extends GenericProtocol {
     }
 
     private void printFinalValues(int run) {
-        for(OperationAndID opAndId : ReplicationKernel.causallyOrderedOps) {
+        /*for(OperationAndID opAndId : ReplicationKernel.causallyOrderedOps) {
             logger.info("{} [OP] {}", opAndId.getId(), opAndId.getOp().getSender().toString() + " " + opAndId.getOp().getSenderClock());
-        }
+        }*/
 
         if(run == 0) {
             logger.info("--------------------> Integer value of {}: {}", CRDT0, getCounterValue(CRDT0));

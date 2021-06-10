@@ -94,7 +94,6 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         subscribeNotification(DeliverNotification.NOTIFICATION_ID, this::uponDeliver);
         subscribeNotification(VectorClockNotification.NOTIFICATION_ID, this::uponVectorClock);
         subscribeNotification(SendVectorClockNotification.NOTIFICATION_ID, this::uponSendVectorClock);
-
     }
 
     @Override
@@ -153,6 +152,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     private void uponDownstream(DownstreamRequest request, short sourceProto) {
         UUID msgId = request.getMsgId();
         logger.debug("Received downstream request: {}", msgId);
+        logger.info("Accepted my op {}-{} : {}", myself, seqNumber, msgId);
 
         Operation op = request.getOperation();
         incrementAndSetVectorClock(op);
@@ -189,7 +189,8 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
                     logger.error("[{}] Out-of-order op {}-{} : {} from {}, Clock {}", notification.isFromSync(),
                             h, clock, notification.getMsgId(), sender, vectorClock.getHostClock(h));
                 } else {
-                    logger.info("[{}] Ignored old op {}-{} : {} from {}, Clock {}", notification.isFromSync(),
+
+                    logger.error("[{}] Ignored old op {}-{} : {} from {}, Clock {}", notification.isFromSync(),
                             h, clock, notification.getMsgId(), sender, vectorClock.getHostClock(h));
                 }
             } else {
@@ -326,6 +327,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
 
     private void handleCRDTCreation(String crdtId, String crdtType, String[] dataTypes, Host sender, UUID msgId) throws IOException {
         logger.debug("Creating new CRDT with id {} and type {}", crdtId, crdtType);
+        logger.info("Accepted my op {}-{} : {}", myself, seqNumber, msgId);
         KernelCRDT crdt = createNewCrdt(crdtId, crdtType, dataTypes, sender);
         triggerNotification(new ReturnCRDTNotification(msgId, sender, crdt));
         CreateOperation op = new CreateOperation(null, 0, CREATE_CRDT, crdtId, crdtType, dataTypes);

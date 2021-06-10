@@ -150,7 +150,13 @@ public class PlumTree extends GenericProtocol {
         UUID mid = msg.getMid();
         if (!received.containsKey(mid)) {
             int round = msg.getRound();
+
+            triggerNotification(new DeliverNotification(mid, from, msg.getContent(), false));
+            handleGossipMessage(msg, round + 1, from);
+
+            /*
             //TODO: estava receber mensagens de alguém que não está em nenhum lado quando tinha !lazy.contains(from)??
+
             if (from.equals(currentPending) || eager.contains(from) || pending.contains(from)) {
                 triggerNotification(new DeliverNotification(mid, from, msg.getContent(), false));
                 handleGossipMessage(msg, round + 1, from);
@@ -161,13 +167,14 @@ public class PlumTree extends GenericProtocol {
                 handleAnnouncement(mid, from, round);
                 //TODO: talvez ligar assim seja mau pq podes fazer sync logo após prune
 //                startSynchronization(from, true);
-            }
+            }*/
 
         } else {
             logger.info("{} was duplicated msg from {}", mid, from);
 
             if (eager.remove(from)) {
                 logger.info("Removed {} from eager due to duplicate {}", from, eager);
+                logger.info("Sent PruneMessage to {}", from);
                 sendMessage(new PruneMessage(), from);
             }
 
@@ -200,6 +207,7 @@ public class PlumTree extends GenericProtocol {
 
     private void uponReceiveVectorClock(VectorClockMessage msg, Host from, short sourceProto, int channelId) {
         logger.info("Received {} from {}", msg, from);
+        this.buffering = true;
         triggerNotification(new VectorClockNotification(msg.getSender(), msg.getVectorClock()));
     }
 
@@ -241,6 +249,7 @@ public class PlumTree extends GenericProtocol {
                 onGoingTimers.put(mid, tid);
                 Host neighbour = msgSrc.peer;
                 startSynchronization(neighbour, false);
+                logger.info("Sent GraftMessage for {} to {}", mid, neighbour);
                 sendMessage(new GraftMessage(mid, msgSrc.round), neighbour);
             }
         }
@@ -363,7 +372,6 @@ public class PlumTree extends GenericProtocol {
         SendVectorClockMessage msg = new SendVectorClockMessage(UUID.randomUUID(), myself);
         sendMessage(msg, neighbour);
         logger.info("Sent {} to {}", msg, neighbour);
-        this.buffering = true;
     }
 
     private void handleGossipMessage(GossipMessage msg, int round, Host from) {
@@ -399,11 +407,10 @@ public class PlumTree extends GenericProtocol {
 
     private void handleBufferedOperations(Host neighbour) {
         this.buffering = false;
-        GossipMessage msg = bufferedOps.poll();
-        while(msg != null) {
+        GossipMessage msg;
+        while((msg = bufferedOps.poll()) != null) {
             sendMessage(msg, neighbour);
             logger.info("Sent buffered {} to {}", msg, neighbour);
-            msg = bufferedOps.poll();
         }
     }
 

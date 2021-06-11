@@ -57,7 +57,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     private short broadcastId; //Broadcast protocol ID
 
     //Replication kernel variables
-    private VectorClock vectorClock; //Local vector clock
+    public static VectorClock vectorClock; //Local vector clock
     private int seqNumber; //Counter of local operation
     private Map<String, KernelCRDT> crdtsById; //Map that stores CRDTs by their ID
     private Map<String, Set<Host>> hostsByCrdt; //Map that stores the hosts that replicate a given CRDT
@@ -189,7 +189,6 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
                     logger.error("[{}] Out-of-order op {}-{} : {} from {}, Clock {}", notification.isFromSync(),
                             h, clock, notification.getMsgId(), sender, vectorClock.getHostClock(h));
                 } else {
-
                     logger.error("[{}] Ignored old op {}-{} : {} from {}, Clock {}", notification.isFromSync(),
                             h, clock, notification.getMsgId(), sender, vectorClock.getHostClock(h));
                 }
@@ -235,7 +234,6 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
             Operation op = opAndId.getOp();
             Host h = op.getSender();
             int opClock = op.getSenderClock();
-//            logger.info("{}-{} < {}", h, neighbourClock.getHostClock(h), opClock);
             if (neighbourClock.getHostClock(h) < opClock)
                 break;
             index++;
@@ -291,13 +289,6 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         byte[] payload = new byte[buf.readableBytes()];
         buf.readBytes(payload);
         return payload;
-    }
-
-    private UUID deserializeId(byte[] msg) {
-        ByteBuf buf = Unpooled.buffer().writeBytes(msg);
-        long firstLong = buf.readLong();
-        long secondLong = buf.readLong();
-        return new UUID(firstLong, secondLong);
     }
 
     private void broadcastOperation(boolean isCreateOp, UUID msgId, Host sender, Operation op) throws IOException {

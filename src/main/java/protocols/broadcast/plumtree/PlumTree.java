@@ -44,7 +44,7 @@ public class PlumTree extends GenericProtocol {
 
     private final Queue<Host> pending;
     private Host currentPending;
-    private Queue<GossipMessage> bufferedOps; //Buffer ops received between sending vc to kernel and sending sync ops (and send them after)
+    private final Queue<GossipMessage> bufferedOps; //Buffer ops received between sending vc to kernel and sending sync ops (and send them after)
     private boolean buffering; //To know if we are between sending vc to kernel and sending ops to neighbour
 
     private final Map<UUID, Queue<MessageSource>> missing;
@@ -66,7 +66,7 @@ public class PlumTree extends GenericProtocol {
         super(PROTOCOL_NAME, PROTOCOL_ID);
         this.myself = myself;
 
-        this.space = Integer.parseInt(properties.getProperty("space", "6000"));
+        this.space = Integer.parseInt(properties.getProperty("space", "25000"));
         this.stored = new LinkedList<>();
 
         this.eager = new HashSet<>();
@@ -149,26 +149,8 @@ public class PlumTree extends GenericProtocol {
         logger.info("Received {} from {}", msg.getMid(), from);
         UUID mid = msg.getMid();
         if (!received.containsKey(mid)) {
-            int round = msg.getRound();
-
             triggerNotification(new DeliverNotification(mid, from, msg.getContent(), false));
-            handleGossipMessage(msg, round + 1, from);
-
-            /*
-            //TODO: estava receber mensagens de alguém que não está em nenhum lado quando tinha !lazy.contains(from)??
-
-            if (from.equals(currentPending) || eager.contains(from) || pending.contains(from)) {
-                triggerNotification(new DeliverNotification(mid, from, msg.getContent(), false));
-                handleGossipMessage(msg, round + 1, from);
-                //Se eu não adicionar aqui ao eager e remover do lazy então no início não se forma a árvore otimizada?
-                //Ou forma pq o hyparview é simétrico e se alguém me mandar uma msg no início é pq tb me tem na eager?
-            } else {
-                logger.info("{} was received from lazy {}", mid, from);
-                handleAnnouncement(mid, from, round);
-                //TODO: talvez ligar assim seja mau pq podes fazer sync logo após prune
-//                startSynchronization(from, true);
-            }*/
-
+            handleGossipMessage(msg, msg.getRound() + 1, from);
         } else {
             logger.info("{} was duplicated msg from {}", mid, from);
 
@@ -197,7 +179,7 @@ public class PlumTree extends GenericProtocol {
 
     private void uponReceiveGraft(GraftMessage msg, Host from, short sourceProto, int channelId) {
         logger.info("Received {} from {}", msg, from);
-        startSynchronization(from, false);
+        startSynchronization(from);
     }
 
     private void uponReceiveIHave(IHaveMessage msg, Host from, short sourceProto, int channelId) {
@@ -227,13 +209,10 @@ public class PlumTree extends GenericProtocol {
             byte[] serId = idIt.next();
             UUID mid = deserializeId(serId);
 
-            //These are not delivered if duplicated due to out of order
             if (!received.containsKey(mid)) {
-                //TODO: check se o from aqui é o que envia ou o sender original
-                GossipMessage gossipMessage = new GossipMessage(mid, from, 0, serOp);
                 triggerNotification(new DeliverNotification(mid, from, serOp, true));
                 logger.info("Propagating sync op {} to {}", mid, eager);
-                handleGossipMessage(gossipMessage, 0, from);
+                handleGossipMessage(new GossipMessage(mid, from, 0, serOp), 0, from);
             }
         }
     }
@@ -248,7 +227,7 @@ public class PlumTree extends GenericProtocol {
                 long tid = setupTimer(timeout, timeout2);
                 onGoingTimers.put(mid, tid);
                 Host neighbour = msgSrc.peer;
-                startSynchronization(neighbour, false);
+                startSynchronization(neighbour);
                 logger.info("Sent GraftMessage for {} to {}", mid, neighbour);
                 sendMessage(new GraftMessage(mid, msgSrc.round), neighbour);
             }
@@ -299,7 +278,7 @@ public class PlumTree extends GenericProtocol {
     private void uponNeighbourUp(NeighbourUp notification, short sourceProto) {
         Host neighbour = notification.getNeighbour();
         logger.info("Trying sync from neighbour {} up", neighbour);
-        startSynchronization(neighbour, false);
+        startSynchronization(neighbour);
     }
 
     private void uponNeighbourDown(NeighbourDown notification, short sourceProto) {
@@ -330,12 +309,8 @@ public class PlumTree extends GenericProtocol {
 
     /*--------------------------------- Procedures ---------------------------------------- */
 
-    private void startSynchronization(Host neighbour, boolean fromGossip) {
+    private void startSynchronization(Host neighbour) {
         if (!neighbour.equals(currentPending) && !eager.contains(neighbour) && !pending.contains(neighbour)) {
-            if (fromGossip) {
-                logger.info("Sync with {} was from gossip", neighbour);
-                openConnection(neighbour);
-            }
             if (currentPending == null) {
                 currentPending = neighbour;
                 logger.info("{} is my currentPending", neighbour);
@@ -348,11 +323,14 @@ public class PlumTree extends GenericProtocol {
     }
 
     private void addPendingToEager() {
+        if(currentPending == null) {
+            logger.error("Adding null to eager");
+        }
+
         if (eager.add(currentPending)) {
             logger.info("Added {} to eager {} : pending list {}", currentPending, eager, pending);
         }
 
-        //Passei a remover da lazy só no fim em vez de remover mal começo sync
         if (lazy.remove(currentPending)) {
             logger.info("Removed {} from lazy due to sync {}", currentPending, lazy);
         }
@@ -417,21 +395,19 @@ public class PlumTree extends GenericProtocol {
     private void eagerPush(GossipMessage msg, int round, Host from) {
         msg.setRound(round);
         for (Host peer : eager) {
-            if (!peer.equals(from)) {
+            if(peer == null || from == null) {
+                logger.error("Peer {} ; From {}", peer, from);
+            }
+            if (!peer.equals(from)) { //TODO: null pointer no from?
                 sendMessage(msg, peer);
                 logger.info("Forward {} received from {} to {}", msg.getMid(), from, peer);
             }
         }
-
-//        if(synched.getOrDefault(currentPending, false)) {
-//            sendMessage(msg, currentPending);
-//            logger.info("Forward {} received from {} to {} because it is already synched", msg.getMid(), from, currentPending);
-//        }
     }
 
     private void lazyPush(GossipMessage msg, int round, Host from) {
         for (Host peer : lazy) {
-            if (!peer.equals(from)) { //TODO: deu null pointer aqui??
+            if (!peer.equals(from)) {
                 lazyQueue.add(new AddressedIHaveMessage(new IHaveMessage(msg.getMid(), round), peer));
             }
         }

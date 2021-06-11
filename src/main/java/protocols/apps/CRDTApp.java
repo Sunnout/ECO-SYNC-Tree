@@ -1,9 +1,6 @@
 package protocols.apps;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Properties;
-import java.util.UUID;
+import java.util.*;
 
 import crdts.interfaces.GenericCRDT;
 import crdts.operations.Operation;
@@ -31,7 +28,7 @@ public class CRDTApp extends GenericProtocol {
 
     //RUN = 0 --> counter; 1 --> register; 2 --> set; 3 --> map; 4 --> 8 registers;
     //5 --> 8 sets; 6 --> 8 maps; 7 --> 1 of each CRDT
-    private static final int RUN = 0;
+    private static final int RUN = 7;
 
     //True for several periodic ops, false for 1 op per crdt from each app
     private static final boolean PERIODIC_OPS = true;
@@ -76,17 +73,15 @@ public class CRDTApp extends GenericProtocol {
     private long ops1Timer;
     private long ops2Timer;
 
-    private int times;
-
     //Map of crdtId to GenericCRDT
     private Map<String, GenericCRDT> myCRDTs;
 
+    private Random rand;
 
     public CRDTApp(Properties properties, Host self, short replicationKernelId) throws HandlerRegistrationException {
         super(PROTO_NAME, PROTO_ID);
         this.replicationKernelId = replicationKernelId;
         this.self = self;
-        this.times = 0;
         this.myCRDTs = new HashMap<>();
 
         //Read configurations
@@ -96,6 +91,7 @@ public class CRDTApp extends GenericProtocol {
         this.runTime = Integer.parseInt(properties.getProperty("run_time"));
         this.ops1Interval = Integer.parseInt(properties.getProperty("ops1"));
         this.ops2Interval = Integer.parseInt(properties.getProperty("ops2"));
+        this.rand = new Random();
 
         /*--------------------- Register Timer Handlers ----------------------------- */
         registerTimerHandler(ExecuteOps1Timer.TIMER_ID, this::uponExecuteOps1Timer);
@@ -129,9 +125,9 @@ public class CRDTApp extends GenericProtocol {
         } else if(run == 1) {
             getCRDT(LWW_REGISTER, new String[]{"int"}, CRDT1);
         } else if(run == 2) {
-            getCRDT(OR_SET, new String[]{"long"}, CRDT2);
+            getCRDT(OR_SET, new String[]{"int"}, CRDT2);
         } else if(run == 3) {
-            getCRDT(OR_MAP, new String[]{"byte", "long"}, CRDT3);
+            getCRDT(OR_MAP, new String[]{"byte", "int"}, CRDT3);
         } else if(run == 4) {
             getCRDT(LWW_REGISTER, new String[]{"int"}, CRDT1);
             getCRDT(LWW_REGISTER, new String[]{"long"}, CRDT2);
@@ -162,8 +158,8 @@ public class CRDTApp extends GenericProtocol {
         } else if(run == 7) {
             getCRDT(COUNTER, new String[]{"int"}, CRDT0);
             getCRDT(LWW_REGISTER, new String[]{"int"}, CRDT1);
-            getCRDT(OR_SET, new String[]{"long"}, CRDT2);
-            getCRDT(OR_MAP, new String[]{"byte", "long"}, CRDT3);
+            getCRDT(OR_SET, new String[]{"int"}, CRDT2);
+            getCRDT(OR_MAP, new String[]{"byte", "int"}, CRDT3);
         }
     }
 
@@ -171,11 +167,11 @@ public class CRDTApp extends GenericProtocol {
         if(run == 0) {
             executeCounterOperation(CRDT0, CounterOpType.INCREMENT);
         } else if(run == 1) {
-            executeRegisterOperation(CRDT1, RegisterOpType.ASSIGN, new IntegerType(5));
+            executeRegisterOperation(CRDT1, RegisterOpType.ASSIGN, new IntegerType(rand.nextInt(10)));
         } else if(run == 2) {
-            executeSetOperation(CRDT2, SetOpType.ADD, new LongType(5L));
+            executeSetOperation(CRDT2, SetOpType.ADD, new IntegerType(rand.nextInt(10)));
         } else if(run == 3) {
-            executeMapOperation(CRDT3, MapOpType.PUT, new ByteType((byte)1), new LongType(5L));
+            executeMapOperation(CRDT3, MapOpType.PUT, new ByteType((byte)rand.nextInt(2)), new IntegerType(rand.nextInt(10)));
         } else if(run == 4) {
             executeRegisterOperation(CRDT1, RegisterOpType.ASSIGN, new IntegerType(5));
             executeRegisterOperation(CRDT2, RegisterOpType.ASSIGN, new LongType(5L));
@@ -205,9 +201,9 @@ public class CRDTApp extends GenericProtocol {
             executeMapOperation(CRDT8, MapOpType.PUT, new ByteType((byte)1), new ByteType((byte)0));
         } else if(run == 7) {
             executeCounterOperation(CRDT0, CounterOpType.INCREMENT);
-            executeRegisterOperation(CRDT1, RegisterOpType.ASSIGN, new IntegerType(5));
-            executeSetOperation(CRDT2, SetOpType.ADD, new LongType(5L));
-            executeMapOperation(CRDT3, MapOpType.PUT, new ByteType((byte)1), new LongType(5L));
+            executeRegisterOperation(CRDT1, RegisterOpType.ASSIGN, new IntegerType(rand.nextInt(10)));
+            executeSetOperation(CRDT2, SetOpType.ADD, new IntegerType(rand.nextInt(10)));
+            executeMapOperation(CRDT3, MapOpType.PUT, new ByteType((byte)rand.nextInt(2)), new IntegerType(rand.nextInt(10)));
         }
     }
 
@@ -215,11 +211,11 @@ public class CRDTApp extends GenericProtocol {
         if(run == 0) {
             executeCounterOperation(CRDT0, CounterOpType.DECREMENT);
         } else if(run == 1) {
-            executeRegisterOperation(CRDT1, RegisterOpType.ASSIGN, new IntegerType(7));
+            executeRegisterOperation(CRDT1, RegisterOpType.ASSIGN, new IntegerType(rand.nextInt(10)));
         } else if(run == 2) {
-            executeSetOperation(CRDT2, SetOpType.REMOVE, new LongType(5L));
+            executeSetOperation(CRDT2, SetOpType.REMOVE, new IntegerType(rand.nextInt(10)));
         } else if(run == 3) {
-            executeMapOperation(CRDT3, MapOpType.DELETE, new ByteType((byte)1), null);
+            executeMapOperation(CRDT3, MapOpType.DELETE, new ByteType((byte)rand.nextInt(2)), null);
         } else if(run == 4) {
             executeRegisterOperation(CRDT1, RegisterOpType.ASSIGN, new IntegerType(7));
             executeRegisterOperation(CRDT2, RegisterOpType.ASSIGN, new LongType(8L));
@@ -249,67 +245,70 @@ public class CRDTApp extends GenericProtocol {
             executeMapOperation(CRDT8, MapOpType.DELETE, new ByteType((byte)1), null);
         } else if(run == 7) {
             executeCounterOperation(CRDT0, CounterOpType.DECREMENT);
-            executeRegisterOperation(CRDT1, RegisterOpType.ASSIGN, new IntegerType(7));
-            executeSetOperation(CRDT2, SetOpType.REMOVE, new LongType(5L));
-            executeMapOperation(CRDT3, MapOpType.DELETE, new ByteType((byte)1), null);
+            executeRegisterOperation(CRDT1, RegisterOpType.ASSIGN, new IntegerType(rand.nextInt(10)));
+            executeSetOperation(CRDT2, SetOpType.REMOVE, new IntegerType(rand.nextInt(10)));
+            executeMapOperation(CRDT3, MapOpType.DELETE, new ByteType((byte)rand.nextInt(2)), null);
         }
     }
 
     private void printFinalValues(int run) {
-        /*for(OperationAndID opAndId : ReplicationKernel.causallyOrderedOps) {
-            logger.info("{} [OP] {}", opAndId.getId(), opAndId.getOp().getSender().toString() + " " + opAndId.getOp().getSenderClock());
-        }*/
+//        for(OperationAndID opAndId : ReplicationKernel.causallyOrderedOps) {
+//            logger.info("{} [OP] {}", opAndId.getId(), opAndId.getOp().getSender().toString() + " " + opAndId.getOp().getSenderClock());
+//        }
+
+        logger.info("RESULTS:");
+        logger.info("Final vector clock: {}", ReplicationKernel.vectorClock);
 
         if(run == 0) {
-            logger.info("--------------------> Integer value of {}: {}", CRDT0, getCounterValue(CRDT0));
+            logger.info("Integer value of {}: {}", CRDT0, getCounterValue(CRDT0));
         } else if(run == 1) {
-            logger.info("--------------------> Integer value of {}: {}", CRDT1, getRegisterValue(CRDT1));
+            logger.info("Integer value of {}: {}", CRDT1, getRegisterValue(CRDT1));
         } else if(run == 2) {
-            logger.info("--------------------> Value of {}: {}", CRDT2, getSetValue(CRDT2));
+            logger.info("Value of {}: {}", CRDT2, getSetValue(CRDT2));
         } else if(run == 3) {
-            logger.info("--------------------> Keys of {}: {}", CRDT3, getMapKeys(CRDT3));
-            logger.info("--------------------> Values of {}: {}", CRDT3, getMapValues(CRDT3));
+            logger.info("Keys of {}: {}", CRDT3, getMapKeys(CRDT3));
+            logger.info("Values of {}: {}", CRDT3, getMapValues(CRDT3));
         } else if(run == 4) {
-            logger.info("--------------------> Integer value of {}: {}", CRDT1, getRegisterValue(CRDT1));
-            logger.info("--------------------> Long value of {}: {}", CRDT2, getRegisterValue(CRDT2));
-            logger.info("--------------------> Short value of {}: {}", CRDT3, getRegisterValue(CRDT3));
-            logger.info("--------------------> Float value of {}: {}", CRDT4, getRegisterValue(CRDT4));
-            logger.info("--------------------> Double value of {}: {}", CRDT5, getRegisterValue(CRDT5));
-            logger.info("--------------------> String value of {}: {}", CRDT6, getRegisterValue(CRDT6));
-            logger.info("--------------------> Boolean value of {}: {}", CRDT7, getRegisterValue(CRDT7));
-            logger.info("--------------------> Byte value of {}: {}", CRDT8, getRegisterValue(CRDT8));
+            logger.info("Integer value of {}: {}", CRDT1, getRegisterValue(CRDT1));
+            logger.info("Long value of {}: {}", CRDT2, getRegisterValue(CRDT2));
+            logger.info("Short value of {}: {}", CRDT3, getRegisterValue(CRDT3));
+            logger.info("Float value of {}: {}", CRDT4, getRegisterValue(CRDT4));
+            logger.info("Double value of {}: {}", CRDT5, getRegisterValue(CRDT5));
+            logger.info("String value of {}: {}", CRDT6, getRegisterValue(CRDT6));
+            logger.info("Boolean value of {}: {}", CRDT7, getRegisterValue(CRDT7));
+            logger.info("Byte value of {}: {}", CRDT8, getRegisterValue(CRDT8));
         } else if(run == 5) {
-            logger.info("--------------------> Value of {}: {}", CRDT1, getSetValue(CRDT1));
-            logger.info("--------------------> Value of {}: {}", CRDT2, getSetValue(CRDT2));
-            logger.info("--------------------> Value of {}: {}", CRDT3, getSetValue(CRDT3));
-            logger.info("--------------------> Value of {}: {}", CRDT4, getSetValue(CRDT4));
-            logger.info("--------------------> Value of {}: {}", CRDT5, getSetValue(CRDT5));
-            logger.info("--------------------> Value of {}: {}", CRDT6, getSetValue(CRDT6));
-            logger.info("--------------------> Value of {}: {}", CRDT7, getSetValue(CRDT7));
-            logger.info("--------------------> Value of {}: {}", CRDT8, getSetValue(CRDT8));
+            logger.info("Value of {}: {}", CRDT1, getSetValue(CRDT1));
+            logger.info("Value of {}: {}", CRDT2, getSetValue(CRDT2));
+            logger.info("Value of {}: {}", CRDT3, getSetValue(CRDT3));
+            logger.info("Value of {}: {}", CRDT4, getSetValue(CRDT4));
+            logger.info("Value of {}: {}", CRDT5, getSetValue(CRDT5));
+            logger.info("Value of {}: {}", CRDT6, getSetValue(CRDT6));
+            logger.info("Value of {}: {}", CRDT7, getSetValue(CRDT7));
+            logger.info("Value of {}: {}", CRDT8, getSetValue(CRDT8));
         } else if(run == 6) {
-            logger.info("--------------------> Keys of {}: {}", CRDT1, getMapKeys(CRDT1));
-            logger.info("--------------------> Values of {}: {}", CRDT1, getMapValues(CRDT1));
-            logger.info("--------------------> Keys of {}: {}", CRDT2, getMapKeys(CRDT2));
-            logger.info("--------------------> Values of {}: {}", CRDT2, getMapValues(CRDT2));
-            logger.info("--------------------> Keys of {}: {}", CRDT3, getMapKeys(CRDT3));
-            logger.info("--------------------> Values of {}: {}", CRDT3, getMapValues(CRDT3));
-            logger.info("--------------------> Keys of {}: {}", CRDT4, getMapKeys(CRDT4));
-            logger.info("--------------------> Values of {}: {}", CRDT4, getMapValues(CRDT4));
-            logger.info("--------------------> Keys of {}: {}", CRDT5, getMapKeys(CRDT5));
-            logger.info("--------------------> Values of {}: {}", CRDT5, getMapValues(CRDT5));
-            logger.info("--------------------> Keys of {}: {}", CRDT6, getMapKeys(CRDT6));
-            logger.info("--------------------> Values of {}: {}", CRDT6, getMapValues(CRDT6));
-            logger.info("--------------------> Keys of {}: {}", CRDT7, getMapKeys(CRDT7));
-            logger.info("--------------------> Values of {}: {}", CRDT7, getMapValues(CRDT7));
-            logger.info("--------------------> Keys of {}: {}", CRDT8, getMapKeys(CRDT8));
-            logger.info("--------------------> Values of {}: {}", CRDT8, getMapValues(CRDT8));
+            logger.info("Keys of {}: {}", CRDT1, getMapKeys(CRDT1));
+            logger.info("Values of {}: {}", CRDT1, getMapValues(CRDT1));
+            logger.info("Keys of {}: {}", CRDT2, getMapKeys(CRDT2));
+            logger.info("Values of {}: {}", CRDT2, getMapValues(CRDT2));
+            logger.info("Keys of {}: {}", CRDT3, getMapKeys(CRDT3));
+            logger.info("Values of {}: {}", CRDT3, getMapValues(CRDT3));
+            logger.info("Keys of {}: {}", CRDT4, getMapKeys(CRDT4));
+            logger.info("Values of {}: {}", CRDT4, getMapValues(CRDT4));
+            logger.info("Keys of {}: {}", CRDT5, getMapKeys(CRDT5));
+            logger.info("Values of {}: {}", CRDT5, getMapValues(CRDT5));
+            logger.info("Keys of {}: {}", CRDT6, getMapKeys(CRDT6));
+            logger.info("Values of {}: {}", CRDT6, getMapValues(CRDT6));
+            logger.info("Keys of {}: {}", CRDT7, getMapKeys(CRDT7));
+            logger.info("Values of {}: {}", CRDT7, getMapValues(CRDT7));
+            logger.info("Keys of {}: {}", CRDT8, getMapKeys(CRDT8));
+            logger.info("Values of {}: {}", CRDT8, getMapValues(CRDT8));
         } else if(run == 7) {
-            logger.info("--------------------> Integer value of {}: {}", CRDT0, getCounterValue(CRDT0));
-            logger.info("--------------------> Integer value of {}: {}", CRDT1, getRegisterValue(CRDT1));
-            logger.info("--------------------> Value of {}: {}", CRDT2, getSetValue(CRDT2));
-            logger.info("--------------------> Keys of {}: {}", CRDT3, getMapKeys(CRDT3));
-            logger.info("--------------------> Values of {}: {}", CRDT3, getMapValues(CRDT3));
+            logger.info("Integer value of {}: {}", CRDT0, getCounterValue(CRDT0));
+            logger.info("Integer value of {}: {}", CRDT1, getRegisterValue(CRDT1));
+            logger.info("Value of {}: {}", CRDT2, getSetValue(CRDT2));
+            logger.info("Keys of {}: {}", CRDT3, getMapKeys(CRDT3));
+            logger.info("Values of {}: {}", CRDT3, getMapValues(CRDT3));
         }
 
         logger.info("Number of sent operations: {}", ReplicationKernel.sentOps);

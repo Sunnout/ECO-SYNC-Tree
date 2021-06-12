@@ -10,7 +10,7 @@
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
-    <orderEntry type="library" name="Maven: com.github.pfouto:babel-core:0.4.42" level="project" />
+    <orderEntry type="library" name="Maven: com.github.pfouto:babel-core:0.4.44" level="project" />
     <orderEntry type="library" name="Maven: com.github.pfouto:network-layer:2.0.38" level="project" />
     <orderEntry type="library" name="Maven: org.apache.logging.log4j:log4j-api:2.14.0" level="project" />
     <orderEntry type="library" name="Maven: org.apache.logging.log4j:log4j-core:2.14.0" level="project" />

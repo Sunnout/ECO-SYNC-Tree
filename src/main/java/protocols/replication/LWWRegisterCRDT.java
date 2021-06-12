@@ -13,7 +13,6 @@ import pt.unl.fct.di.novasys.network.data.Host;
 import java.time.Instant;
 import java.util.UUID;
 
-//TODO: synchronized
 public class LWWRegisterCRDT implements RegisterCRDT, KernelCRDT {
 
     private static final Logger logger = LogManager.getLogger(LWWRegisterCRDT.class);
@@ -42,11 +41,11 @@ public class LWWRegisterCRDT implements RegisterCRDT, KernelCRDT {
         return this.crdtId;
     }
 
-    public SerializableType value() {
+    public synchronized SerializableType value() {
         return this.value;
     }
 
-    public void assign(Host sender, SerializableType value) {
+    public synchronized void assign(Host sender, SerializableType value) {
         this.ts = Instant.now();
         this.value = value;
         Operation op = new RegisterOperation(sender, 0, ASSIGN, crdtId, CRDT_TYPE, value, this.ts);
@@ -55,7 +54,7 @@ public class LWWRegisterCRDT implements RegisterCRDT, KernelCRDT {
         kernel.downstream(new DownstreamRequest(id, sender, op), (short)0);
     }
 
-    public void upstream(Operation op) {
+    public synchronized void upstream(Operation op) {
         RegisterOperation regOp = ((RegisterOperation)op);
         SerializableType value = regOp.getValue();
         Instant timestamp = regOp.getTimestamp();

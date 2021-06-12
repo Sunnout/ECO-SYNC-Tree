@@ -66,7 +66,8 @@ public class PlumTree extends GenericProtocol {
         super(PROTOCOL_NAME, PROTOCOL_ID);
         this.myself = myself;
 
-        this.space = Integer.parseInt(properties.getProperty("space", "25000"));
+//        this.space = Integer.parseInt(properties.getProperty("space", "25000"));
+        this.space = Integer.MAX_VALUE;
         this.stored = new LinkedList<>();
 
         this.eager = new HashSet<>();
@@ -189,6 +190,8 @@ public class PlumTree extends GenericProtocol {
 
     private void uponReceiveVectorClock(VectorClockMessage msg, Host from, short sourceProto, int channelId) {
         logger.info("Received {} from {}", msg, from);
+        if(!from.equals(currentPending))
+            return;
         this.buffering = true;
         triggerNotification(new VectorClockNotification(msg.getSender(), msg.getVectorClock()));
     }
@@ -228,8 +231,10 @@ public class PlumTree extends GenericProtocol {
                 onGoingTimers.put(mid, tid);
                 Host neighbour = msgSrc.peer;
                 startSynchronization(neighbour);
-                logger.info("Sent GraftMessage for {} to {}", mid, neighbour);
-                sendMessage(new GraftMessage(mid, msgSrc.round), neighbour);
+                if(!neighbour.equals(currentPending) && !pending.contains(neighbour)) { //TODO:test
+                    logger.info("Sent GraftMessage for {} to {}", mid, neighbour);
+                    sendMessage(new GraftMessage(mid, msgSrc.round), neighbour);
+                }
             }
         }
     }
@@ -265,6 +270,9 @@ public class PlumTree extends GenericProtocol {
             return;
 
         Host neighbour = request.getTo();
+        if(!neighbour.equals(currentPending))
+            return;
+
         SyncOpsMessage msg = new SyncOpsMessage(request.getMsgId(), request.getIds(), request.getOperations());
         sendMessage(msg, neighbour);
         logger.info("Sent {} to {}", msg, neighbour);
@@ -301,6 +309,7 @@ public class PlumTree extends GenericProtocol {
         }
 
         if (neighbour.equals(currentPending)) {
+            logger.info("Removed {} from current pending due to down", neighbour);
             tryNextSync();
         }
         closeConnection(neighbour);
@@ -313,7 +322,7 @@ public class PlumTree extends GenericProtocol {
         if (!neighbour.equals(currentPending) && !eager.contains(neighbour) && !pending.contains(neighbour)) {
             if (currentPending == null) {
                 currentPending = neighbour;
-                logger.info("{} is my currentPending", neighbour);
+                logger.info("{} is my currentPending start", neighbour);
                 requestVectorClock(currentPending);
             } else {
                 pending.add(neighbour);
@@ -341,7 +350,7 @@ public class PlumTree extends GenericProtocol {
     private void tryNextSync() {
         currentPending = pending.poll();
         if (currentPending != null) {
-            logger.info("{} is my currentPending", currentPending);
+            logger.info("{} is my currentPending try", currentPending);
             requestVectorClock(currentPending);
         }
     }

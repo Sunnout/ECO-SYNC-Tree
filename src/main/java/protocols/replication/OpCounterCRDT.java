@@ -42,7 +42,7 @@ public class OpCounterCRDT implements CounterCRDT, KernelCRDT {
         return this.crdtId;
     }
 
-    public int value() {
+    public synchronized int value() {
         return this.c.intValue();
     }
 

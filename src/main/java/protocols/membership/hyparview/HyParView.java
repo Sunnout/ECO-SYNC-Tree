@@ -384,7 +384,7 @@ public class HyParView extends GenericProtocol {
                 setupTimer(new HelloTimeout(), timeout);
             }
         } else
-            pending.remove(event.getNode());
+            pending.remove(event.getNode()); //TODO: close connection
     }
 
     private void uponOutConnectionFailed(OutConnectionFailed event, int channelId) {
@@ -395,7 +395,7 @@ public class HyParView extends GenericProtocol {
                 setupTimer(new HelloTimeout(), timeout);
             }
         } else
-            pending.remove(event.getNode());
+            pending.remove(event.getNode()); //TODO: close connection
     }
 
     private void uponOutConnectionUp(OutConnectionUp event, int channelId) {

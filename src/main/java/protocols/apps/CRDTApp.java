@@ -55,8 +55,10 @@ public class CRDTApp extends GenericProtocol {
     private final short replicationKernelId;
     private final Host self;
 
-    //Time to wait until starting sending messages
-    private final int prepareTime;
+    //Time to wait until creating crdts
+    private final int createTime;
+    //Time to wait until starting to send messages
+    private final int startTime;
     //Time to wait until releasing crdts
     private final int releaseTime;
     //Time to run before stopping sending messages
@@ -85,7 +87,8 @@ public class CRDTApp extends GenericProtocol {
         this.myCRDTs = new HashMap<>();
 
         //Read configurations
-        this.prepareTime = Integer.parseInt(properties.getProperty("prepare_time"));
+        this.createTime = Integer.parseInt(properties.getProperty("create_time"));
+        this.startTime = Integer.parseInt(properties.getProperty("start_time"));
         this.releaseTime = Integer.parseInt(properties.getProperty("release_time"));
         this.cooldownTime = Integer.parseInt(properties.getProperty("cooldown_time"));
         this.runTime = Integer.parseInt(properties.getProperty("run_time"));
@@ -114,7 +117,7 @@ public class CRDTApp extends GenericProtocol {
     public void init(Properties props) {
         //Wait before creating crdts
         logger.info("Waiting...");
-        setupTimer(new CreateCRDTsTimer(), prepareTime * 2 * TO_MILLIS);
+        setupTimer(new CreateCRDTsTimer(), createTime * TO_MILLIS);
     }
 
     /* --------------------------------- Methods --------------------------------- */
@@ -526,23 +529,22 @@ public class CRDTApp extends GenericProtocol {
         }
     }
 
-    /* --------------------------------- Timers --------------------------------- */
-
-    private void uponCreateCRDTsTimer(CreateCRDTsTimer timer, long timerId) {
+    private void createCRDTs() {
         //Creating CRDTs
         logger.info("Creating crdts...");
         getCRDTs(RUN);
-        setupTimer(new StartTimer(), prepareTime / 2 * TO_MILLIS);
+        startOperations();
+//        setupTimer(new StartTimer(), prepareTime * TO_MILLIS);
     }
 
-    private void uponStartTimer(StartTimer startTimer, long timerId) {
+    private void startOperations() {
         logger.info("Starting operations...");
 
         if(PERIODIC_OPS) {
             ops1Timer = setupPeriodicTimer(new ExecuteOps1Timer(), 0, ops1Interval);
             ops2Timer = setupPeriodicTimer(new ExecuteOps2Timer(), 0, ops2Interval);
         } else {
-            setupTimer(new SingleOpTimer(), 3 * TO_MILLIS);
+            setupTimer(new SingleOpTimer(), ops1Interval);
         }
 
         //Release CRDTs
@@ -550,6 +552,16 @@ public class CRDTApp extends GenericProtocol {
 
         //And setup single timers
         setupTimer(new StopTimer(), runTime * TO_MILLIS);
+    }
+
+    /* --------------------------------- Timers --------------------------------- */
+
+    private void uponCreateCRDTsTimer(CreateCRDTsTimer timer, long timerId) {
+        createCRDTs();
+    }
+
+    private void uponStartTimer(StartTimer startTimer, long timerId) {
+        startOperations();
     }
 
     private void uponReleaseCrdtTimer(ReleaseCrdtTimer releaseCrdtTimer, long timerId) {

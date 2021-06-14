@@ -84,7 +84,6 @@ public class ORMapCRDT implements MapCRDT, KernelCRDT {
     public synchronized List<SerializableType> values() {
         Collection<Set<TaggedElement>> sets = this.map.values();
         List<SerializableType> values = new LinkedList<>();
-
         sets.forEach(s ->
                 s.forEach( elem ->
                         values.add(elem.getValue())));

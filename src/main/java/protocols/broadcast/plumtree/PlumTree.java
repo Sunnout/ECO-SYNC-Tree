@@ -20,6 +20,8 @@ import protocols.membership.common.notifications.NeighbourDown;
 import protocols.membership.common.notifications.NeighbourUp;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
+import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;
+import pt.unl.fct.di.novasys.channel.tcp.TCPChannel;
 import pt.unl.fct.di.novasys.network.data.Host;
 
 import java.io.IOException;
@@ -125,14 +127,14 @@ public class PlumTree extends GenericProtocol {
         try {
 
             /*---------------------- Register Message Handlers -------------------------- */
-            registerMessageHandler(channelId, GossipMessage.MSG_ID, this::uponReceiveGossip);
-            registerMessageHandler(channelId, PruneMessage.MSG_ID, this::uponReceivePrune);
-            registerMessageHandler(channelId, GraftMessage.MSG_ID, this::uponReceiveGraft);
-            registerMessageHandler(channelId, IHaveMessage.MSG_ID, this::uponReceiveIHave);
+            registerMessageHandler(channelId, GossipMessage.MSG_ID, this::uponReceiveGossip, this::onMessageFailed);
+            registerMessageHandler(channelId, PruneMessage.MSG_ID, this::uponReceivePrune, this::onMessageFailed);
+            registerMessageHandler(channelId, GraftMessage.MSG_ID, this::uponReceiveGraft, this::onMessageFailed);
+            registerMessageHandler(channelId, IHaveMessage.MSG_ID, this::uponReceiveIHave, this::onMessageFailed);
 
-            registerMessageHandler(channelId, SendVectorClockMessage.MSG_ID, this::uponReceiveSendVectorClock);
-            registerMessageHandler(channelId, VectorClockMessage.MSG_ID, this::uponReceiveVectorClock);
-            registerMessageHandler(channelId, SyncOpsMessage.MSG_ID, this::uponReceiveSyncOps);
+            registerMessageHandler(channelId, SendVectorClockMessage.MSG_ID, this::uponReceiveSendVectorClock, this::onMessageFailed);
+            registerMessageHandler(channelId, VectorClockMessage.MSG_ID, this::uponReceiveVectorClock, this::onMessageFailed);
+            registerMessageHandler(channelId, SyncOpsMessage.MSG_ID, this::uponReceiveSyncOps, this::onMessageFailed);
 
         } catch (HandlerRegistrationException e) {
             logger.error("Error registering message handler: " + e.getMessage());
@@ -154,7 +156,7 @@ public class PlumTree extends GenericProtocol {
             handleGossipMessage(msg, msg.getRound() + 1, from);
         } else {
             logger.info("{} was duplicated msg from {}", mid, from);
-
+            //TODO: se receber dupes de alguém com quem estou em sync ou pending?
             if (eager.remove(from)) {
                 logger.info("Removed {} from eager due to duplicate {}", from, eager);
                 logger.info("Sent PruneMessage to {}", from);
@@ -262,6 +264,7 @@ public class PlumTree extends GenericProtocol {
         Host neighbour = request.getTo();
         VectorClockMessage msg = new VectorClockMessage(request.getMsgId(), request.getSender(), request.getVectorClock());
         sendMessage(msg, neighbour);
+//        sendMessage(msg, neighbour, TCPChannel.CONNECTION_IN);
         logger.info("Sent {} to {}", msg, neighbour);
     }
 
@@ -435,6 +438,10 @@ public class PlumTree extends GenericProtocol {
     private UUID deserializeId(byte[] msg) {
         ByteBuf buf = Unpooled.buffer().writeBytes(msg);
         return new UUID(buf.readLong(), buf.readLong());
+    }
+
+    private void onMessageFailed(ProtoMessage protoMessage, Host host, short destProto, Throwable reason, int channel) {
+        logger.error("Message failed to " + host + ", " + protoMessage + ": " + reason.getMessage());
     }
 
 }

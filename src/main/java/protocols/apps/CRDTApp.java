@@ -269,7 +269,10 @@ public class CRDTApp extends GenericProtocol {
         } else if(run == 2) {
             logger.info("Value of {}: {}", CRDT2, getSetValue(CRDT2));
         } else if(run == 3) {
-            logger.info("Keys of {}: {}", CRDT3, getMapKeys(CRDT3));
+            Set<SerializableType> keys = getMapKeys(CRDT3);
+            for(SerializableType key : keys) {
+                logger.info("{} key {} : {}", CRDT3, key, getMapping(CRDT3, key));
+            }
             logger.info("Values of {}: {}", CRDT3, getMapValues(CRDT3));
         } else if(run == 4) {
             logger.info("Integer value of {}: {}", CRDT1, getRegisterValue(CRDT1));
@@ -310,7 +313,10 @@ public class CRDTApp extends GenericProtocol {
             logger.info("Integer value of {}: {}", CRDT0, getCounterValue(CRDT0));
             logger.info("Integer value of {}: {}", CRDT1, getRegisterValue(CRDT1));
             logger.info("Value of {}: {}", CRDT2, getSetValue(CRDT2));
-            logger.info("Keys of {}: {}", CRDT3, getMapKeys(CRDT3));
+            Set<SerializableType> keys = getMapKeys(CRDT3);
+            for(SerializableType key : keys) {
+                logger.info("{} key {} : {}", CRDT3, key, getMapping(CRDT3, key));
+            }
             logger.info("Values of {}: {}", CRDT3, getMapValues(CRDT3));
         }
 
@@ -499,7 +505,7 @@ public class CRDTApp extends GenericProtocol {
         }
     }
 
-    private Object getMapKeys(String crdtId) {
+    private Set<SerializableType> getMapKeys(String crdtId) {
         GenericCRDT crdt = myCRDTs.get(crdtId);
         if(crdt != null) {
             if(crdt instanceof ORMapCRDT) {
@@ -514,11 +520,26 @@ public class CRDTApp extends GenericProtocol {
         }
     }
 
-    private Object getMapValues(String crdtId) {
+    private List<SerializableType> getMapValues(String crdtId) {
         GenericCRDT crdt = myCRDTs.get(crdtId);
         if(crdt != null) {
             if(crdt instanceof ORMapCRDT) {
                 return ((ORMapCRDT) crdt).values();
+            } else {
+                return null; //TODO: exception?
+                //CRDT with crdtId is not a ormapCRDT
+            }
+        } else {
+            return null;
+            //No CRDT with crdtId
+        }
+    }
+
+    private Set<SerializableType> getMapping(String crdtId, SerializableType key) {
+        GenericCRDT crdt = myCRDTs.get(crdtId);
+        if(crdt != null) {
+            if(crdt instanceof ORMapCRDT) {
+                return ((ORMapCRDT) crdt).get(key);
             } else {
                 return null; //TODO: exception?
                 //CRDT with crdtId is not a ormapCRDT

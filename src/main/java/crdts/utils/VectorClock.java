@@ -18,7 +18,7 @@ public class VectorClock {
     }
 
     public VectorClock(Map<Host, Integer> clock) {
-        this.clock = clock;
+        this.clock = new HashMap(clock);
     }
 
     public Map<Host, Integer> getClock() {

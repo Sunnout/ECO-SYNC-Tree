@@ -156,16 +156,21 @@ public class PlumTree extends GenericProtocol {
             handleGossipMessage(msg, msg.getRound() + 1, from);
         } else {
             logger.info("{} was duplicated msg from {}", mid, from);
-            //TODO: se receber dupes de alguém com quem estou em sync ou pending?
+            //TODO: se receber dupes de alguém com quem estou em sync ou pending? Não devia mandar prune sempre?
             if (eager.remove(from)) {
                 logger.info("Removed {} from eager due to duplicate {}", from, eager);
+
+                if (lazy.add(from)) {
+                    logger.info("Added {} to lazy due to duplicate {}", from, lazy);
+                }
+
                 logger.info("Sent PruneMessage to {}", from);
                 sendMessage(new PruneMessage(), from);
             }
 
-            if (lazy.add(from)) {
-                logger.info("Added {} to lazy due to duplicate {}", from, lazy);
-            }
+//            if (lazy.add(from)) {
+//                logger.info("Added {} to lazy due to duplicate {}", from, lazy);
+//            }
         }
     }
 
@@ -233,7 +238,7 @@ public class PlumTree extends GenericProtocol {
                 onGoingTimers.put(mid, tid);
                 Host neighbour = msgSrc.peer;
                 startSynchronization(neighbour);
-                if(!neighbour.equals(currentPending) && !pending.contains(neighbour)) { //TODO:test
+                if (!neighbour.equals(currentPending) && !pending.contains(neighbour)) { //TODO:test
                     logger.info("Sent GraftMessage for {} to {}", mid, neighbour);
                     sendMessage(new GraftMessage(mid, msgSrc.round), neighbour);
                 }
@@ -263,8 +268,8 @@ public class PlumTree extends GenericProtocol {
 
         Host neighbour = request.getTo();
         VectorClockMessage msg = new VectorClockMessage(request.getMsgId(), request.getSender(), request.getVectorClock());
-        sendMessage(msg, neighbour);
-//        sendMessage(msg, neighbour, TCPChannel.CONNECTION_IN);
+//        sendMessage(msg, neighbour);
+        sendMessage(msg, neighbour, TCPChannel.CONNECTION_IN); //TODO: see if there is problem because connection in is down
         logger.info("Sent {} to {}", msg, neighbour);
     }
 

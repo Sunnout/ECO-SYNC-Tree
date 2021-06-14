@@ -213,7 +213,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
 
     private void uponSendVectorClock(SendVectorClockNotification notification, short sourceProto) {
         Host neighbour = notification.getNeighbour();
-        VectorClockRequest request = new VectorClockRequest(UUID.randomUUID(), myself, neighbour, this.vectorClock);
+        VectorClockRequest request = new VectorClockRequest(UUID.randomUUID(), myself, neighbour, new VectorClock(this.vectorClock.getClock()));
         logger.info("Sent {} to {}", request, neighbour);
         sendRequest(request, broadcastId);
     }

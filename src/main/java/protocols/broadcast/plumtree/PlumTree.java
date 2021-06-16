@@ -156,7 +156,6 @@ public class PlumTree extends GenericProtocol {
             handleGossipMessage(msg, msg.getRound() + 1, from);
         } else {
             logger.info("{} was duplicated msg from {}", mid, from);
-            //TODO: se receber dupes de alguém com quem estou em sync ou pending? Não devia mandar prune sempre?
             if (eager.remove(from)) {
                 logger.info("Removed {} from eager due to duplicate {}", from, eager);
 
@@ -167,10 +166,6 @@ public class PlumTree extends GenericProtocol {
                 logger.info("Sent PruneMessage to {}", from);
                 sendMessage(new PruneMessage(), from);
             }
-
-//            if (lazy.add(from)) {
-//                logger.info("Added {} to lazy due to duplicate {}", from, lazy);
-//            }
         }
     }
 
@@ -178,16 +173,16 @@ public class PlumTree extends GenericProtocol {
         logger.info("Received {} from {}", msg, from);
         if (eager.remove(from)) {
             logger.info("Removed {} from eager due to prune {}", from, eager);
-        }
 
-        if (lazy.add(from)) {
-            logger.info("Added {} to lazy due to prune {}", from, lazy);
+            if (lazy.add(from)) {
+                logger.info("Added {} to lazy due to prune {}", from, lazy);
+            }
         }
     }
 
     private void uponReceiveGraft(GraftMessage msg, Host from, short sourceProto, int channelId) {
         logger.info("Received {} from {}", msg, from);
-        startSynchronization(from);
+        startSynchronization(from, false);
     }
 
     private void uponReceiveIHave(IHaveMessage msg, Host from, short sourceProto, int channelId) {
@@ -237,7 +232,7 @@ public class PlumTree extends GenericProtocol {
                 long tid = setupTimer(timeout, timeout2);
                 onGoingTimers.put(mid, tid);
                 Host neighbour = msgSrc.peer;
-                startSynchronization(neighbour);
+                startSynchronization(neighbour, false);
                 if (!neighbour.equals(currentPending) && !pending.contains(neighbour)) { //TODO:test
                     logger.info("Sent GraftMessage for {} to {}", mid, neighbour);
                     sendMessage(new GraftMessage(mid, msgSrc.round), neighbour);
@@ -294,7 +289,7 @@ public class PlumTree extends GenericProtocol {
     private void uponNeighbourUp(NeighbourUp notification, short sourceProto) {
         Host neighbour = notification.getNeighbour();
         logger.info("Trying sync from neighbour {} up", neighbour);
-        startSynchronization(neighbour);
+        startSynchronization(neighbour, true);
     }
 
     private void uponNeighbourDown(NeighbourDown notification, short sourceProto) {
@@ -326,8 +321,9 @@ public class PlumTree extends GenericProtocol {
 
     /*--------------------------------- Procedures ---------------------------------------- */
 
-    private void startSynchronization(Host neighbour) {
-        if (!neighbour.equals(currentPending) && !eager.contains(neighbour) && !pending.contains(neighbour)) {
+    private void startSynchronization(Host neighbour, boolean neighUp) {
+//        if (!eager.contains(neighbour) && !neighbour.equals(currentPending) && !pending.contains(neighbour)) {
+        if (neighUp || (lazy.contains(neighbour) && !neighbour.equals(currentPending) && !pending.contains(neighbour))) {
             if (currentPending == null) {
                 currentPending = neighbour;
                 logger.info("{} is my currentPending start", neighbour);
@@ -342,6 +338,7 @@ public class PlumTree extends GenericProtocol {
     private void addPendingToEager() {
         if(currentPending == null) {
             logger.error("Adding null to eager");
+            //TODO: supostamente esta resolvido
         }
 
         if (eager.add(currentPending)) {
@@ -414,8 +411,9 @@ public class PlumTree extends GenericProtocol {
         for (Host peer : eager) {
             if(peer == null || from == null) {
                 logger.error("Peer {} ; From {}", peer, from);
+                //TODO: supostamente esta resolvido
             }
-            if (!peer.equals(from)) { //TODO: null pointer no from?
+            if (!peer.equals(from)) {
                 sendMessage(msg, peer);
                 logger.info("Forward {} received from {} to {}", msg.getMid(), from, peer);
             }

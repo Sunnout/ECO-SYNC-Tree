@@ -153,7 +153,6 @@ public class HyParView extends GenericProtocol {
                 sendMessage(new ForwardJoinMessage(ARWL, from), peer);
                 logger.debug("Sent ForwardJoinMessage to {}", peer);
             }
-
         }
     }
 
@@ -377,7 +376,7 @@ public class HyParView extends GenericProtocol {
     /* --------------------------------- Channel Events ---------------------------- */
 
     private void uponOutConnectionDown(OutConnectionDown event, int channelId) {
-        logger.info("Host {} is down, active{}, cause: {}", event.getNode(), active, event.getCause());
+        logger.debug("Host {} is down, active{}, cause: {}", event.getNode(), active, event.getCause());
         if(active.removePeer(event.getNode())) {
             triggerNotification(new NeighbourDown(event.getNode()));
             if(!active.fullWithPending(pending)){
@@ -388,7 +387,7 @@ public class HyParView extends GenericProtocol {
     }
 
     private void uponOutConnectionFailed(OutConnectionFailed event, int channelId) {
-        logger.info("Connection to host {} failed, cause: {}", event.getNode(), event.getCause());
+        logger.debug("Connection to host {} failed, cause: {}", event.getNode(), event.getCause());
         if(active.removePeer(event.getNode())) {
             triggerNotification(new NeighbourDown(event.getNode()));
             if(!active.fullWithPending(pending)){

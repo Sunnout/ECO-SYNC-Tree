@@ -387,8 +387,10 @@ public class PlumTree extends GenericProtocol {
         this.buffering = false;
         GossipMessage msg;
         while((msg = bufferedOps.poll()) != null) {
-            sendMessage(msg, neighbour);
-            logger.info("Sent buffered {} to {}", msg, neighbour);
+            if(!msg.getSender().equals(neighbour)) {
+                sendMessage(msg, neighbour);
+                logger.info("Sent buffered {} to {}", msg, neighbour);
+            }
         }
     }
 

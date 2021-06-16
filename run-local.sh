@@ -28,6 +28,8 @@ do
 	sleep 1
 done
 
+echo ${serverpids[@]}
+
 j=0
 
 sleep 20

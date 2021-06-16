@@ -177,7 +177,6 @@ public class HyParView extends GenericProtocol {
             if(!newHost.equals(myself) && !active.containsPeer(newHost)) {
                 passive.removePeer(newHost);
                 pending.remove(newHost);
-
                 openConnection(newHost);
                 Host h = active.addPeer(newHost);
                 logger.trace("Added to {} active{}", newHost, active);

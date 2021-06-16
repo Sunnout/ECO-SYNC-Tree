@@ -14,8 +14,10 @@ public class MessageSource {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
         MessageSource that = (MessageSource) o;
         return peer.equals(that.peer);
     }

@@ -34,29 +34,23 @@ public class PlumTree extends GenericProtocol {
     public final static short PROTOCOL_ID = 900;
     public final static String PROTOCOL_NAME = "PlumTree";
 
-    private final int space;
+    private final Host myself;
 
+    private final int space;
     private final long timeout1;
     private final long timeout2;
 
-    private final Host myself;
-
     private final Set<Host> eager;
     private final Set<Host> lazy;
-
     private final Queue<Host> pending;
     private Host currentPending;
     private final Queue<GossipMessage> bufferedOps; //Buffer ops received between sending vc to kernel and sending sync ops (and send them after)
     private boolean buffering; //To know if we are between sending vc to kernel and sending ops to neighbour
-
     private final Map<UUID, Queue<MessageSource>> missing;
     private final Map<UUID, GossipMessage> received;
-
     private final Queue<UUID> stored;
-
     private final Map<UUID, Long> onGoingTimers;
     private final Queue<AddressedIHaveMessage> lazyQueue;
-
     private final LazyQueuePolicy policy;
 
     private boolean channelReady;
@@ -70,24 +64,20 @@ public class PlumTree extends GenericProtocol {
 
 //        this.space = Integer.parseInt(properties.getProperty("space", "25000"));
         this.space = Integer.MAX_VALUE;
-        this.stored = new LinkedList<>();
+        this.timeout1 = Long.parseLong(properties.getProperty("timeout1", "1000"));
+        this.timeout2 = Long.parseLong(properties.getProperty("timeout2", "500"));
 
         this.eager = new HashSet<>();
         this.lazy = new HashSet<>();
-
         this.pending = new LinkedList<>();
         this.bufferedOps = new LinkedList<>();
         this.buffering = false;
-
         this.missing = new HashMap<>();
         this.received = new HashMap<>();
+        this.stored = new LinkedList<>();
         this.onGoingTimers = new HashMap<>();
         this.lazyQueue = new LinkedList<>();
-
         this.policy = HashSet::new;
-
-        this.timeout1 = Long.parseLong(properties.getProperty("timeout1", "1000"));
-        this.timeout2 = Long.parseLong(properties.getProperty("timeout2", "500"));
 
         this.channelReady = false;
 
@@ -233,7 +223,7 @@ public class PlumTree extends GenericProtocol {
                 onGoingTimers.put(mid, tid);
                 Host neighbour = msgSrc.peer;
                 startSynchronization(neighbour, false);
-                if (!neighbour.equals(currentPending) && !pending.contains(neighbour)) { //TODO:test
+                if (isInPartialView(neighbour) && !neighbour.equals(currentPending) && !pending.contains(neighbour)) {
                     logger.info("Sent GraftMessage for {} to {}", mid, neighbour);
                     sendMessage(new GraftMessage(mid, msgSrc.round), neighbour);
                 }
@@ -263,8 +253,7 @@ public class PlumTree extends GenericProtocol {
 
         Host neighbour = request.getTo();
         VectorClockMessage msg = new VectorClockMessage(request.getMsgId(), request.getSender(), request.getVectorClock());
-//        sendMessage(msg, neighbour);
-        sendMessage(msg, neighbour, TCPChannel.CONNECTION_IN); //TODO: see if there is problem because connection in is down
+        sendMessage(msg, neighbour, TCPChannel.CONNECTION_IN);
         logger.info("Sent {} to {}", msg, neighbour);
     }
 
@@ -315,14 +304,12 @@ public class PlumTree extends GenericProtocol {
             logger.info("Removed {} from current pending due to down", neighbour);
             tryNextSync();
         }
-        closeConnection(neighbour);
     }
 
 
     /*--------------------------------- Procedures ---------------------------------------- */
 
     private void startSynchronization(Host neighbour, boolean neighUp) {
-//        if (!eager.contains(neighbour) && !neighbour.equals(currentPending) && !pending.contains(neighbour)) {
         if (neighUp || (lazy.contains(neighbour) && !neighbour.equals(currentPending) && !pending.contains(neighbour))) {
             if (currentPending == null) {
                 currentPending = neighbour;
@@ -336,11 +323,6 @@ public class PlumTree extends GenericProtocol {
     }
 
     private void addPendingToEager() {
-        if(currentPending == null) {
-            logger.error("Adding null to eager");
-            //TODO: supostamente esta resolvido
-        }
-
         if (eager.add(currentPending)) {
             logger.info("Added {} to eager {} : pending list {}", currentPending, eager, pending);
         }
@@ -409,10 +391,6 @@ public class PlumTree extends GenericProtocol {
     private void eagerPush(GossipMessage msg, int round, Host from) {
         msg.setRound(round);
         for (Host peer : eager) {
-            if(peer == null || from == null) {
-                logger.error("Peer {} ; From {}", peer, from);
-                //TODO: supostamente esta resolvido
-            }
             if (!peer.equals(from)) {
                 sendMessage(msg, peer);
                 logger.info("Forward {} received from {} to {}", msg.getMid(), from, peer);
@@ -441,6 +419,10 @@ public class PlumTree extends GenericProtocol {
     private UUID deserializeId(byte[] msg) {
         ByteBuf buf = Unpooled.buffer().writeBytes(msg);
         return new UUID(buf.readLong(), buf.readLong());
+    }
+
+    private boolean isInPartialView(Host h) {
+        return lazy.contains(h) || eager.contains(h) || pending.contains(h) || h.equals(currentPending);
     }
 
     private void onMessageFailed(ProtoMessage protoMessage, Host host, short destProto, Throwable reason, int channel) {

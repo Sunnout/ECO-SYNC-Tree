@@ -212,6 +212,10 @@ public class PlumTree extends GenericProtocol {
         }
     }
 
+    private void onMessageFailed(ProtoMessage protoMessage, Host host, short destProto, Throwable reason, int channel) {
+        logger.warn("Message failed to " + host + ", " + protoMessage + ": " + reason.getMessage());
+    }
+
     /*--------------------------------- Timers ---------------------------------------- */
 
     private void uponIHaveTimeout(IHaveTimeout timeout, long timerId) {
@@ -416,17 +420,13 @@ public class PlumTree extends GenericProtocol {
         lazyQueue.removeAll(announcements);
     }
 
-    private UUID deserializeId(byte[] msg) {
-        ByteBuf buf = Unpooled.buffer().writeBytes(msg);
-        return new UUID(buf.readLong(), buf.readLong());
-    }
-
     private boolean isInPartialView(Host h) {
         return lazy.contains(h) || eager.contains(h) || pending.contains(h) || h.equals(currentPending);
     }
 
-    private void onMessageFailed(ProtoMessage protoMessage, Host host, short destProto, Throwable reason, int channel) {
-        logger.error("Message failed to " + host + ", " + protoMessage + ": " + reason.getMessage());
+    private UUID deserializeId(byte[] msg) {
+        ByteBuf buf = Unpooled.buffer().writeBytes(msg);
+        return new UUID(buf.readLong(), buf.readLong());
     }
 
 }

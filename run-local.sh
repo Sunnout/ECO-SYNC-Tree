@@ -1,6 +1,7 @@
 #!/bin/bash
 
 processes=$1
+newprocesses=$2
 serverpids=()
 
 if [ -z $processes ] || [ $processes -lt 1 ]; then
@@ -27,9 +28,17 @@ do
 	sleep 1
 done
 
-sleep 30
-(java -DlogFilename=results/results-$(hostname)-$[$port+$i] -jar target/PlumtreeOpLogs.jar -conf config-newnode.properties address=$(hostname) port=$[$port+$i] contact=$(hostname):$port | sed "s/^/[$(($port + $i))] /")&
-echo "launched process on port $[$port+$i]"
+j=0
+
+sleep 20
+while [ $j -lt $newprocesses ]
+do
+  (java -DlogFilename=results/results-$(hostname)-$[$port+$i] -jar target/PlumtreeOpLogs.jar -conf config-newnode.properties address=$(hostname) port=$[$port+$i] contact=$(hostname):$port | sed "s/^/[$(($port + $i))] /")&
+  echo "launched process on port $[$port+$i]"
+  i=$[$i+1]
+  j=$[$j+1]
+	sleep 1
+done
 
 read -p "------------- Press enter to kill servers. --------------------"
 

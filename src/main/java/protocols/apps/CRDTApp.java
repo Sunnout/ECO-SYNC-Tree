@@ -255,10 +255,6 @@ public class CRDTApp extends GenericProtocol {
     }
 
     private void printFinalValues(int run) {
-//        for(OperationAndID opAndId : ReplicationKernel.causallyOrderedOps) {
-//            logger.info("{} [OP] {}", opAndId.getId(), opAndId.getOp().getSender().toString() + " " + opAndId.getOp().getSenderClock());
-//        }
-
         logger.info("RESULTS:");
         logger.info("Final vector clock: {}", ReplicationKernel.vectorClock);
 

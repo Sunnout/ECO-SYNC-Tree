@@ -226,11 +226,13 @@ public class PlumTree extends GenericProtocol {
                 long tid = setupTimer(timeout, timeout2);
                 onGoingTimers.put(mid, tid);
                 Host neighbour = msgSrc.peer;
-                startSynchronization(neighbour, false);
                 if (isInPartialView(neighbour) && !neighbour.equals(currentPending) && !pending.contains(neighbour)) {
                     logger.info("Sent GraftMessage for {} to {}", mid, neighbour);
                     sendMessage(new GraftMessage(mid, msgSrc.round), neighbour);
                 }
+                logger.info("Try sync with {} for timeout {}", neighbour, mid);
+                startSynchronization(neighbour, false);
+
             }
         }
     }

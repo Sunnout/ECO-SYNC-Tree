@@ -1,6 +1,5 @@
 package protocols.membership.hyparview;
 
-import protocols.membership.common.notifications.ChannelCreated;
 import protocols.membership.common.notifications.NeighbourDown;
 import protocols.membership.common.notifications.NeighbourUp;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
@@ -124,7 +123,6 @@ public class HyParView extends GenericProtocol {
         registerChannelEventHandler(channelId, OutConnectionUp.EVENT_ID, this::uponOutConnectionUp);
         registerChannelEventHandler(channelId, InConnectionUp.EVENT_ID, this::uponInConnectionUp);
         registerChannelEventHandler(channelId, InConnectionDown.EVENT_ID, this::uponInConnectionDown);
-
     }
 
     /*--------------------------------- Messages ---------------------------------------- */
@@ -382,7 +380,7 @@ public class HyParView extends GenericProtocol {
                 setupTimer(new HelloTimeout(), timeout);
             }
         } else
-            pending.remove(event.getNode()); //TODO: close connection
+            pending.remove(event.getNode());
     }
 
     private void uponOutConnectionFailed(OutConnectionFailed event, int channelId) {
@@ -393,7 +391,7 @@ public class HyParView extends GenericProtocol {
                 setupTimer(new HelloTimeout(), timeout);
             }
         } else
-            pending.remove(event.getNode()); //TODO: close connection
+            pending.remove(event.getNode());
     }
 
     private void uponOutConnectionUp(OutConnectionUp event, int channelId) {
@@ -410,9 +408,6 @@ public class HyParView extends GenericProtocol {
 
     @Override
     public void init(Properties props) throws HandlerRegistrationException, IOException {
-        // Inform the dissemination protocol about the channel we created in the constructor
-        triggerNotification(new ChannelCreated(channelId));
-
         // If there is a contact node, attempt to establish connection
         if (props.containsKey("contact")) {
             try {
@@ -423,14 +418,15 @@ public class HyParView extends GenericProtocol {
                 openConnection(contactHost);
                 JoinMessage m = new JoinMessage();
                 sendMessage(m, contactHost);
-                logger.debug("Sent JoinMessage to {}", contactHost);
+                logger.info("Sent JoinMessage to {}", contactHost);
                 logger.trace("Sent " + m + " to " + contactHost);
             } catch (Exception e) {
                 logger.error("Invalid contact on configuration: '" + props.getProperty("contact"));
                 e.printStackTrace();
                 System.exit(-1);
             }
-        }
+        } else
+            logger.info("No contact node");
 
         setupPeriodicTimer(new ShuffleTimer(), this.shuffleTime, this.shuffleTime);
     }

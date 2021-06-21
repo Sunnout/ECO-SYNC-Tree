@@ -15,13 +15,13 @@ import protocols.broadcast.plumtree.timers.IHaveTimeout;
 import protocols.broadcast.plumtree.utils.AddressedIHaveMessage;
 import protocols.broadcast.plumtree.utils.LazyQueuePolicy;
 import protocols.broadcast.plumtree.utils.MessageSource;
-import protocols.membership.common.notifications.ChannelCreated;
 import protocols.membership.common.notifications.NeighbourDown;
 import protocols.membership.common.notifications.NeighbourUp;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;
 import pt.unl.fct.di.novasys.channel.tcp.TCPChannel;
+import pt.unl.fct.di.novasys.channel.tcp.events.*;
 import pt.unl.fct.di.novasys.network.data.Host;
 
 import java.io.IOException;
@@ -34,7 +34,9 @@ public class PlumTree extends GenericProtocol {
     public final static short PROTOCOL_ID = 900;
     public final static String PROTOCOL_NAME = "PlumTree";
 
+    protected int channelId;
     private final Host myself;
+    private final static int PORT_MAPPING = 1000;
 
     private final int space;
     private final long timeout1;
@@ -53,12 +55,10 @@ public class PlumTree extends GenericProtocol {
     private final Queue<AddressedIHaveMessage> lazyQueue;
     private final LazyQueuePolicy policy;
 
-    private boolean channelReady;
-
 
     /*--------------------------------- Initialization ---------------------------------------- */
 
-    public PlumTree(Properties properties, Host myself) throws HandlerRegistrationException {
+    public PlumTree(Properties properties, Host myself) throws HandlerRegistrationException, IOException {
         super(PROTOCOL_NAME, PROTOCOL_ID);
         this.myself = myself;
 
@@ -79,7 +79,21 @@ public class PlumTree extends GenericProtocol {
         this.lazyQueue = new LinkedList<>();
         this.policy = HashSet::new;
 
-        this.channelReady = false;
+        String cMetricsInterval = properties.getProperty("channel_metrics_interval", "10000"); // 10 seconds
+
+        // Create a properties object to setup channel-specific properties. See the
+        // channel description for more details.
+        Properties channelProps = new Properties();
+        channelProps.setProperty(TCPChannel.ADDRESS_KEY, properties.getProperty("address")); // The address to bind to
+        channelProps.setProperty(TCPChannel.PORT_KEY, properties.getProperty("bcast_port")); // The port to bind to
+        channelProps.setProperty(TCPChannel.METRICS_INTERVAL_KEY, cMetricsInterval); // The interval to receive channel
+        // metrics
+        channelProps.setProperty(TCPChannel.HEARTBEAT_INTERVAL_KEY, "1000"); // Heartbeats interval for established
+        // connections
+        channelProps.setProperty(TCPChannel.HEARTBEAT_TOLERANCE_KEY, "3000"); // Time passed without heartbeats until
+        // closing a connection
+        channelProps.setProperty(TCPChannel.CONNECT_TIMEOUT_KEY, "1000"); // TCP connect timeout
+        channelId = createChannel(TCPChannel.NAME, channelProps); // Create the channel with the given properties
 
         /*--------------------- Register Timer Handlers ----------------------------- */
         registerTimerHandler(IHaveTimeout.TIMER_ID, this::uponIHaveTimeout);
@@ -92,17 +106,6 @@ public class PlumTree extends GenericProtocol {
         /*--------------------- Register Notification Handlers ----------------------------- */
         subscribeNotification(NeighbourUp.NOTIFICATION_ID, this::uponNeighbourUp);
         subscribeNotification(NeighbourDown.NOTIFICATION_ID, this::uponNeighbourDown);
-        subscribeNotification(ChannelCreated.NOTIFICATION_ID, this::uponChannelCreated);
-    }
-
-    @Override
-    public void init(Properties props) throws HandlerRegistrationException, IOException {
-
-    }
-
-    private void uponChannelCreated(ChannelCreated notification, short sourceProto) {
-        int channelId = notification.getChannelId();
-        registerSharedChannel(channelId);
 
         /*---------------------- Register Message Serializers ---------------------- */
         registerMessageSerializer(channelId, GossipMessage.MSG_ID, GossipMessage.serializer);
@@ -114,27 +117,28 @@ public class PlumTree extends GenericProtocol {
         registerMessageSerializer(channelId, VectorClockMessage.MSG_ID, VectorClockMessage.serializer);
         registerMessageSerializer(channelId, SyncOpsMessage.MSG_ID, SyncOpsMessage.serializer);
 
-        try {
+        /*---------------------- Register Message Handlers -------------------------- */
+        registerMessageHandler(channelId, GossipMessage.MSG_ID, this::uponReceiveGossip, this::onMessageFailed);
+        registerMessageHandler(channelId, PruneMessage.MSG_ID, this::uponReceivePrune, this::onMessageFailed);
+        registerMessageHandler(channelId, GraftMessage.MSG_ID, this::uponReceiveGraft, this::onMessageFailed);
+        registerMessageHandler(channelId, IHaveMessage.MSG_ID, this::uponReceiveIHave, this::onMessageFailed);
 
-            /*---------------------- Register Message Handlers -------------------------- */
-            registerMessageHandler(channelId, GossipMessage.MSG_ID, this::uponReceiveGossip, this::onMessageFailed);
-            registerMessageHandler(channelId, PruneMessage.MSG_ID, this::uponReceivePrune, this::onMessageFailed);
-            registerMessageHandler(channelId, GraftMessage.MSG_ID, this::uponReceiveGraft, this::onMessageFailed);
-            registerMessageHandler(channelId, IHaveMessage.MSG_ID, this::uponReceiveIHave, this::onMessageFailed);
+        registerMessageHandler(channelId, SendVectorClockMessage.MSG_ID, this::uponReceiveSendVectorClock, this::onMessageFailed);
+        registerMessageHandler(channelId, VectorClockMessage.MSG_ID, this::uponReceiveVectorClock, this::onMessageFailed);
+        registerMessageHandler(channelId, SyncOpsMessage.MSG_ID, this::uponReceiveSyncOps, this::onMessageFailed);
 
-            registerMessageHandler(channelId, SendVectorClockMessage.MSG_ID, this::uponReceiveSendVectorClock, this::onMessageFailed);
-            registerMessageHandler(channelId, VectorClockMessage.MSG_ID, this::uponReceiveVectorClock, this::onMessageFailed);
-            registerMessageHandler(channelId, SyncOpsMessage.MSG_ID, this::uponReceiveSyncOps, this::onMessageFailed);
-
-        } catch (HandlerRegistrationException e) {
-            logger.error("Error registering message handler: " + e.getMessage());
-            e.printStackTrace();
-            System.exit(1);
-        }
-
-        this.channelReady = true;
+        /*-------------------- Register Channel Event ------------------------------- */
+        registerChannelEventHandler(channelId, OutConnectionDown.EVENT_ID, this::uponOutConnectionDown);
+        registerChannelEventHandler(channelId, OutConnectionFailed.EVENT_ID, this::uponOutConnectionFailed);
+        registerChannelEventHandler(channelId, OutConnectionUp.EVENT_ID, this::uponOutConnectionUp);
+        registerChannelEventHandler(channelId, InConnectionUp.EVENT_ID, this::uponInConnectionUp);
+        registerChannelEventHandler(channelId, InConnectionDown.EVENT_ID, this::uponInConnectionDown);
     }
 
+    @Override
+    public void init(Properties props) throws HandlerRegistrationException, IOException {
+
+    }
 
     /*--------------------------------- Messages ---------------------------------------- */
 
@@ -241,9 +245,6 @@ public class PlumTree extends GenericProtocol {
     /*--------------------------------- Requests ---------------------------------------- */
 
     private void uponBroadcast(BroadcastRequest request, short sourceProto) {
-        if (!channelReady)
-            return;
-
         UUID mid = request.getMsgId();
         Host sender = request.getSender();
         byte[] content = request.getMsg();
@@ -254,9 +255,6 @@ public class PlumTree extends GenericProtocol {
     }
 
     private void uponVectorClock(VectorClockRequest request, short sourceProto) {
-        if (!channelReady)
-            return;
-
         Host neighbour = request.getTo();
         VectorClockMessage msg = new VectorClockMessage(request.getMsgId(), request.getSender(), request.getVectorClock());
         sendMessage(msg, neighbour, TCPChannel.CONNECTION_IN);
@@ -264,9 +262,6 @@ public class PlumTree extends GenericProtocol {
     }
 
     private void uponSyncOps(SyncOpsRequest request, short sourceProto) {
-        if (!channelReady)
-            return;
-
         Host neighbour = request.getTo();
         if(!neighbour.equals(currentPending))
             return;
@@ -282,13 +277,16 @@ public class PlumTree extends GenericProtocol {
     /*--------------------------------- Notifications ---------------------------------------- */
 
     private void uponNeighbourUp(NeighbourUp notification, short sourceProto) {
-        Host neighbour = notification.getNeighbour();
+        Host tmp = notification.getNeighbour();
+        Host neighbour = new Host(tmp.getAddress(),tmp.getPort() + PORT_MAPPING);
+        openConnection(neighbour);
         logger.info("Trying sync from neighbour {} up", neighbour);
         startSynchronization(neighbour, true);
     }
 
     private void uponNeighbourDown(NeighbourDown notification, short sourceProto) {
-        Host neighbour = notification.getNeighbour();
+        Host tmp = notification.getNeighbour();
+        Host neighbour = new Host(tmp.getAddress(),tmp.getPort() + PORT_MAPPING);
         if (eager.remove(neighbour)) {
             logger.info("Removed {} from eager due to down {}", neighbour, eager);
         }
@@ -310,6 +308,7 @@ public class PlumTree extends GenericProtocol {
             logger.info("Removed {} from current pending due to down", neighbour);
             tryNextSync();
         }
+        closeConnection(neighbour);
     }
 
 
@@ -431,6 +430,30 @@ public class PlumTree extends GenericProtocol {
     private UUID deserializeId(byte[] msg) {
         ByteBuf buf = Unpooled.buffer().writeBytes(msg);
         return new UUID(buf.readLong(), buf.readLong());
+    }
+
+    /* --------------------------------- Channel Events ---------------------------- */
+
+    private void uponOutConnectionDown(OutConnectionDown event, int channelId) {
+        logger.debug("Host {} is down, cause: {}", event.getNode(), event.getCause());
+        //TODO: implement
+    }
+
+    private void uponOutConnectionFailed(OutConnectionFailed event, int channelId) {
+        logger.debug("Connection to host {} failed, cause: {}", event.getNode(), event.getCause());
+        //TODO: implement
+    }
+
+    private void uponOutConnectionUp(OutConnectionUp event, int channelId) {
+        logger.trace("Host (out) {} is up", event.getNode());
+    }
+
+    private void uponInConnectionUp(InConnectionUp event, int channelId) {
+        logger.trace("Host (in) {} is up", event.getNode());
+    }
+
+    private void uponInConnectionDown(InConnectionDown event, int channelId) {
+        logger.trace("Connection from host {} is down, cause: {}", event.getNode(), event.getCause());
     }
 
 }

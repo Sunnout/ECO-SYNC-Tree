@@ -41,15 +41,18 @@ public class Main {
 
         //The Host object is an address/port pair that represents a network host. It is used extensively in babel
         //It implements equals and hashCode, and also includes a serializer that makes it easy to use in network messages
-        Host myself =  new Host(InetAddress.getByName(props.getProperty("address")),
+        Host myself_membership =  new Host(InetAddress.getByName(props.getProperty("address")),
                 Integer.parseInt(props.getProperty("port")));
 
-        logger.info("Hello, I am {}", myself);
+        Host myself =  new Host(InetAddress.getByName(props.getProperty("address")),
+                Integer.parseInt(props.getProperty("bcast_port")));
+
+        logger.info("Hello, I am {} {}", myself_membership, myself);
 
         CRDTApp crdtApp = new CRDTApp(props, myself, ReplicationKernel.PROTOCOL_ID);
         GenericProtocol replicationKernel = new ReplicationKernel(props, myself, PlumTree.PROTOCOL_ID);
         GenericProtocol broadcast = new PlumTree(props, myself);
-        GenericProtocol membership = new HyParView(props, myself);
+        GenericProtocol membership = new HyParView(props, myself_membership);
 
         //Register the protocols
         babel.registerProtocol(crdtApp);

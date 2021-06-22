@@ -55,16 +55,19 @@ public class CRDTApp extends GenericProtocol {
     private final short replicationKernelId;
     private final Host self;
 
-    //Time to wait until creating crdts
-    private final int createTime;
-    //Time to wait until starting to send messages
-    private final int startTime;
+
     //Time to wait until releasing crdts
     private final int releaseTime;
+
+    //Time to wait until creating crdts
+    private final int createTime;
     //Time to run before stopping sending messages
     private final int runTime;
-    //Time to wait until shut down
+    //Time to wait until printing final values
     private final int cooldownTime;
+    //Time to wait until shut down
+    private final int exitTime;
+
 
     //Interval between each increment
     private final int ops1Interval;
@@ -88,10 +91,10 @@ public class CRDTApp extends GenericProtocol {
 
         //Read configurations
         this.createTime = Integer.parseInt(properties.getProperty("create_time"));
-        this.startTime = Integer.parseInt(properties.getProperty("start_time"));
         this.releaseTime = Integer.parseInt(properties.getProperty("release_time"));
-        this.cooldownTime = Integer.parseInt(properties.getProperty("cooldown_time"));
         this.runTime = Integer.parseInt(properties.getProperty("run_time"));
+        this.cooldownTime = Integer.parseInt(properties.getProperty("cooldown_time"));
+        this.exitTime = Integer.parseInt(properties.getProperty("exit_time"));
         this.ops1Interval = Integer.parseInt(properties.getProperty("ops1"));
         this.ops2Interval = Integer.parseInt(properties.getProperty("ops2"));
         this.rand = new Random();
@@ -599,18 +602,16 @@ public class CRDTApp extends GenericProtocol {
 
     private void uponStopTimer(StopTimer stopTimer, long timerId) {
         logger.info("Stopping broadcasts");
-
         //Stop executing operations
         this.cancelTimer(ops1Timer);
         this.cancelTimer(ops2Timer);
 
         setupTimer(new PrintValuesTimer(), cooldownTime * TO_MILLIS);
-//        setupTimer(new ExitTimer(), cooldownTime * TO_MILLIS);
     }
 
     private void uponPrintValuesTimer(PrintValuesTimer printValuesTimer, long timerId) {
         printFinalValues(RUN);
-        setupTimer(new ExitTimer(), cooldownTime * TO_MILLIS);
+        setupTimer(new ExitTimer(), exitTime * TO_MILLIS);
     }
 
     private void uponExitTimer(ExitTimer exitTimer, long timerId) {

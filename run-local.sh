@@ -4,6 +4,7 @@ processes=$1
 newprocesses=$2
 killprocesses=$3
 contactnode=$4
+runcontact=$5
 
 if [ -z $processes ] || [ $processes -lt 1 ]; then
   echo "please indicate a number of processes of at least one"
@@ -20,14 +21,17 @@ if [ -z $killprocesses ] || [ $killprocesses -lt 0 ] || [ $killprocesses -gt $pr
   exit 0
 fi
 
+if [ -z $contactnode ]; then
+  echo "please indicate ip:port of contact node"
+  exit 0
+fi
+
 i=0
+k=0
 port=5000
 bcastport=6000
 
-if [ -z $contactnode ]; then
-  contactnode="$(hostname):$port"
-  echo "VALOR $contactnode"
-
+if [ ! -z $runcontact ]; then
   java -DlogFilename=/tmp/plumtreelogs/results-$(hostname)-$[$port+$i] -jar target/PlumtreeOpLogs.jar -conf config.properties address=$(hostname) port=$port bcast_port=$bcastport | sed "s/^/[$(($port + $i))] /"&
   echo "launched contact on port $port"
   i=1
@@ -43,9 +47,9 @@ do
 	sleep 1
 done
 
-#Start from 1 so as not to kill contact node
-k=1
 sleep 15
+k=1 #Start from 1 so as not to kill contact node
+
 while [ $k -le $killprocesses ]
 do
   kill $(ps aux | grep "port=$[$port+$k]" | awk '{print $2}')
@@ -53,8 +57,9 @@ do
   sleep 1
 done
 
-j=0
 sleep 5
+j=0
+
 while [ $j -lt $newprocesses ]
 do
   java -DlogFilename=/tmp/plumtreelogs/results-$(hostname)-$[$port+$i] -jar target/PlumtreeOpLogs.jar -conf config-newnode.properties address=$(hostname) port=$[$port+$i] bcast_port=$[$bcastport+$i] contact=$contactnode | sed "s/^/[$(($port + $i))] /"&

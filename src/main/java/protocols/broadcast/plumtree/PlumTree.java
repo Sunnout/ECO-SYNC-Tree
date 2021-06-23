@@ -11,6 +11,7 @@ import protocols.broadcast.plumtree.notifications.SendVectorClockNotification;
 import protocols.broadcast.plumtree.notifications.VectorClockNotification;
 import protocols.broadcast.plumtree.requests.SyncOpsRequest;
 import protocols.broadcast.plumtree.requests.VectorClockRequest;
+import protocols.broadcast.plumtree.timers.ReconnectTimeout;
 import protocols.broadcast.plumtree.timers.IHaveTimeout;
 import protocols.broadcast.plumtree.utils.AddressedIHaveMessage;
 import protocols.broadcast.plumtree.utils.LazyQueuePolicy;
@@ -41,7 +42,9 @@ public class PlumTree extends GenericProtocol {
     private final int space;
     private final long timeout1;
     private final long timeout2;
+    private final long reconnectTimeout;
 
+    private final Set<Host> partialView;
     private final Set<Host> eager;
     private final Set<Host> lazy;
     private final Queue<Host> pending;
@@ -66,7 +69,9 @@ public class PlumTree extends GenericProtocol {
         this.space = Integer.MAX_VALUE;
         this.timeout1 = Long.parseLong(properties.getProperty("timeout1", "1000"));
         this.timeout2 = Long.parseLong(properties.getProperty("timeout2", "500"));
+        this.reconnectTimeout = Long.parseLong(properties.getProperty("reconnect_timeout", "500"));
 
+        this.partialView = new HashSet<>();
         this.eager = new HashSet<>();
         this.lazy = new HashSet<>();
         this.pending = new LinkedList<>();
@@ -79,7 +84,7 @@ public class PlumTree extends GenericProtocol {
         this.lazyQueue = new LinkedList<>();
         this.policy = HashSet::new;
 
-        String cMetricsInterval = properties.getProperty("channel_metrics_interval", "10000"); // 10 seconds
+        String cMetricsInterval = properties.getProperty("bcast_channel_metrics_interval", "10000"); // 10 seconds
 
         // Create a properties object to setup channel-specific properties. See the
         // channel description for more details.
@@ -97,6 +102,7 @@ public class PlumTree extends GenericProtocol {
 
         /*--------------------- Register Timer Handlers ----------------------------- */
         registerTimerHandler(IHaveTimeout.TIMER_ID, this::uponIHaveTimeout);
+        registerTimerHandler(ReconnectTimeout.TIMER_ID, this::uponReconnectTimeout);
 
         /*--------------------- Register Request Handlers ----------------------------- */
         registerRequestHandler(BroadcastRequest.REQUEST_ID, this::uponBroadcast);
@@ -230,7 +236,7 @@ public class PlumTree extends GenericProtocol {
                 long tid = setupTimer(timeout, timeout2);
                 onGoingTimers.put(mid, tid);
                 Host neighbour = msgSrc.peer;
-                if (isInPartialView(neighbour) && !neighbour.equals(currentPending) && !pending.contains(neighbour)) {
+                if (partialView.contains(neighbour) && !neighbour.equals(currentPending) && !pending.contains(neighbour)) {
                     logger.info("Sent GraftMessage for {} to {}", mid, neighbour);
                     sendMessage(new GraftMessage(mid, msgSrc.round), neighbour);
                 }
@@ -238,6 +244,16 @@ public class PlumTree extends GenericProtocol {
                 startSynchronization(neighbour, false);
 
             }
+        }
+    }
+
+    private void uponReconnectTimeout(ReconnectTimeout timeout, long timerId) {
+        Host neighbour = timeout.getHost();
+        if(partialView.contains(neighbour)) {
+            logger.info("Reconnecting with {}", neighbour);
+            openConnection(neighbour);
+        } else {
+            logger.info("Not reconnecting because {} is down", neighbour);
         }
     }
 
@@ -279,14 +295,22 @@ public class PlumTree extends GenericProtocol {
     private void uponNeighbourUp(NeighbourUp notification, short sourceProto) {
         Host tmp = notification.getNeighbour();
         Host neighbour = new Host(tmp.getAddress(),tmp.getPort() + PORT_MAPPING);
+
+        if (partialView.add(neighbour)) {
+            logger.info("Added {} to partial view due to up {}", neighbour, partialView);
+        }
+
         openConnection(neighbour);
-        logger.info("Trying sync from neighbour {} up", neighbour);
-        startSynchronization(neighbour, true);
     }
 
     private void uponNeighbourDown(NeighbourDown notification, short sourceProto) {
         Host tmp = notification.getNeighbour();
         Host neighbour = new Host(tmp.getAddress(),tmp.getPort() + PORT_MAPPING);
+
+        if (partialView.remove(neighbour)) {
+            logger.info("Removed {} from partial view due to down {}", neighbour, partialView);
+        }
+
         if (eager.remove(neighbour)) {
             logger.info("Removed {} from eager due to down {}", neighbour, eager);
         }
@@ -423,10 +447,6 @@ public class PlumTree extends GenericProtocol {
         lazyQueue.removeAll(announcements);
     }
 
-    private boolean isInPartialView(Host h) {
-        return lazy.contains(h) || eager.contains(h) || pending.contains(h) || h.equals(currentPending);
-    }
-
     private UUID deserializeId(byte[] msg) {
         ByteBuf buf = Unpooled.buffer().writeBytes(msg);
         return new UUID(buf.readLong(), buf.readLong());
@@ -435,17 +455,40 @@ public class PlumTree extends GenericProtocol {
     /* --------------------------------- Channel Events ---------------------------- */
 
     private void uponOutConnectionDown(OutConnectionDown event, int channelId) {
-        logger.debug("Host {} is down, cause: {}", event.getNode(), event.getCause());
-        //TODO: implement
+        Host host = event.getNode();
+        logger.info("Host {} is down, cause: {}", host, event.getCause());
+
+        if (eager.remove(host)) {
+            logger.info("Removed {} from eager due to plumtree down {}", host, eager);
+        }
+
+        if (lazy.remove(host)) {
+            logger.info("Removed {} from lazy due to plumtree down {}", host, lazy);
+        }
+
+        if (pending.remove(host)) {
+            logger.info("Removed {} from pending due to plumtree down {}", host, pending);
+        }
+
+        if (host.equals(currentPending)) {
+            logger.info("Removed {} from current pending due to plumtree down", host);
+            tryNextSync();
+        }
+
+        setupTimer(new ReconnectTimeout(host), reconnectTimeout);
     }
 
     private void uponOutConnectionFailed(OutConnectionFailed event, int channelId) {
-        logger.debug("Connection to host {} failed, cause: {}", event.getNode(), event.getCause());
-        //TODO: implement
+        Host host = event.getNode();
+        logger.info("Connection to host {} failed, cause: {}", host, event.getCause());
+        setupTimer(new ReconnectTimeout(host), reconnectTimeout);
     }
 
     private void uponOutConnectionUp(OutConnectionUp event, int channelId) {
-        logger.trace("Host (out) {} is up", event.getNode());
+        Host neighbour = event.getNode();
+        logger.trace("Host (out) {} is up", neighbour);
+        logger.info("Trying sync from neighbour {} up", neighbour);
+        startSynchronization(neighbour, true);
     }
 
     private void uponInConnectionUp(InConnectionUp event, int channelId) {

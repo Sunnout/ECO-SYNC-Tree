@@ -146,8 +146,8 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
      * Propagates local operations to other replication kernels after incrementing
      * and setting the operation's vector clock.
      *
-     * @param request
-     * @param sourceProto
+     * @param request -
+     * @param sourceProto -
      */
     private void uponDownstream(DownstreamRequest request, short sourceProto) {
         UUID msgId = request.getMsgId();
@@ -170,8 +170,8 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     /**
      * Processes operations received from other replication kernels.
      *
-     * @param notification
-     * @param sourceProto
+     * @param notification -
+     * @param sourceProto -
      */
     private void uponDeliver(DeliverNotification notification, short sourceProto) {
         Host sender = notification.getSender();

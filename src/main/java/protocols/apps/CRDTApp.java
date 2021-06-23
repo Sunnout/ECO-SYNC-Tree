@@ -3,7 +3,6 @@ package protocols.apps;
 import java.util.*;
 
 import crdts.interfaces.GenericCRDT;
-import crdts.operations.Operation;
 import protocols.replication.*;
 import protocols.replication.OpCounterCRDT.CounterOpType;
 import protocols.replication.LWWRegisterCRDT.RegisterOpType;
@@ -16,7 +15,6 @@ import org.apache.logging.log4j.Logger;
 import protocols.apps.timers.*;
 import protocols.replication.notifications.*;
 import protocols.replication.requests.*;
-import protocols.replication.utils.OperationAndID;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.network.data.Host;
@@ -465,7 +463,7 @@ public class CRDTApp extends GenericProtocol {
             if(crdt instanceof OpCounterCRDT) {
                 return ((OpCounterCRDT) crdt).value();
             } else {
-                return 0; //TODO: exception?
+                return 0;
                 //CRDT with crdtId is not a counterCRDT
             }
         } else {
@@ -480,7 +478,7 @@ public class CRDTApp extends GenericProtocol {
             if(crdt instanceof LWWRegisterCRDT) {
                 return ((LWWRegisterCRDT) crdt).value();
             } else {
-                return null; //TODO: exception?
+                return null;
                 //CRDT with crdtId is not a counterCRDT
             }
         } else {
@@ -495,7 +493,7 @@ public class CRDTApp extends GenericProtocol {
             if(crdt instanceof ORSetCRDT) {
                 return ((ORSetCRDT) crdt).elements();
             } else {
-                return null; //TODO: exception?
+                return null;
                 //CRDT with crdtId is not a orsetCRDT
             }
         } else {
@@ -510,7 +508,7 @@ public class CRDTApp extends GenericProtocol {
             if(crdt instanceof ORMapCRDT) {
                 return ((ORMapCRDT) crdt).keys();
             } else {
-                return null; //TODO: exception?
+                return null;
                 //CRDT with crdtId is not a ormapCRDT
             }
         } else {
@@ -525,7 +523,7 @@ public class CRDTApp extends GenericProtocol {
             if(crdt instanceof ORMapCRDT) {
                 return ((ORMapCRDT) crdt).values();
             } else {
-                return null; //TODO: exception?
+                return null;
                 //CRDT with crdtId is not a ormapCRDT
             }
         } else {
@@ -540,7 +538,7 @@ public class CRDTApp extends GenericProtocol {
             if(crdt instanceof ORMapCRDT) {
                 return ((ORMapCRDT) crdt).get(key);
             } else {
-                return null; //TODO: exception?
+                return null;
                 //CRDT with crdtId is not a ormapCRDT
             }
         } else {

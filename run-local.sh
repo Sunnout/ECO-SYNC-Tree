@@ -47,7 +47,7 @@ do
 	sleep 1
 done
 
-sleep 15
+sleep 25
 k=1 #Start from 1 so as not to kill contact node
 
 while [ $k -le $killprocesses ]

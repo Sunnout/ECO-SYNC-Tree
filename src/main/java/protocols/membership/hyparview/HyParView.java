@@ -418,15 +418,16 @@ public class HyParView extends GenericProtocol {
                 openConnection(contactHost);
                 JoinMessage m = new JoinMessage();
                 sendMessage(m, contactHost);
-                logger.info("Sent JoinMessage to {}", contactHost);
+                logger.debug("Sent JoinMessage to {}", contactHost);
                 logger.trace("Sent " + m + " to " + contactHost);
             } catch (Exception e) {
                 logger.error("Invalid contact on configuration: '" + props.getProperty("contact"));
                 e.printStackTrace();
                 System.exit(-1);
             }
-        } else
-            logger.info("No contact node");
+        } else {
+            logger.debug("No contact node provided");
+        }
 
         setupPeriodicTimer(new ShuffleTimer(), this.shuffleTime, this.shuffleTime);
     }

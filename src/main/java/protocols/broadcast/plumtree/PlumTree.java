@@ -359,7 +359,6 @@ public class PlumTree extends GenericProtocol {
         if (lazy.remove(currentPending)) {
             logger.info("Removed {} from lazy due to sync {}", currentPending, lazy);
         }
-
         tryNextSync();
     }
 
@@ -474,7 +473,6 @@ public class PlumTree extends GenericProtocol {
             logger.info("Removed {} from current pending due to plumtree down", host);
             tryNextSync();
         }
-
         setupTimer(new ReconnectTimeout(host), reconnectTimeout);
     }
 

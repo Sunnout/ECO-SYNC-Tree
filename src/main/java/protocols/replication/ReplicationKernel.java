@@ -24,7 +24,8 @@ import pt.unl.fct.di.novasys.network.data.Host;
 import serializers.MyOpSerializer;
 import serializers.MySerializer;
 
-import java.io.IOException;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -61,7 +62,9 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     private int seqNumber; //Counter of local operation
     private Map<String, KernelCRDT> crdtsById; //Map that stores CRDTs by their ID
     private Map<String, Set<Host>> hostsByCrdt; //Map that stores the hosts that replicate a given CRDT
-    public static List<OperationAndID> causallyOrderedOps; //List of causally ordered received operations
+//    private List<OperationAndID> causallyOrderedOps; //List of causally ordered received operations
+    private boolean fileInitialized;
+    private int nExecuted;
 
     //Serializers
     public static Map<String, MyOpSerializer> opSerializers = initializeOperationSerializers(); //Static map of operation serializers for each crdt type
@@ -73,7 +76,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     public static int executedOps;
 
 
-    public ReplicationKernel(Properties properties, Host myself, short broadcastId) throws HandlerRegistrationException {
+    public ReplicationKernel(Properties properties, Host myself, short broadcastId) throws HandlerRegistrationException, IOException {
         super(PROTOCOL_NAME, PROTOCOL_ID);
         this.broadcastId = broadcastId;
         this.myself = myself;
@@ -81,7 +84,8 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         initializeVectorClock();
         this.crdtsById = new ConcurrentHashMap<>();
         this.hostsByCrdt = new ConcurrentHashMap<>();
-        causallyOrderedOps = new ArrayList<>();
+//        causallyOrderedOps = new ArrayList<>();
+        this.fileInitialized = false;
 
         this.dataSerializers = new HashMap<>();
 
@@ -156,9 +160,12 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
 
         Operation op = request.getOperation();
         incrementAndSetVectorClock(op);
-        causallyOrderedOps.add(new OperationAndID(op, msgId));
         try {
-            broadcastOperation(false, msgId, request.getSender(), op);
+            //causallyOrderedOps.add(new OperationAndID(op, msgId));
+            //TODO: write to op log file
+            byte[] serOp = serializeOperation(false, op);
+            writeOperationToFile(serOp, msgId);
+            sendRequest(new BroadcastRequest(msgId, request.getSender(), serOp), broadcastId);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -176,14 +183,18 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     private void uponDeliver(DeliverNotification notification, short sourceProto) {
         Host sender = notification.getSender();
         UUID msgId = notification.getMsgId();
+        byte[] serOp = notification.getMsg();
         try {
             if (!sender.equals(myself)) {
-                Operation op = deserializeOperation(notification.getMsg());
+                Operation op = deserializeOperation(serOp);
                 Host h = op.getSender();
                 int clock = op.getSenderClock();
                 if (this.vectorClock.getHostClock(h) == clock - 1) {
                     logger.info("[{}] Accepted op {}-{} : {} from {}, Clock {}", notification.isFromSync(),
                             h, clock, notification.getMsgId(), sender, vectorClock.getHostClock(h));
+//                    causallyOrderedOps.add(new OperationAndID(op, msgId));
+                    //TODO: write to op log file
+                    writeOperationToFile(serOp, msgId);
                     executeOperation(h, op, msgId);
                 } else if (this.vectorClock.getHostClock(h) < clock - 1) {
                     logger.error("[{}] Out-of-order op {}-{} : {} from {}, Clock {}", notification.isFromSync(),
@@ -204,8 +215,9 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     private void uponVectorClock(VectorClockNotification notification, short sourceProto) {
         Host neighbour = notification.getNeighbour();
         logger.info("Received {}", notification);
+        //TODO: read from file
         try {
-            sendMissingSyncOperations(neighbour, notification.getVectorClock());
+            readAndSendMissingOpsFromFile(neighbour,  notification.getVectorClock());
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -228,30 +240,30 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
 
     /* --------------------------------- Procedures --------------------------------- */
 
-    private void sendMissingSyncOperations(Host neighbour, VectorClock neighbourClock) throws IOException {
-        int index = 0;
-        for (OperationAndID opAndId : causallyOrderedOps) {
-            Operation op = opAndId.getOp();
-            Host h = op.getSender();
-            int opClock = op.getSenderClock();
-            if (neighbourClock.getHostClock(h) < opClock)
-                break;
-            index++;
-        }
-
-        List<byte[]> ops = new LinkedList<>();
-        List<byte[]> ids = new LinkedList<>();
-        for (int i = index; i < causallyOrderedOps.size(); i++) {
-            OperationAndID opAndId = causallyOrderedOps.get(i);
-            Operation op = opAndId.getOp();
-            byte[] serializedOp = serializeOperation(op instanceof CreateOperation, op);
-            ops.add(serializedOp);
-            UUID id = opAndId.getId();
-            byte[] serializedId = serializeId(id);
-            ids.add(serializedId);
-        }
-        sendRequest(new SyncOpsRequest(UUID.randomUUID(), myself, neighbour, ids, ops), broadcastId);
-    }
+//    private void sendMissingSyncOperations(Host neighbour, VectorClock neighbourClock) throws IOException {
+//        int index = 0;
+//        for (OperationAndID opAndId : causallyOrderedOps) {
+//            Operation op = opAndId.getOp();
+//            Host h = op.getSender();
+//            int opClock = op.getSenderClock();
+//            if (neighbourClock.getHostClock(h) < opClock)
+//                break;
+//            index++;
+//        }
+//
+//        List<byte[]> ops = new LinkedList<>();
+//        List<byte[]> ids = new LinkedList<>();
+//        for (int i = index; i < causallyOrderedOps.size(); i++) {
+//            OperationAndID opAndId = causallyOrderedOps.get(i);
+//            Operation op = opAndId.getOp();
+//            byte[] serializedOp = serializeOperation(op instanceof CreateOperation, op);
+//            ops.add(serializedOp);
+//            UUID id = opAndId.getId();
+//            byte[] serializedId = serializeId(id);
+//            ids.add(serializedId);
+//        }
+//        sendRequest(new SyncOpsRequest(UUID.randomUUID(), myself, neighbour, ids, ops), broadcastId);
+//    }
 
     private Operation deserializeOperation(byte[] msg) throws IOException {
         ByteBuf buf = Unpooled.buffer().writeBytes(msg);
@@ -297,8 +309,6 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     }
 
     private void executeOperation(Host sender, Operation op, UUID msgId) throws IOException {
-        causallyOrderedOps.add(new OperationAndID(op, msgId));
-
         String crdtId = op.getCrdtId();
         String crdtType = op.getCrdtType();
 
@@ -323,8 +333,62 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         triggerNotification(new ReturnCRDTNotification(msgId, sender, crdt));
         CreateOperation op = new CreateOperation(null, 0, CREATE_CRDT, crdtId, crdtType, dataTypes);
         incrementAndSetVectorClock(op);
-        causallyOrderedOps.add(new OperationAndID(op, msgId));
-        broadcastOperation(true, msgId, sender, op);
+//        causallyOrderedOps.add(new OperationAndID(op, msgId));
+        //TODO: write to op log file
+        byte[] serOp = serializeOperation(true, op);
+        writeOperationToFile(serOp, msgId);
+        sendRequest(new BroadcastRequest(msgId, sender, serOp), broadcastId);
+    }
+
+    private void writeOperationToFile(byte[] serOp, UUID msgId) throws IOException {
+        try (FileOutputStream fos = new FileOutputStream(getFile(), true);
+             DataOutputStream dos = new DataOutputStream(fos)) {
+            dos.writeLong(msgId.getMostSignificantBits());
+            dos.writeLong(msgId.getLeastSignificantBits());
+            logger.info("{} HAS THIS LEN {}", msgId, serOp.length);
+            dos.writeInt(serOp.length);
+            if (serOp.length > 0) {
+                dos.write(serOp);
+            }
+            nExecuted++;
+        } catch (IOException e) {
+            logger.error("Error writing op to file", e);
+            e.printStackTrace();
+        }
+    }
+
+    private void readAndSendMissingOpsFromFile(Host neighbour, VectorClock neighbourClock) throws IOException {
+        List<byte[]> ops = new LinkedList<>();
+        List<byte[]> ids = new LinkedList<>();
+        try (FileInputStream fis = new FileInputStream(getFile());
+             BufferedInputStream bis = new BufferedInputStream(fis);
+             DataInputStream dis = new DataInputStream(bis)) {
+
+            for (int i = 0; i < nExecuted; i++) {
+                long firstLong = dis.readLong();
+                long secondLong = dis.readLong();
+                UUID msgId = new UUID(firstLong, secondLong);
+                int size = dis.readInt();
+                logger.info("THIS IS THE SIZE {}", size);
+                if (size > 0) {
+                    byte[] serOp = new byte[size];
+                    dis.read(serOp, 0, size);
+                    Operation op = deserializeOperation(serOp);
+                    Host h = op.getSender();
+                    int opClock = op.getSenderClock();
+                    if (neighbourClock.getHostClock(h) < opClock) {
+                        ops.add(serOp);
+                        byte[] serializedId = serializeId(msgId);
+                        ids.add(serializedId);
+                    }
+                }
+            }
+            sendRequest(new SyncOpsRequest(UUID.randomUUID(), myself, neighbour, ids, ops), broadcastId);
+        } catch (IOException e) {
+            logger.error("Error reading missing ops from file", e);
+            e.printStackTrace();
+        }
+
     }
 
     /**
@@ -523,4 +587,12 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         return map;
     }
 
+    private File getFile() throws IOException {
+        File file = new File("data/ops");
+        if(!fileInitialized) {
+            file.createNewFile();
+            fileInitialized = true;
+        }
+        return file;
+    }
 }

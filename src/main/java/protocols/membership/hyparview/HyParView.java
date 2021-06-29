@@ -12,7 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import protocols.membership.hyparview.messages.*;
 import protocols.membership.hyparview.timers.HelloTimeout;
-import protocols.membership.hyparview.timers.ShuffleTimer;
+import protocols.membership.hyparview.timers.ShuffleTimeout;
 import protocols.membership.hyparview.utils.IView;
 import protocols.membership.hyparview.utils.View;
 
@@ -117,7 +117,7 @@ public class HyParView extends GenericProtocol {
         registerMessageHandler(channelId, ShuffleReplyMessage.MSG_CODE, this::uponReceiveShuffleReply, this::uponShuffleReplySent);
 
         /*--------------------- Register Timer Handlers ----------------------------- */
-        registerTimerHandler(ShuffleTimer.TIMER_ID, this::uponShuffleTimeout);
+        registerTimerHandler(ShuffleTimeout.TIMER_ID, this::uponShuffleTimeout);
         registerTimerHandler(HelloTimeout.TIMER_ID, this::uponHelloTimeout);
         registerTimerHandler(JoinTimeout.TIMER_ID, this::uponJoinTimeout);
 
@@ -325,7 +325,7 @@ public class HyParView extends GenericProtocol {
 
     /*--------------------------------- Timers ---------------------------------------- */
 
-    private void uponShuffleTimeout(ShuffleTimer timer, long timerId) {
+    private void uponShuffleTimeout(ShuffleTimeout timer, long timerId) {
         if(!active.fullWithPending(pending)){
             setupTimer(new HelloTimeout(), timeout);
         }
@@ -447,6 +447,6 @@ public class HyParView extends GenericProtocol {
             logger.debug("No contact node provided");
         }
 
-        setupPeriodicTimer(new ShuffleTimer(), this.shuffleTime, this.shuffleTime);
+        setupPeriodicTimer(new ShuffleTimeout(), this.shuffleTime, this.shuffleTime);
     }
 }

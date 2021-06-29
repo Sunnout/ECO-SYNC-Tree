@@ -2,6 +2,7 @@ package protocols.membership.hyparview;
 
 import protocols.membership.common.notifications.NeighbourDown;
 import protocols.membership.common.notifications.NeighbourUp;
+import protocols.membership.hyparview.timers.JoinTimeout;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.channel.tcp.TCPChannel;
@@ -38,6 +39,7 @@ public class HyParView extends GenericProtocol {
     private final short shuffleTime; //param: timeout for shuffle
     private final short originalTimeout; //param: timeout for hello msgs
     private short timeout;
+    private final short joinTimeout; //param: timeout for retry join
 
     private final short kActive; //param: number of active nodes to exchange on shuffle
     private final short kPassive; //param: number of passive nodes to exchange on shuffle
@@ -63,6 +65,7 @@ public class HyParView extends GenericProtocol {
 
         this.shuffleTime = Short.parseShort(properties.getProperty("shuffleTime", "2000")); //param: timeout for shuffle
         this.timeout = this.originalTimeout = Short.parseShort(properties.getProperty("helloBackoff", "1000")); //param: timeout for hello msgs
+        this.joinTimeout = Short.parseShort(properties.getProperty("joinTimeout", "2000")); //param: timeout for retry join
 
         this.kActive = Short.parseShort(properties.getProperty("kActive", "2")); //param: number of active nodes to exchange on shuffle
         this.kPassive = Short.parseShort(properties.getProperty("kPassive", "3")); //param: number of passive nodes to exchange on shuffle
@@ -114,8 +117,9 @@ public class HyParView extends GenericProtocol {
         registerMessageHandler(channelId, ShuffleReplyMessage.MSG_CODE, this::uponReceiveShuffleReply, this::uponShuffleReplySent);
 
         /*--------------------- Register Timer Handlers ----------------------------- */
-        registerTimerHandler(ShuffleTimer.TimerCode, this::uponShuffleTime);
-        registerTimerHandler(HelloTimeout.TimerCode, this::uponHelloTimeout);
+        registerTimerHandler(ShuffleTimer.TIMER_ID, this::uponShuffleTimeout);
+        registerTimerHandler(HelloTimeout.TIMER_ID, this::uponHelloTimeout);
+        registerTimerHandler(JoinTimeout.TIMER_ID, this::uponJoinTimeout);
 
         /*-------------------- Register Channel Event ------------------------------- */
         registerChannelEventHandler(channelId, OutConnectionDown.EVENT_ID, this::uponOutConnectionDown);
@@ -138,14 +142,7 @@ public class HyParView extends GenericProtocol {
 
     private void uponReceiveJoin(JoinMessage msg, Host from, short sourceProto, int channelId) {
         logger.debug("Received {} from {}", msg, from);
-        openConnection(from);
-        Host h = active.addPeer(from);
-        logger.trace("Added to {} active{}", from, active);
-        sendMessage( new JoinReplyMessage(), from);
-        logger.debug("Sent JoinReplyMessage to {}", from);
-        triggerNotification(new NeighbourUp(from));
-        handleDropFromActive(h);
-
+        addHostToActiveAndReplyToJoin(from);
         for(Host peer : active.getPeers()) {
             if(!peer.equals(from)) {
                 sendMessage(new ForwardJoinMessage(ARWL, from), peer);
@@ -159,7 +156,6 @@ public class HyParView extends GenericProtocol {
         if(!active.containsPeer(from)) {
             passive.removePeer(from);
             pending.remove(from);
-
             openConnection(from);
             Host h = active.addPeer(from);
             logger.trace("Added to {} active{}", from, active);
@@ -175,13 +171,7 @@ public class HyParView extends GenericProtocol {
             if(!newHost.equals(myself) && !active.containsPeer(newHost)) {
                 passive.removePeer(newHost);
                 pending.remove(newHost);
-                openConnection(newHost);
-                Host h = active.addPeer(newHost);
-                logger.trace("Added to {} active{}", newHost, active);
-                sendMessage(new JoinReplyMessage(), newHost);
-                logger.debug("Sent JoinReplyMessage to {}", newHost);
-                triggerNotification(new NeighbourUp(newHost));
-                handleDropFromActive(h);
+                addHostToActiveAndReplyToJoin(newHost);
             }
         } else {
             if(msg.decrementTtl() == PRWL)  {
@@ -283,7 +273,6 @@ public class HyParView extends GenericProtocol {
     private void uponReceiveShuffle(ShuffleMessage msg, Host from, short sourceProto, int channelId) {
         logger.debug("Received {} from {}", msg, from);
         openConnection(from);
-
         msg.decrementTtl();
         if(msg.getTtl() > 0 && active.getPeers().size() > 1) {
             Host next = active.getRandomDiff(from);
@@ -333,8 +322,10 @@ public class HyParView extends GenericProtocol {
         logger.trace("After Passive{}", passive);
     }
 
+
     /*--------------------------------- Timers ---------------------------------------- */
-    private void uponShuffleTime(ShuffleTimer timer, long timerId) {
+
+    private void uponShuffleTimeout(ShuffleTimer timer, long timerId) {
         if(!active.fullWithPending(pending)){
             setupTimer(new HelloTimeout(), timeout);
         }
@@ -366,9 +357,35 @@ public class HyParView extends GenericProtocol {
         }
     }
 
+    private void uponJoinTimeout(JoinTimeout timer, long timerId) {
+        if(active.isEmpty()) {
+            Host contact = timer.getContact();
+            logger.warn("Retrying join to {}", contact);
+            JoinMessage m = new JoinMessage();
+            sendMessage(m, contact);
+            logger.debug("Sent JoinMessage to {}", contact);
+            timer.incCount();
+            setupTimer(timer, (joinTimeout * timer.getCount()));
+        }
+    }
+
+
+    /*--------------------------------- Procedures ---------------------------------------- */
+
     private boolean getPriority() {
         return active.getPeers().size() + pending.size() == 1;
     }
+
+    private void addHostToActiveAndReplyToJoin(Host from) {
+        openConnection(from);
+        Host h = active.addPeer(from);
+        logger.trace("Added to {} active{}", from, active);
+        sendMessage( new JoinReplyMessage(), from);
+        logger.debug("Sent JoinReplyMessage to {}", from);
+        triggerNotification(new NeighbourUp(from));
+        handleDropFromActive(h);
+    }
+
 
     /* --------------------------------- Channel Events ---------------------------- */
 
@@ -384,7 +401,7 @@ public class HyParView extends GenericProtocol {
     }
 
     private void uponOutConnectionFailed(OutConnectionFailed event, int channelId) {
-        logger.debug("Connection to host {} failed, cause: {}", event.getNode(), event.getCause());
+        logger.warn("Connection to host {} failed, cause: {}", event.getNode(), event.getCause());
         if(active.removePeer(event.getNode())) {
             triggerNotification(new NeighbourDown(event.getNode()));
             if(!active.fullWithPending(pending)){
@@ -418,8 +435,9 @@ public class HyParView extends GenericProtocol {
                 openConnection(contactHost);
                 JoinMessage m = new JoinMessage();
                 sendMessage(m, contactHost);
-                logger.debug("Sent JoinMessage to {}", contactHost);
+                logger.info("Sent JoinMessage to {}", contactHost);
                 logger.trace("Sent " + m + " to " + contactHost);
+                setupTimer(new JoinTimeout(contactHost), joinTimeout);
             } catch (Exception e) {
                 logger.error("Invalid contact on configuration: '" + props.getProperty("contact"));
                 e.printStackTrace();

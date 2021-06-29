@@ -108,4 +108,9 @@ public class View implements IView {
     public boolean isFull() {
         return peers.size() >= capacity;
     }
+
+    public boolean isEmpty() {
+        return peers.isEmpty();
+    }
+
 }

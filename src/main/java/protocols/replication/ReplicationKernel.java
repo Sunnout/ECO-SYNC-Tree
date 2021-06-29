@@ -333,7 +333,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
 
     private void writeOperationToFile(byte[] serOp, UUID msgId) throws IOException {
         try(FileOutputStream fos = new FileOutputStream(this.file, true);
-            DataOutputStream dos = new DataOutputStream(fos)) { //TODO: talvez guardar como var e ver se fica melhor
+            DataOutputStream dos = new DataOutputStream(fos)) {
             dos.writeLong(msgId.getMostSignificantBits());
             dos.writeLong(msgId.getLeastSignificantBits());
             dos.writeInt(serOp.length);
@@ -348,6 +348,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     }
 
     private void readAndSendMissingOpsFromFile(Host neighbour, VectorClock neighbourClock) throws IOException {
+        long startTime = System.currentTimeMillis();
         List<byte[]> ops = new LinkedList<>();
         List<byte[]> ids = new LinkedList<>();
         try (FileInputStream fis = new FileInputStream(this.file);
@@ -372,6 +373,8 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
                     }
                 }
             }
+            long endTime = System.currentTimeMillis();
+            logger.info("Read from file in {} ms", endTime - startTime);
             sendRequest(new SyncOpsRequest(UUID.randomUUID(), myself, neighbour, ids, ops), broadcastId);
         } catch (IOException e) {
             logger.error("Error reading missing ops from file", e);

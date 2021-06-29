@@ -27,4 +27,6 @@ public interface IView {
     public boolean fullWithPending(Set<Host> pending);
 
     public boolean isFull();
+
+    public boolean isEmpty();
 }

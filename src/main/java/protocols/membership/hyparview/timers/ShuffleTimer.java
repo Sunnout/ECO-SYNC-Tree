@@ -4,10 +4,10 @@ package protocols.membership.hyparview.timers;
 import pt.unl.fct.di.novasys.babel.generic.ProtoTimer;
 
 public class ShuffleTimer extends ProtoTimer {
-    public static final short TimerCode = 401;
+    public static final short TIMER_ID = 403;
 
     public ShuffleTimer() {
-        super(ShuffleTimer.TimerCode);
+        super(TIMER_ID);
     }
 
     @Override

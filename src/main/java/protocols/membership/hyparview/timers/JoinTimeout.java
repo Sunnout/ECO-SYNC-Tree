@@ -3,17 +3,15 @@ package protocols.membership.hyparview.timers;
 import pt.unl.fct.di.novasys.babel.generic.ProtoTimer;
 import pt.unl.fct.di.novasys.network.data.Host;
 
-import java.util.List;
-
 public class JoinTimeout extends ProtoTimer {
-    public static final short TIMER_CODE = 401;
+    public static final short TIMER_ID = 401;
 
-    private List<Host> contacts;
+    private Host contact;
     private int count;
 
-    public JoinTimeout(List<Host> contacts) {
-        super(JoinTimeout.TIMER_CODE);
-        this.contacts = contacts;
+    public JoinTimeout(Host contact) {
+        super(TIMER_ID);
+        this.contact = contact;
         this.count = 1;
     }
 
@@ -22,12 +20,12 @@ public class JoinTimeout extends ProtoTimer {
         return this;
     }
 
-    public List<Host> getContacts() {
-        return contacts;
+    public Host getContact() {
+        return this.contact;
     }
 
     public void incCount() {
-        count ++;
+        count++;
     }
 
     public int getCount() {

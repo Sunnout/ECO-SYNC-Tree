@@ -401,7 +401,7 @@ public class HyParView extends GenericProtocol {
     }
 
     private void uponOutConnectionFailed(OutConnectionFailed event, int channelId) {
-        logger.warn("Connection to host {} failed, cause: {}", event.getNode(), event.getCause());
+        logger.trace("Connection to host {} failed, cause: {}", event.getNode(), event.getCause());
         if(active.removePeer(event.getNode())) {
             triggerNotification(new NeighbourDown(event.getNode()));
             if(!active.fullWithPending(pending)){
@@ -435,7 +435,7 @@ public class HyParView extends GenericProtocol {
                 openConnection(contactHost);
                 JoinMessage m = new JoinMessage();
                 sendMessage(m, contactHost);
-                logger.info("Sent JoinMessage to {}", contactHost);
+                logger.debug("Sent JoinMessage to {}", contactHost);
                 logger.trace("Sent " + m + " to " + contactHost);
                 setupTimer(new JoinTimeout(contactHost), joinTimeout);
             } catch (Exception e) {

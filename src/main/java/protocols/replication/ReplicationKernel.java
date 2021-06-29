@@ -233,31 +233,6 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
 
     /* --------------------------------- Procedures --------------------------------- */
 
-//    private void sendMissingSyncOperations(Host neighbour, VectorClock neighbourClock) throws IOException {
-//        int index = 0;
-//        for (OperationAndID opAndId : causallyOrderedOps) {
-//            Operation op = opAndId.getOp();
-//            Host h = op.getSender();
-//            int opClock = op.getSenderClock();
-//            if (neighbourClock.getHostClock(h) < opClock)
-//                break;
-//            index++;
-//        }
-//
-//        List<byte[]> ops = new LinkedList<>();
-//        List<byte[]> ids = new LinkedList<>();
-//        for (int i = index; i < causallyOrderedOps.size(); i++) {
-//            OperationAndID opAndId = causallyOrderedOps.get(i);
-//            Operation op = opAndId.getOp();
-//            byte[] serializedOp = serializeOperation(op instanceof CreateOperation, op);
-//            ops.add(serializedOp);
-//            UUID id = opAndId.getId();
-//            byte[] serializedId = serializeId(id);
-//            ids.add(serializedId);
-//        }
-//        sendRequest(new SyncOpsRequest(UUID.randomUUID(), myself, neighbour, ids, ops), broadcastId);
-//    }
-
     private Operation deserializeOperation(byte[] msg) throws IOException {
         ByteBuf buf = Unpooled.buffer().writeBytes(msg);
         String crdtId = Operation.crdtIdFromByteArray(buf);
@@ -294,11 +269,6 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         byte[] payload = new byte[buf.readableBytes()];
         buf.readBytes(payload);
         return payload;
-    }
-
-    private void broadcastOperation(boolean isCreateOp, UUID msgId, Host sender, Operation op) throws IOException {
-        byte[] payload = serializeOperation(isCreateOp, op);
-        sendRequest(new BroadcastRequest(msgId, sender, payload), broadcastId);
     }
 
     private void executeOperation(Host sender, Operation op, UUID msgId) throws IOException {

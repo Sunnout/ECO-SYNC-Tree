@@ -17,7 +17,6 @@ import protocols.broadcast.plumtree.requests.VectorClockRequest;
 import protocols.broadcast.plumtree.requests.SyncOpsRequest;
 import protocols.replication.notifications.*;
 import protocols.replication.requests.*;
-import protocols.replication.utils.OperationAndID;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.network.data.Host;
@@ -25,7 +24,6 @@ import serializers.MyOpSerializer;
 import serializers.MySerializer;
 
 import java.io.*;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -62,8 +60,8 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     private int seqNumber; //Counter of local operation
     private Map<String, KernelCRDT> crdtsById; //Map that stores CRDTs by their ID
     private Map<String, Set<Host>> hostsByCrdt; //Map that stores the hosts that replicate a given CRDT
-//    private List<OperationAndID> causallyOrderedOps; //List of causally ordered received operations
-    private boolean fileInitialized;
+
+    private File file;
     private int nExecuted;
 
     //Serializers
@@ -84,8 +82,8 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         initializeVectorClock();
         this.crdtsById = new ConcurrentHashMap<>();
         this.hostsByCrdt = new ConcurrentHashMap<>();
-//        causallyOrderedOps = new ArrayList<>();
-        this.fileInitialized = false;
+
+        this.file = initFile();
 
         this.dataSerializers = new HashMap<>();
 
@@ -161,8 +159,6 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         Operation op = request.getOperation();
         incrementAndSetVectorClock(op);
         try {
-            //causallyOrderedOps.add(new OperationAndID(op, msgId));
-            //TODO: write to op log file
             byte[] serOp = serializeOperation(false, op);
             writeOperationToFile(serOp, msgId);
             sendRequest(new BroadcastRequest(msgId, request.getSender(), serOp), broadcastId);
@@ -192,8 +188,6 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
                 if (this.vectorClock.getHostClock(h) == clock - 1) {
                     logger.info("[{}] Accepted op {}-{} : {} from {}, Clock {}", notification.isFromSync(),
                             h, clock, notification.getMsgId(), sender, vectorClock.getHostClock(h));
-//                    causallyOrderedOps.add(new OperationAndID(op, msgId));
-                    //TODO: write to op log file
                     writeOperationToFile(serOp, msgId);
                     executeOperation(h, op, msgId);
                 } else if (this.vectorClock.getHostClock(h) < clock - 1) {
@@ -215,7 +209,6 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     private void uponVectorClock(VectorClockNotification notification, short sourceProto) {
         Host neighbour = notification.getNeighbour();
         logger.info("Received {}", notification);
-        //TODO: read from file
         try {
             readAndSendMissingOpsFromFile(neighbour,  notification.getVectorClock());
         } catch (IOException e) {
@@ -333,26 +326,23 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         triggerNotification(new ReturnCRDTNotification(msgId, sender, crdt));
         CreateOperation op = new CreateOperation(null, 0, CREATE_CRDT, crdtId, crdtType, dataTypes);
         incrementAndSetVectorClock(op);
-//        causallyOrderedOps.add(new OperationAndID(op, msgId));
-        //TODO: write to op log file
         byte[] serOp = serializeOperation(true, op);
         writeOperationToFile(serOp, msgId);
         sendRequest(new BroadcastRequest(msgId, sender, serOp), broadcastId);
     }
 
     private void writeOperationToFile(byte[] serOp, UUID msgId) throws IOException {
-        try (FileOutputStream fos = new FileOutputStream(getFile(), true);
-             DataOutputStream dos = new DataOutputStream(fos)) {
+        try(FileOutputStream fos = new FileOutputStream(this.file, true);
+            DataOutputStream dos = new DataOutputStream(fos)) { //TODO: talvez guardar como var e ver se fica melhor
             dos.writeLong(msgId.getMostSignificantBits());
             dos.writeLong(msgId.getLeastSignificantBits());
-            logger.info("{} HAS THIS LEN {}", msgId, serOp.length);
             dos.writeInt(serOp.length);
             if (serOp.length > 0) {
                 dos.write(serOp);
             }
             nExecuted++;
         } catch (IOException e) {
-            logger.error("Error writing op to file", e);
+            logger.error("Error writing ops to file", e);
             e.printStackTrace();
         }
     }
@@ -360,7 +350,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     private void readAndSendMissingOpsFromFile(Host neighbour, VectorClock neighbourClock) throws IOException {
         List<byte[]> ops = new LinkedList<>();
         List<byte[]> ids = new LinkedList<>();
-        try (FileInputStream fis = new FileInputStream(getFile());
+        try (FileInputStream fis = new FileInputStream(this.file);
              BufferedInputStream bis = new BufferedInputStream(fis);
              DataInputStream dis = new DataInputStream(bis)) {
 
@@ -369,7 +359,6 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
                 long secondLong = dis.readLong();
                 UUID msgId = new UUID(firstLong, secondLong);
                 int size = dis.readInt();
-                logger.info("THIS IS THE SIZE {}", size);
                 if (size > 0) {
                     byte[] serOp = new byte[size];
                     dis.read(serOp, 0, size);
@@ -388,7 +377,6 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
             logger.error("Error reading missing ops from file", e);
             e.printStackTrace();
         }
-
     }
 
     /**
@@ -587,12 +575,10 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         return map;
     }
 
-    private File getFile() throws IOException {
-        File file = new File("data/ops");
-        if(!fileInitialized) {
-            file.createNewFile();
-            fileInitialized = true;
-        }
+    private File initFile() throws IOException {
+        File file = new File("data/ops-" + myself);
+        file.createNewFile();
+        new FileOutputStream("data/ops-" + myself).close();
         return file;
     }
 }

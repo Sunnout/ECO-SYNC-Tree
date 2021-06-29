@@ -39,7 +39,6 @@ public class PlumTree extends GenericProtocol {
     private final Host myself;
     private final static int PORT_MAPPING = 1000;
 
-    private final int space;
     private final long timeout1;
     private final long timeout2;
     private final long reconnectTimeout;
@@ -52,8 +51,7 @@ public class PlumTree extends GenericProtocol {
     private final Queue<GossipMessage> bufferedOps; //Buffer ops received between sending vc to kernel and sending sync ops (and send them after)
     private boolean buffering; //To know if we are between sending vc to kernel and sending ops to neighbour
     private final Map<UUID, Queue<MessageSource>> missing;
-    private final Map<UUID, GossipMessage> received;
-    private final Queue<UUID> stored;
+    private final Set<UUID> received;
     private final Map<UUID, Long> onGoingTimers;
     private final Queue<AddressedIHaveMessage> lazyQueue;
     private final LazyQueuePolicy policy;
@@ -65,8 +63,6 @@ public class PlumTree extends GenericProtocol {
         super(PROTOCOL_NAME, PROTOCOL_ID);
         this.myself = myself;
 
-//        this.space = Integer.parseInt(properties.getProperty("space", "25000"));
-        this.space = Integer.MAX_VALUE;
         this.timeout1 = Long.parseLong(properties.getProperty("timeout1", "1000"));
         this.timeout2 = Long.parseLong(properties.getProperty("timeout2", "500"));
         this.reconnectTimeout = Long.parseLong(properties.getProperty("reconnect_timeout", "500"));
@@ -78,8 +74,7 @@ public class PlumTree extends GenericProtocol {
         this.bufferedOps = new LinkedList<>();
         this.buffering = false;
         this.missing = new HashMap<>();
-        this.received = new HashMap<>();
-        this.stored = new LinkedList<>();
+        this.received = new HashSet<>();
         this.onGoingTimers = new HashMap<>();
         this.lazyQueue = new LinkedList<>();
         this.policy = HashSet::new;
@@ -151,7 +146,7 @@ public class PlumTree extends GenericProtocol {
     private void uponReceiveGossip(GossipMessage msg, Host from, short sourceProto, int channelId) {
         logger.info("Received {} from {}", msg.getMid(), from);
         UUID mid = msg.getMid();
-        if (!received.containsKey(mid)) {
+        if (!received.contains(mid)) {
             triggerNotification(new DeliverNotification(mid, from, msg.getContent(), false));
             handleGossipMessage(msg, msg.getRound() + 1, from);
         } else {
@@ -214,7 +209,7 @@ public class PlumTree extends GenericProtocol {
             byte[] serId = idIt.next();
             UUID mid = deserializeId(serId);
 
-            if (!received.containsKey(mid)) {
+            if (!received.contains(mid)) {
                 triggerNotification(new DeliverNotification(mid, from, serOp, true));
                 logger.info("Propagating sync op {} to {}", mid, eager);
                 handleGossipMessage(new GossipMessage(mid, from, 0, serOp), 0, from);
@@ -230,7 +225,7 @@ public class PlumTree extends GenericProtocol {
 
     private void uponIHaveTimeout(IHaveTimeout timeout, long timerId) {
         UUID mid = timeout.getMid();
-        if (!received.containsKey(mid)) {
+        if (!received.contains(mid)) {
             MessageSource msgSrc = missing.get(mid).poll();
             if (msgSrc != null) {
                 long tid = setupTimer(timeout, timeout2);
@@ -381,12 +376,7 @@ public class PlumTree extends GenericProtocol {
             this.bufferedOps.add(msg);
 
         UUID mid = msg.getMid();
-        received.put(mid, msg);
-        stored.add(mid);
-        if (stored.size() > space) {
-            UUID toRemove = stored.poll();
-            received.put(toRemove, null);
-        }
+        received.add(mid);
 
         Long tid;
         if ((tid = onGoingTimers.remove(mid)) != null) {
@@ -398,7 +388,7 @@ public class PlumTree extends GenericProtocol {
     }
 
     private void handleAnnouncement(UUID mid, Host from, int round) {
-        if (!received.containsKey(mid)) {
+        if (!received.contains(mid)) {
             if (!onGoingTimers.containsKey(mid)) {
                 long tid = setupTimer(new IHaveTimeout(mid), timeout1);
                 onGoingTimers.put(mid, tid);
@@ -485,8 +475,10 @@ public class PlumTree extends GenericProtocol {
     private void uponOutConnectionUp(OutConnectionUp event, int channelId) {
         Host neighbour = event.getNode();
         logger.trace("Host (out) {} is up", neighbour);
-        logger.info("Trying sync from neighbour {} up", neighbour);
-        startSynchronization(neighbour, true);
+        if(partialView.contains(neighbour)) {
+            logger.info("Trying sync from neighbour {} up", neighbour);
+            startSynchronization(neighbour, true);
+        }
     }
 
     private void uponInConnectionUp(InConnectionUp event, int channelId) {

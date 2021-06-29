@@ -32,7 +32,7 @@ port=5000
 bcastport=6000
 
 if [ ! -z $runcontact ]; then
-  java -DlogFilename=/tmp/plumtreelogs/results-$(hostname)-$[$port+$i] -jar target/PlumtreeOpLogs.jar -conf config.properties address=$(hostname) port=$port bcast_port=$bcastport | sed "s/^/[$(($port + $i))] /"&
+  java -Xmx1024M -DlogFilename=/tmp/plumtreelogs/results-$(hostname)-$[$port+$i] -jar target/PlumtreeOpLogs.jar -conf config.properties address=$(hostname) port=$port bcast_port=$bcastport | sed "s/^/[$(($port + $i))] /"&
   echo "launched contact on port $port"
   i=1
 fi
@@ -41,7 +41,7 @@ sleep 1
 
 while [ $i -lt $processes ]
 do
-	java -DlogFilename=/tmp/plumtreelogs/results-$(hostname)-$[$port+$i] -jar target/PlumtreeOpLogs.jar -conf config.properties address=$(hostname) port=$[$port+$i] bcast_port=$[$bcastport+$i] contact=$contactnode | sed "s/^/[$(($port + $i))] /"&
+	java -Xmx1024M -DlogFilename=/tmp/plumtreelogs/results-$(hostname)-$[$port+$i] -jar target/PlumtreeOpLogs.jar -conf config.properties address=$(hostname) port=$[$port+$i] bcast_port=$[$bcastport+$i] contact=$contactnode | sed "s/^/[$(($port + $i))] /"&
 	echo "launched process on port $[$port+$i]"
 	i=$[$i+1]
 	sleep 1
@@ -62,7 +62,7 @@ j=0
 
 while [ $j -lt $newprocesses ]
 do
-  java -DlogFilename=/tmp/plumtreelogs/results-$(hostname)-$[$port+$i] -jar target/PlumtreeOpLogs.jar -conf config-newnode.properties address=$(hostname) port=$[$port+$i] bcast_port=$[$bcastport+$i] contact=$contactnode | sed "s/^/[$(($port + $i))] /"&
+  java -Xmx1024M -DlogFilename=/tmp/plumtreelogs/results-$(hostname)-$[$port+$i] -jar target/PlumtreeOpLogs.jar -conf config-newnode.properties address=$(hostname) port=$[$port+$i] bcast_port=$[$bcastport+$i] contact=$contactnode | sed "s/^/[$(($port + $i))] /"&
   echo "launched process on port $[$port+$i]"
   i=$[$i+1]
   j=$[$j+1]

@@ -4,9 +4,11 @@ import java.util.Properties;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import protocols.broadcast.flood.FloodBroadcast;
 import protocols.broadcast.plumtree.PlumTree;
 import protocols.membership.hyparview.HyParView;
 import protocols.replication.ReplicationKernel;
+import protocols.replication.ReplicationKernelVCs;
 import pt.unl.fct.di.novasys.babel.core.Babel;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.network.data.Host;
@@ -49,9 +51,9 @@ public class Main {
 
         logger.info("Hello, I am {} {}", myself_membership, myself);
 
-        CRDTApp crdtApp = new CRDTApp(props, myself, ReplicationKernel.PROTOCOL_ID);
-        GenericProtocol replicationKernel = new ReplicationKernel(props, myself, PlumTree.PROTOCOL_ID);
-        GenericProtocol broadcast = new PlumTree(props, myself);
+        CRDTApp crdtApp = new CRDTApp(props, myself, ReplicationKernelVCs.PROTOCOL_ID);
+        GenericProtocol replicationKernel = new ReplicationKernelVCs(props, myself, FloodBroadcast.PROTOCOL_ID);
+        GenericProtocol broadcast = new FloodBroadcast(props, myself);
         GenericProtocol membership = new HyParView(props, myself_membership);
 
         //Register the protocols

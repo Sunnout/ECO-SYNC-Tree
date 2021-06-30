@@ -26,11 +26,11 @@ public class ORSetCRDT implements SetCRDT, KernelCRDT {
     private static final String SET_ADD = "set_add";
     private static final String SET_REMOVE = "set_rem";
 
-    private final ReplicationKernel kernel;
+    private final CRDTCommunicationInterface kernel;
     private final String crdtId;
     private Set<TaggedElement> set;
 
-    public ORSetCRDT(ReplicationKernel kernel, String crdtId) {
+    public ORSetCRDT(CRDTCommunicationInterface kernel, String crdtId) {
         this.kernel = kernel;
         this.crdtId = crdtId;
         this.set = new HashSet<>();

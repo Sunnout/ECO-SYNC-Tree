@@ -27,11 +27,11 @@ public class OpCounterCRDT implements CounterCRDT, KernelCRDT {
     private static final String INCREMENT = "inc";
     private static final String DECREMENT = "dec";
 
-    private final ReplicationKernel kernel;
+    private final CRDTCommunicationInterface kernel;
     private final String crdtId;
     private BigInteger c;
 
-    public OpCounterCRDT(ReplicationKernel kernel, String crdtId) {
+    public OpCounterCRDT(CRDTCommunicationInterface kernel, String crdtId) {
         this.kernel = kernel;
         this.crdtId = crdtId;
         this.c = BigInteger.ZERO;

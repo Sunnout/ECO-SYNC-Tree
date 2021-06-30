@@ -257,7 +257,11 @@ public class CRDTApp extends GenericProtocol {
 
     private void printFinalValues(int run) {
         logger.info("RESULTS:");
-        logger.info("Final vector clock: {}", ReplicationKernel.vectorClock);
+        if(replicationKernelId == 600) {
+            logger.info("Final vector clock: {}", ReplicationKernel.vectorClock);
+        } else {
+            logger.info("Final vector clock: {}", ReplicationKernelVCs.vectorClock);
+        }
 
         if(run == 0) {
             logger.info("Integer value of {}: {}", CRDT0, getCounterValue(CRDT0));
@@ -317,9 +321,15 @@ public class CRDTApp extends GenericProtocol {
             logger.info("Values of {}: {}", CRDT3, getMapValues(CRDT3));
         }
 
-        logger.info("Number of sent operations: {}", ReplicationKernel.sentOps);
-        logger.info("Number of received operations: {}", ReplicationKernel.receivedOps);
-        logger.info("Number of executed operations: {}", ReplicationKernel.executedOps);
+        if(replicationKernelId == 600) {
+            logger.info("Number of sent operations: {}", ReplicationKernel.sentOps);
+            logger.info("Number of received operations: {}", ReplicationKernel.receivedOps);
+            logger.info("Number of executed operations: {}", ReplicationKernel.executedOps);
+        } else {
+            logger.info("Number of sent operations: {}", ReplicationKernelVCs.sentOps);
+            logger.info("Number of received operations: {}", ReplicationKernelVCs.receivedOps);
+            logger.info("Number of executed operations: {}", ReplicationKernelVCs.executedOps);
+        }
     }
 
     private void getCRDT(String crdtType, String[] dataType, String crdtId) {

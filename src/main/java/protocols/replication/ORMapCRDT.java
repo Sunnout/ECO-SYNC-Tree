@@ -32,11 +32,11 @@ public class ORMapCRDT implements MapCRDT, KernelCRDT {
     private static final String MAP_PUT = "map_put";
     private static final String MAP_DELETE = "map_del";
 
-    private final ReplicationKernel kernel;
+    private final CRDTCommunicationInterface kernel;
     private final String crdtId;
     private Map<SerializableType, Set<TaggedElement>> map;
 
-    public ORMapCRDT(ReplicationKernel kernel, String crdtId) {
+    public ORMapCRDT(CRDTCommunicationInterface kernel, String crdtId) {
         this.kernel = kernel;
         this.crdtId = crdtId;
         this.map = new ConcurrentHashMap<>();

@@ -24,12 +24,12 @@ public class LWWRegisterCRDT implements RegisterCRDT, KernelCRDT {
     private static final String CRDT_TYPE = "lww_register";
     private static final String ASSIGN = "assign";
 
-    private final ReplicationKernel kernel;
+    private final CRDTCommunicationInterface kernel;
     private final String crdtId;
     private SerializableType value;
     private Instant ts;
 
-    public LWWRegisterCRDT(ReplicationKernel kernel, String crdtId) {
+    public LWWRegisterCRDT(CRDTCommunicationInterface kernel, String crdtId) {
         this.kernel = kernel;
         this.crdtId = crdtId;
         this.ts = Instant.now();

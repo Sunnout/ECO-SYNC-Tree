@@ -5,6 +5,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import protocols.broadcast.flood.FloodBroadcast;
+import protocols.broadcast.periodicpull.PeriodicPullBroadcast;
 import protocols.broadcast.plumtree.PlumTree;
 import protocols.membership.hyparview.HyParView;
 import protocols.replication.ReplicationKernel;

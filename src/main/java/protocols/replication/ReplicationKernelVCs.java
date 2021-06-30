@@ -211,13 +211,14 @@ public class ReplicationKernelVCs extends GenericProtocol implements CRDTCommuni
         byte[] serOp = notification.getMsg();
         try {
             if (!sender.equals(myself)) {
+                logger.info("Deserializing {} received from {}", msgId, sender);
                 OperationVC op = deserializeOperation(serOp);
                 Host h = op.getSender();
 
                 if (this.vectorClock.canExecuteOperation(op)) {
                     logger.debug("Executing operation without queueing");
                     writeOperationToFile(serOp, msgId);
-                    executeOperation(h, op);
+                    executeOperation(h, op, msgId);
                     executeQueuedOperations();
                 } else {
                     logger.debug("Adding operation to queue");
@@ -238,13 +239,13 @@ public class ReplicationKernelVCs extends GenericProtocol implements CRDTCommuni
             Host h = entry.getKey();
             Queue<OperationAndID> q = entry.getValue();
             OperationAndID opAndId = q.peek();
-            OperationVC op = opAndId.getOp();
-            while(opAndId != null && this.vectorClock.canExecuteOperation(op)) {
+            while(opAndId != null && this.vectorClock.canExecuteOperation(opAndId.getOp())) {
                 logger.debug("Executing queued operation");
                 opAndId = q.remove();
+                OperationVC op = opAndId.getOp();
                 UUID id = opAndId.getId();
                 writeOperationToFile(serializeOperation(opAndId.isCreateOp(), op), id);
-                executeOperation(h, op);
+                executeOperation(h, op, id);
                 opAndId = q.peek();
             }
         }
@@ -331,13 +332,15 @@ public class ReplicationKernelVCs extends GenericProtocol implements CRDTCommuni
         return payload;
     }
 
-    private void executeOperation(Host sender, OperationVC op) throws IOException {
+    private void executeOperation(Host sender, OperationVC op, UUID msgId) throws IOException {
         String crdtId = op.getCrdtId();
         String crdtType = op.getCrdtType();
 
         if (op instanceof CreateOperationVC) {
             if (crdtsById.get(crdtId) == null) {
                 createNewCrdt(crdtId, crdtType, ((CreateOperationVC) op).getDataTypes(), sender);
+                logger.info("Created {}; {}", crdtId, msgId);
+
             } else {
                 addHostToReplicationSet(crdtId, sender);
             }
@@ -369,8 +372,7 @@ public class ReplicationKernelVCs extends GenericProtocol implements CRDTCommuni
     }
 
     private void handleCRDTCreation(String crdtId, String crdtType, String[] dataTypes, Host sender, UUID msgId) throws IOException {
-        logger.debug("Creating new CRDT with id {} and type {}", crdtId, crdtType);
-        logger.info("Accepted my op {}-{} : {}", myself, seqNumber, msgId);
+        logger.info("ENTREI Created {}; Accepted my op {}-{} : {}", crdtId, myself, seqNumber, msgId);
         KernelCRDT crdt = createNewCrdt(crdtId, crdtType, dataTypes, sender);
         triggerNotification(new ReturnCRDTNotification(msgId, sender, crdt));
         CreateOperationVC op = new CreateOperationVC(null, 0, CREATE_CRDT, crdtId, crdtType, dataTypes, null);
@@ -563,7 +565,6 @@ public class ReplicationKernelVCs extends GenericProtocol implements CRDTCommuni
             default:
                 throw new NoSuchCrdtType(crdtType);
         }
-        logger.info("Created CRDT {}", crdtId);
         crdtsById.put(crdtId, crdt);
         addHostToReplicationSet(crdtId, sender);
         registerDataSerializer(crdtId, crdtType, dataTypes);

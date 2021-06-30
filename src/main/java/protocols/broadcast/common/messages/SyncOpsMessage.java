@@ -1,4 +1,4 @@
-package protocols.broadcast.plumtree.messages;
+package protocols.broadcast.common.messages;
 
 import io.netty.buffer.ByteBuf;
 import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;

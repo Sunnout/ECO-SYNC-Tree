@@ -1,4 +1,4 @@
-package protocols.broadcast.common;
+package protocols.broadcast.common.requests;
 
 import pt.unl.fct.di.novasys.babel.generic.ProtoRequest;
 import pt.unl.fct.di.novasys.network.data.Host;

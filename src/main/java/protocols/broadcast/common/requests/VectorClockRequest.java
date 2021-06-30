@@ -1,4 +1,4 @@
-package protocols.broadcast.plumtree.requests;
+package protocols.broadcast.common.requests;
 
 import crdts.utils.VectorClock;
 import pt.unl.fct.di.novasys.babel.generic.ProtoRequest;

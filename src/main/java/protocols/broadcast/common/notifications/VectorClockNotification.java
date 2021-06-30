@@ -1,4 +1,4 @@
-package protocols.broadcast.plumtree.notifications;
+package protocols.broadcast.common.notifications;
 
 import crdts.utils.VectorClock;
 import pt.unl.fct.di.novasys.babel.generic.ProtoNotification;

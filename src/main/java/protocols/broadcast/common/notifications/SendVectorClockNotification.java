@@ -1,4 +1,4 @@
-package protocols.broadcast.plumtree.notifications;
+package protocols.broadcast.common.notifications;
 
 import pt.unl.fct.di.novasys.babel.generic.ProtoNotification;
 import pt.unl.fct.di.novasys.network.data.Host;

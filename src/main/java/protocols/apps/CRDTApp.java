@@ -340,8 +340,6 @@ public class CRDTApp extends GenericProtocol {
     private void printStats() {
         //Plumtree
         if(broadcastId == 900) {
-            logger.info("dupes: {}", PlumTree.dupes);
-
             logger.info("sentGossip: {}", PlumTree.sentGossip);
             logger.info("sentIHave: {}", PlumTree.sentIHave);
             logger.info("sentGraft: {}", PlumTree.sentGraft);
@@ -352,6 +350,7 @@ public class CRDTApp extends GenericProtocol {
             logger.info("sentSyncGossip: {}", PlumTree.sentSyncGossip);
 
             logger.info("receivedGossip: {}", PlumTree.receivedGossip);
+            logger.info("receivedDupesGossip: {}", PlumTree.receivedDupesGossip);
             logger.info("receivedIHave: {}", PlumTree.receivedIHave);
             logger.info("receivedGraft: {}", PlumTree.receivedGraft);
             logger.info("receivedPrune: {}", PlumTree.receivedPrune);
@@ -359,12 +358,11 @@ public class CRDTApp extends GenericProtocol {
             logger.info("receivedVC: {}", PlumTree.receivedVC);
             logger.info("receivedSyncOps: {}", PlumTree.receivedSyncOps);
             logger.info("receivedSyncGossip: {}", PlumTree.receivedSyncGossip);
+            logger.info("receivedDupesSyncGossip: {}", PlumTree.receivedDupesSyncGossip);
         }
 
         //Flood
         else if(broadcastId == 1500) {
-            logger.info("dupes: {}", FloodBroadcast.dupes);
-
             logger.info("sentFlood: {}", FloodBroadcast.sentFlood);
             logger.info("sentSendVC: {}", FloodBroadcast.sentSendVC);
             logger.info("sentVC: {}", FloodBroadcast.sentVC);
@@ -372,16 +370,16 @@ public class CRDTApp extends GenericProtocol {
             logger.info("sentSyncFlood: {}", FloodBroadcast.sentSyncFlood);
 
             logger.info("receivedFlood: {}", FloodBroadcast.receivedFlood);
+            logger.info("receivedDupesFlood: {}", FloodBroadcast.receivedDupesFlood);
             logger.info("receivedSendVC: {}", FloodBroadcast.receivedSendVC);
             logger.info("receivedVC: {}", FloodBroadcast.receivedVC);
             logger.info("receivedSyncOps: {}", FloodBroadcast.receivedSyncOps);
             logger.info("receivedSyncFlood: {}", FloodBroadcast.receivedSyncFlood);
+            logger.info("receivedDupesSyncFlood: {}", FloodBroadcast.receivedDupesSyncFlood);
         }
 
         //Periodic Pull
         else if(broadcastId == 490) {
-            logger.info("dupes: {}", PeriodicPullBroadcast.dupes);
-
             logger.info("sentVC: {}", PeriodicPullBroadcast.sentVC);
             logger.info("sentSyncOps: {}", PeriodicPullBroadcast.sentSyncOps);
             logger.info("sentSyncPull: {}", PeriodicPullBroadcast.sentSyncPull);
@@ -389,6 +387,7 @@ public class CRDTApp extends GenericProtocol {
             logger.info("receivedVC: {}", PeriodicPullBroadcast.receivedVC);
             logger.info("receivedSyncOps: {}", PeriodicPullBroadcast.receivedSyncOps);
             logger.info("receivedSyncPull: {}", PeriodicPullBroadcast.receivedSyncPull);
+            logger.info("receivedDupes: {}", PeriodicPullBroadcast.receivedDupes);
         }
     }
 

@@ -48,8 +48,6 @@ public class FloodBroadcast extends GenericProtocol  {
     private final Set<UUID> received;
 
     /*** Stats ***/
-    public static int dupes;
-
     public static int sentFlood;
     public static int sentSendVC;
     public static int sentVC;
@@ -57,10 +55,13 @@ public class FloodBroadcast extends GenericProtocol  {
     public static int sentSyncFlood;
 
     public static int receivedFlood;
+    public static int receivedDupesFlood;
     public static int receivedSendVC;
     public static int receivedVC;
     public static int receivedSyncOps;
     public static int receivedSyncFlood;
+    public static int receivedDupesSyncFlood;
+
 
 
     /*--------------------------------- Initialization ---------------------------------------- */
@@ -185,7 +186,7 @@ public class FloodBroadcast extends GenericProtocol  {
             triggerNotification(new DeliverNotification(mid, msg.getSender(), msg.getContent(), false));
             forwardFloodMessage(msg, from);
         } else {
-            dupes++;
+            receivedDupesFlood++;
         }
     }
 
@@ -226,7 +227,7 @@ public class FloodBroadcast extends GenericProtocol  {
                 logger.debug("Received sync op {} from {}", mid, from);
                 forwardFloodMessage(new FloodMessage(mid, from , sourceProto, serOp), from);
             } else {
-                dupes++;
+                receivedDupesSyncFlood++;
             }
         }
     }

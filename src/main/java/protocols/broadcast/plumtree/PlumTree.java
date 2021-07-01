@@ -60,8 +60,6 @@ public class PlumTree extends GenericProtocol {
     private final LazyQueuePolicy policy;
 
     /*** Stats ***/
-    public static int dupes;
-
     public static int sentGossip;
     public static int sentIHave;
     public static int sentGraft;
@@ -72,6 +70,7 @@ public class PlumTree extends GenericProtocol {
     public static int sentSyncGossip;
 
     public static int receivedGossip;
+    public static int receivedDupesGossip;
     public static int receivedIHave;
     public static int receivedGraft;
     public static int receivedPrune;
@@ -79,6 +78,8 @@ public class PlumTree extends GenericProtocol {
     public static int receivedVC;
     public static int receivedSyncOps;
     public static int receivedSyncGossip;
+    public static int receivedDupesSyncGossip;
+
 
 
     /*--------------------------------- Initialization ---------------------------------------- */
@@ -215,7 +216,7 @@ public class PlumTree extends GenericProtocol {
             triggerNotification(new DeliverNotification(mid, from, msg.getContent(), false));
             handleGossipMessage(msg, msg.getRound() + 1, from);
         } else {
-            dupes++;
+            receivedDupesGossip++;
             logger.debug("{} was duplicated msg from {}", mid, from);
             if (eager.remove(from)) {
                 logger.debug("Removed {} from eager due to duplicate {}", from, eager);
@@ -295,7 +296,7 @@ public class PlumTree extends GenericProtocol {
                 logger.debug("Propagating sync op {} to {}", mid, eager);
                 handleGossipMessage(new GossipMessage(mid, from, 0, serOp), 0, from);
             } else {
-                dupes++;
+                receivedDupesSyncGossip++;
             }
         }
     }

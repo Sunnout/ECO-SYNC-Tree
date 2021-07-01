@@ -44,18 +44,17 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
     private final Set<UUID> received;
 
     private final Random rnd;
+
     /*** Stats ***/
-
-    public static int dupes;
-
     public static int sentVC;
     public static int sentSyncOps;
     public static int sentSyncPull;
 
-
     public static int receivedVC;
     public static int receivedSyncOps;
     public static int receivedSyncPull;
+    public static int receivedDupes;
+
 
 
     /*--------------------------------- Initialization ---------------------------------------- */
@@ -278,7 +277,7 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
             logger.info("RECEIVED {}", mid);
             triggerNotification(new DeliverNotification(mid, sender, content, fromSync));
         } else {
-            dupes++;
+            receivedDupes++;
         }
     }
 

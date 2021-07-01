@@ -52,13 +52,46 @@ public class Main {
 
         logger.info("Hello, I am {} {}", myself_membership, myself);
 
-        short replicationId = ReplicationKernelVCs.PROTOCOL_ID;
-        short broadcastId = FloodBroadcast.PROTOCOL_ID;
+        String bcast_protocol = props.getProperty("bcast_protocol");
 
-        CRDTApp crdtApp = new CRDTApp(props, myself, replicationId, broadcastId);
-        GenericProtocol replicationKernel = new ReplicationKernelVCs(props, myself, broadcastId);
-        GenericProtocol broadcast = new FloodBroadcast(props, myself);
-        GenericProtocol membership = new HyParView(props, myself_membership);
+        CRDTApp crdtApp;
+        GenericProtocol replicationKernel;
+        GenericProtocol broadcast;
+        GenericProtocol membership;
+
+        switch(bcast_protocol) {
+            case "plumtree":
+                crdtApp = new CRDTApp(props, myself, ReplicationKernel.PROTOCOL_ID, PlumTree.PROTOCOL_ID);
+                replicationKernel = new ReplicationKernel(props, myself, PlumTree.PROTOCOL_ID);
+                broadcast = new PlumTree(props, myself);
+                membership = new HyParView(props, myself_membership);
+                registerAndStartProtocols(babel, crdtApp, replicationKernel, broadcast, membership, props);
+                break;
+
+            case "flood":
+                crdtApp = new CRDTApp(props, myself, ReplicationKernelVCs.PROTOCOL_ID, FloodBroadcast.PROTOCOL_ID);
+                replicationKernel = new ReplicationKernelVCs(props, myself, FloodBroadcast.PROTOCOL_ID);
+                broadcast = new FloodBroadcast(props, myself);
+                membership = new HyParView(props, myself_membership);
+                registerAndStartProtocols(babel, crdtApp, replicationKernel, broadcast, membership, props);
+                break;
+
+            case "periodicpull":
+                crdtApp = new CRDTApp(props, myself, ReplicationKernelVCs.PROTOCOL_ID, PeriodicPullBroadcast.PROTOCOL_ID);
+                replicationKernel = new ReplicationKernelVCs(props, myself, PeriodicPullBroadcast.PROTOCOL_ID);
+                broadcast = new PeriodicPullBroadcast(props, myself);
+                membership = new HyParView(props, myself_membership);
+                registerAndStartProtocols(babel, crdtApp, replicationKernel, broadcast, membership, props);
+                break;
+
+            default:
+                logger.error("There is no broadcast protocol with name {}", bcast_protocol);
+                break;
+        }
+    }
+
+    private static final void registerAndStartProtocols(Babel babel, CRDTApp crdtApp, GenericProtocol replicationKernel,
+                                                        GenericProtocol broadcast, GenericProtocol membership, Properties props ) throws Exception {
 
         //Register the protocols
         babel.registerProtocol(crdtApp);
@@ -77,5 +110,4 @@ public class Main {
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> logger.info("Goodbye")));
     }
-
 }

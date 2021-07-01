@@ -44,8 +44,15 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
     private final Set<UUID> received;
 
     private final Random rnd;
+    /*** Stats ***/
 
     public static int dupes;
+
+    public static int sentVC;
+    public static int sentSyncOps;
+
+    public static int receivedVC;
+    public static int receivedSyncOps;
 
 
     /*--------------------------------- Initialization ---------------------------------------- */
@@ -129,6 +136,7 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
         Host neighbour = request.getTo();
         VectorClockMessage msg = new VectorClockMessage(request.getMsgId(), request.getSender(), request.getVectorClock());
         sendMessage(msg, neighbour, TCPChannel.CONNECTION_IN);
+        sentVC++;
         logger.debug("Sent {} to {}", msg, neighbour);
     }
 
@@ -136,6 +144,7 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
         Host neighbour = request.getTo();
         SyncOpsMessage msg = new SyncOpsMessage(request.getMsgId(), request.getIds(), request.getOperations());
         sendMessage(msg, neighbour);
+        sentSyncOps++;
         logger.debug("Sent {} to {}", msg, neighbour);
     }
 
@@ -143,11 +152,15 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
     /*--------------------------------- Messages ---------------------------------------- */
 
     private void uponReceiveVectorClock(VectorClockMessage msg, Host from, short sourceProto, int channelId) {
+        receivedVC++;
+
         logger.debug("Received {} from {}", msg, from);
         triggerNotification(new VectorClockNotification(msg.getSender(), msg.getVectorClock()));
     }
 
     private void uponReceiveSyncOps(SyncOpsMessage msg, Host from, short sourceProto, int channelId) {
+        receivedSyncOps++;
+
         Iterator<byte[]> opIt = msg.getOperations().iterator();
         Iterator<byte[]> idIt = msg.getIds().iterator();
 

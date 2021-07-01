@@ -71,6 +71,7 @@ public class ReplicationKernelVCs extends GenericProtocol implements CRDTCommuni
     private Map<Host, Queue<OperationAndID>> opsByHost;
 
     private File file;
+    private DataOutputStream dos;
     private int nExecuted;
 
     //Serializers
@@ -95,6 +96,7 @@ public class ReplicationKernelVCs extends GenericProtocol implements CRDTCommuni
         this.opsByHost = new ConcurrentHashMap<>();
 
         this.file = initFile();
+        this.dos = new DataOutputStream(new FileOutputStream(this.file));
 
         this.dataSerializers = new HashMap<>();
 
@@ -379,19 +381,14 @@ public class ReplicationKernelVCs extends GenericProtocol implements CRDTCommuni
     }
 
     private void writeOperationToFile(byte[] serOp, UUID msgId) throws IOException {
-        try(FileOutputStream fos = new FileOutputStream(this.file, true);
-            DataOutputStream dos = new DataOutputStream(fos)) {
-            dos.writeLong(msgId.getMostSignificantBits());
-            dos.writeLong(msgId.getLeastSignificantBits());
-            dos.writeInt(serOp.length);
-            if (serOp.length > 0) {
-                dos.write(serOp);
-            }
-            nExecuted++;
-        } catch (IOException e) {
-            logger.error("Error writing ops to file", e);
-            e.printStackTrace();
+        dos.writeLong(msgId.getMostSignificantBits());
+        dos.writeLong(msgId.getLeastSignificantBits());
+        dos.writeInt(serOp.length);
+        if (serOp.length > 0) {
+            dos.write(serOp);
         }
+        dos.flush();
+        nExecuted++;
     }
 
     private void readAndSendMissingOpsFromFile(Host neighbour, VectorClock neighbourClock) throws IOException {
@@ -624,9 +621,8 @@ public class ReplicationKernelVCs extends GenericProtocol implements CRDTCommuni
     }
 
     private File initFile() throws IOException {
-        File file = new File("data/ops-" + myself);
-        file.createNewFile();
-        new FileOutputStream("data/ops-" + myself).close();
+        File file = new File("/tmp/data/ops-" + myself);
+        file.getParentFile().mkdirs();
         return file;
     }
 }

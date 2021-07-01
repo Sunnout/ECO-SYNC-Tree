@@ -565,7 +565,7 @@ public class PlumTree extends GenericProtocol {
      * been closed.
      */
     private void uponChannelMetrics(ChannelMetrics event, int channelId) {
-        StringBuilder sb = new StringBuilder("Channel Metrics:\n");
+        StringBuilder sb = new StringBuilder("Channel Metrics: ");
         long bytesSent = 0;
         long bytesReceived = 0;
         long messagesSent = 0;
@@ -591,11 +591,10 @@ public class PlumTree extends GenericProtocol {
             messagesReceived += c.getReceivedAppMessages();
         }
 
-        sb.append(String.format("BytesSent = %s\n", bytesSent));
-        sb.append(String.format("BytesReceived = %s\n", bytesReceived));
-        sb.append(String.format("MessagesSent = %s\n", messagesSent));
-        sb.append(String.format("MessagesReceived = %s\n", messagesReceived));
-        sb.setLength(sb.length() - 1);
+        sb.append(String.format("BytesSent=%s ", bytesSent));
+        sb.append(String.format("BytesReceived=%s ", bytesReceived));
+        sb.append(String.format("MessagesSent=%s ", messagesSent));
+        sb.append(String.format("MessagesReceived=%s", messagesReceived));
         logger.info(sb);
     }
 }

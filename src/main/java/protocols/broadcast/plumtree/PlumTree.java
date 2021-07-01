@@ -61,6 +61,22 @@ public class PlumTree extends GenericProtocol {
 
     public static int dupes;
 
+    public static int sentGossip;
+    public static int sentIHave;
+    public static int sentGraft;
+    public static int sentPrune;
+    public static int sentSendVC;
+    public static int sentVC;
+    public static int sentSyncOps;
+
+    public static int receivedGossip;
+    public static int receivedIHave;
+    public static int receivedGraft;
+    public static int receivedPrune;
+    public static int receivedSendVC;
+    public static int receivedVC;
+    public static int receivedSyncOps;
+
 
     /*--------------------------------- Initialization ---------------------------------------- */
 
@@ -165,6 +181,7 @@ public class PlumTree extends GenericProtocol {
         Host neighbour = request.getTo();
         VectorClockMessage msg = new VectorClockMessage(request.getMsgId(), request.getSender(), request.getVectorClock());
         sendMessage(msg, neighbour, TCPChannel.CONNECTION_IN);
+        sentVC++;
         logger.debug("Sent {} to {}", msg, neighbour);
     }
 
@@ -175,6 +192,7 @@ public class PlumTree extends GenericProtocol {
 
         SyncOpsMessage msg = new SyncOpsMessage(request.getMsgId(), request.getIds(), request.getOperations());
         sendMessage(msg, neighbour);
+        sentSyncOps++;
         logger.debug("Sent {} to {}", msg, neighbour);
         handleBufferedOperations(neighbour);
         addPendingToEager();
@@ -184,6 +202,8 @@ public class PlumTree extends GenericProtocol {
     /*--------------------------------- Messages ---------------------------------------- */
 
     private void uponReceiveGossip(GossipMessage msg, Host from, short sourceProto, int channelId) {
+        receivedGossip++;
+
         logger.debug("Received {} from {}", msg.getMid(), from);
         UUID mid = msg.getMid();
         if (!received.contains(mid)) {
@@ -202,11 +222,14 @@ public class PlumTree extends GenericProtocol {
 
                 logger.debug("Sent PruneMessage to {}", from);
                 sendMessage(new PruneMessage(), from);
+                sentPrune++;
             }
         }
     }
 
     private void uponReceivePrune(PruneMessage msg, Host from, short sourceProto, int channelId) {
+        receivedPrune++;
+
         logger.debug("Received {} from {}", msg, from);
         if (eager.remove(from)) {
             logger.debug("Removed {} from eager due to prune {}", from, eager);
@@ -218,16 +241,22 @@ public class PlumTree extends GenericProtocol {
     }
 
     private void uponReceiveGraft(GraftMessage msg, Host from, short sourceProto, int channelId) {
+        receivedGraft++;
+
         logger.debug("Received {} from {}", msg, from);
         startSynchronization(from, false);
     }
 
     private void uponReceiveIHave(IHaveMessage msg, Host from, short sourceProto, int channelId) {
+        receivedIHave++;
+
         logger.debug("Received {} from {}", msg, from);
         handleAnnouncement(msg.getMid(), from, msg.getRound());
     }
 
     private void uponReceiveVectorClock(VectorClockMessage msg, Host from, short sourceProto, int channelId) {
+        receivedVC++;
+
         logger.debug("Received {} from {}", msg, from);
         if (!from.equals(currentPending))
             return;
@@ -236,13 +265,16 @@ public class PlumTree extends GenericProtocol {
     }
 
     private void uponReceiveSendVectorClock(SendVectorClockMessage msg, Host from, short sourceProto, int channelId) {
+        receivedSendVC++;
+
         logger.debug("Received {} from {}", msg, from);
         triggerNotification(new SendVectorClockNotification(msg.getSender()));
     }
 
     private void uponReceiveSyncOps(SyncOpsMessage msg, Host from, short sourceProto, int channelId) {
-        logger.debug("Received {} from {}", msg, from);
+        receivedSyncOps++;
 
+        logger.debug("Received {} from {}", msg, from);
         Iterator<byte[]> opIt = msg.getOperations().iterator();
         Iterator<byte[]> idIt = msg.getIds().iterator();
 
@@ -280,6 +312,7 @@ public class PlumTree extends GenericProtocol {
                 if (partialView.contains(neighbour) && !neighbour.equals(currentPending) && !pending.contains(neighbour)) {
                     logger.debug("Sent GraftMessage for {} to {}", mid, neighbour);
                     sendMessage(new GraftMessage(mid, msgSrc.round), neighbour);
+                    sentGraft++;
                 }
                 logger.debug("Try sync with {} for timeout {}", neighbour, mid);
                 startSynchronization(neighbour, false);
@@ -431,6 +464,7 @@ public class PlumTree extends GenericProtocol {
     private void requestVectorClock(Host neighbour) {
         SendVectorClockMessage msg = new SendVectorClockMessage(UUID.randomUUID(), myself);
         sendMessage(msg, neighbour);
+        sentSendVC++;
         logger.debug("Sent {} to {}", msg, neighbour);
     }
 
@@ -466,6 +500,7 @@ public class PlumTree extends GenericProtocol {
         while ((msg = bufferedOps.poll()) != null) {
             if (!msg.getSender().equals(neighbour)) {
                 sendMessage(msg, neighbour);
+                sentGossip++;
                 logger.debug("Sent buffered {} to {}", msg, neighbour);
             }
         }
@@ -476,6 +511,7 @@ public class PlumTree extends GenericProtocol {
         for (Host peer : eager) {
             if (!peer.equals(from)) {
                 sendMessage(msg, peer);
+                sentGossip++;
                 logger.debug("Forward {} received from {} to {}", msg.getMid(), from, peer);
             }
         }
@@ -495,6 +531,7 @@ public class PlumTree extends GenericProtocol {
         for (AddressedIHaveMessage msg : announcements) {
             logger.debug("Sent {} to {}", msg.msg, msg.to);
             sendMessage(msg.msg, msg.to);
+            sentIHave++;
         }
         lazyQueue.removeAll(announcements);
     }

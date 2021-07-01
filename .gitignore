@@ -115,6 +115,9 @@ buildNumber.properties
 ### Folder for logs
 results/
 
+### Folder for list of causally ordered ops
+data/
+
 ### Mac
 .DS_Store
 

@@ -249,6 +249,8 @@ public class FloodBroadcast extends GenericProtocol  {
 
         if (partialView.add(neighbour)) {
             logger.debug("Added {} to partial view due to up {}", neighbour, partialView);
+        } else {
+            logger.error("Tried to add {} to partial view but is already there", neighbour, partialView);
         }
 
         openConnection(neighbour);
@@ -296,13 +298,18 @@ public class FloodBroadcast extends GenericProtocol  {
             logger.debug("Removed {} from current pending due to plumtree down", host);
             tryNextSync();
         }
-        setupTimer(new ReconnectTimeout(host), reconnectTimeout);
+
+        if(partialView.contains(host)) {
+            setupTimer(new ReconnectTimeout(host), reconnectTimeout);
+        }
     }
 
     private void uponOutConnectionFailed(OutConnectionFailed event, int channelId) {
         Host host = event.getNode();
         logger.trace("Connection to host {} failed, cause: {}", host, event.getCause());
-        setupTimer(new ReconnectTimeout(host), reconnectTimeout);
+        if(partialView.contains(host)) {
+            setupTimer(new ReconnectTimeout(host), reconnectTimeout);
+        }
     }
 
     private void uponOutConnectionUp(OutConnectionUp event, int channelId) {

@@ -203,7 +203,7 @@ public class FloodBroadcast extends GenericProtocol  {
         receivedSendVC++;
 
         logger.debug("Received {} from {}", msg, from);
-        triggerNotification(new SendVectorClockNotification(msg.getSender()));
+        triggerNotification(new SendVectorClockNotification(from));
     }
 
     private void uponReceiveSyncOps(SyncOpsMessage msg, Host from, short sourceProto, int channelId) {
@@ -371,7 +371,7 @@ public class FloodBroadcast extends GenericProtocol  {
     }
 
     private void requestVectorClock(Host neighbour) {
-        SendVectorClockMessage msg = new SendVectorClockMessage(UUID.randomUUID(), myself);
+        SendVectorClockMessage msg = new SendVectorClockMessage(UUID.randomUUID());
         sendMessage(msg, neighbour);
         sentSendVC++;
         logger.debug("Sent {} to {}", msg, neighbour);

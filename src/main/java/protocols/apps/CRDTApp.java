@@ -3,6 +3,7 @@ package protocols.apps;
 import java.util.*;
 
 import crdts.interfaces.GenericCRDT;
+import protocols.broadcast.plumtree.PlumTree;
 import protocols.replication.*;
 import protocols.replication.OpCounterCRDT.CounterOpType;
 import protocols.replication.LWWRegisterCRDT.RegisterOpType;
@@ -51,6 +52,7 @@ public class CRDTApp extends GenericProtocol {
     public static final short PROTO_ID = 300;
 
     private final short replicationKernelId;
+    private final short broadcastId;
     private final Host self;
 
 
@@ -81,9 +83,10 @@ public class CRDTApp extends GenericProtocol {
 
     private Random rand;
 
-    public CRDTApp(Properties properties, Host self, short replicationKernelId) throws HandlerRegistrationException {
+    public CRDTApp(Properties properties, Host self, short replicationKernelId, short broadcastId) throws HandlerRegistrationException {
         super(PROTO_NAME, PROTO_ID);
         this.replicationKernelId = replicationKernelId;
+        this.broadcastId = broadcastId;
         this.self = self;
         this.myCRDTs = new HashMap<>();
 
@@ -329,6 +332,25 @@ public class CRDTApp extends GenericProtocol {
             logger.info("Number of sent operations: {}", ReplicationKernelVCs.sentOps);
             logger.info("Number of received operations: {}", ReplicationKernelVCs.receivedOps);
             logger.info("Number of executed operations: {}", ReplicationKernelVCs.executedOps);
+        }
+    }
+
+    private void printStats() {
+        //Plumtree
+        if(broadcastId == 900) {
+            logger.info("Number of sent operations: {}", ReplicationKernel.sentOps);
+            logger.info("Number of received operations: {}", ReplicationKernel.receivedOps);
+            logger.info("Number of executed operations: {}", ReplicationKernel.executedOps);
+        }
+        //Flood
+        else if(broadcastId == 1500) {
+            logger.info("Number of sent operations: {}", ReplicationKernelVCs.sentOps);
+            logger.info("Number of received operations: {}", ReplicationKernelVCs.receivedOps);
+            logger.info("Number of executed operations: {}", ReplicationKernelVCs.executedOps);
+        }
+        //Periodic Pull
+        else if(broadcastId == 490) {
+
         }
     }
 
@@ -619,6 +641,7 @@ public class CRDTApp extends GenericProtocol {
 
     private void uponPrintValuesTimer(PrintValuesTimer printValuesTimer, long timerId) {
         printFinalValues(RUN);
+        printStats();
         setupTimer(new ExitTimer(), exitTime * TO_MILLIS);
     }
 

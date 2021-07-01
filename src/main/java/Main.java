@@ -52,8 +52,11 @@ public class Main {
 
         logger.info("Hello, I am {} {}", myself_membership, myself);
 
-        CRDTApp crdtApp = new CRDTApp(props, myself, ReplicationKernelVCs.PROTOCOL_ID);
-        GenericProtocol replicationKernel = new ReplicationKernelVCs(props, myself, FloodBroadcast.PROTOCOL_ID);
+        short replicationId = ReplicationKernelVCs.PROTOCOL_ID;
+        short broadcastId = FloodBroadcast.PROTOCOL_ID;
+
+        CRDTApp crdtApp = new CRDTApp(props, myself, replicationId, broadcastId);
+        GenericProtocol replicationKernel = new ReplicationKernelVCs(props, myself, broadcastId);
         GenericProtocol broadcast = new FloodBroadcast(props, myself);
         GenericProtocol membership = new HyParView(props, myself_membership);
 

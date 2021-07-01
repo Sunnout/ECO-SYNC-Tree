@@ -20,14 +20,14 @@
 
 
         <Logger level="info" name="io.netty"/>
-        <Logger level="debug" name="network"/>
-        <Logger level="debug" name="channel"/>
-        <Logger level="debug" name="babel"/>
+        <Logger level="info" name="network"/>
+        <Logger level="info" name="channel"/>
+        <Logger level="info" name="babel"/>
 
 
         <Root level="debug">
             <AppenderRef ref="Console" level="info"/>
-           <AppenderRef ref="MyFile" level="info"/>
+           <AppenderRef ref="MyFile" level="debug"/>
        </Root>
    </Loggers>
 

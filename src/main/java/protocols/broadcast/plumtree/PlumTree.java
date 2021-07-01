@@ -59,6 +59,8 @@ public class PlumTree extends GenericProtocol {
     private final Queue<AddressedIHaveMessage> lazyQueue;
     private final LazyQueuePolicy policy;
 
+    public static int dupes;
+
 
     /*--------------------------------- Initialization ---------------------------------------- */
 
@@ -144,42 +146,79 @@ public class PlumTree extends GenericProtocol {
 
     }
 
+
+    /*--------------------------------- Requests ---------------------------------------- */
+
+    private void uponBroadcast(BroadcastRequest request, short sourceProto) {
+        UUID mid = request.getMsgId();
+        Host sender = request.getSender();
+        byte[] content = request.getMsg();
+        logger.info("SENT {}", mid);
+        logger.info("RECEIVED {}", mid);
+        triggerNotification(new DeliverNotification(mid, sender, content, false));
+        logger.debug("Propagating my {} to {}", mid, eager);
+        GossipMessage msg = new GossipMessage(mid, sender, 0, content);
+        handleGossipMessage(msg, 0, sender);
+    }
+
+    private void uponVectorClock(VectorClockRequest request, short sourceProto) {
+        Host neighbour = request.getTo();
+        VectorClockMessage msg = new VectorClockMessage(request.getMsgId(), request.getSender(), request.getVectorClock());
+        sendMessage(msg, neighbour, TCPChannel.CONNECTION_IN);
+        logger.debug("Sent {} to {}", msg, neighbour);
+    }
+
+    private void uponSyncOps(SyncOpsRequest request, short sourceProto) {
+        Host neighbour = request.getTo();
+        if (!neighbour.equals(currentPending))
+            return;
+
+        SyncOpsMessage msg = new SyncOpsMessage(request.getMsgId(), request.getIds(), request.getOperations());
+        sendMessage(msg, neighbour);
+        logger.debug("Sent {} to {}", msg, neighbour);
+        handleBufferedOperations(neighbour);
+        addPendingToEager();
+    }
+
+
     /*--------------------------------- Messages ---------------------------------------- */
 
     private void uponReceiveGossip(GossipMessage msg, Host from, short sourceProto, int channelId) {
-        logger.info("Received {} from {}", msg.getMid(), from);
+        logger.debug("Received {} from {}", msg.getMid(), from);
         UUID mid = msg.getMid();
         if (!received.contains(mid)) {
+            logger.info("RECEIVED {}", mid);
             triggerNotification(new DeliverNotification(mid, from, msg.getContent(), false));
             handleGossipMessage(msg, msg.getRound() + 1, from);
         } else {
-            logger.info("{} was duplicated msg from {}", mid, from);
+            dupes++;
+            logger.debug("{} was duplicated msg from {}", mid, from);
             if (eager.remove(from)) {
-                logger.info("Removed {} from eager due to duplicate {}", from, eager);
+                logger.debug("Removed {} from eager due to duplicate {}", from, eager);
 
                 if (lazy.add(from)) {
-                    logger.info("Added {} to lazy due to duplicate {}", from, lazy);
+                    logger.debug("Added {} to lazy due to duplicate {}", from, lazy);
                 }
 
-                logger.info("Sent PruneMessage to {}", from);
+                logger.debug("Sent PruneMessage to {}", from);
                 sendMessage(new PruneMessage(), from);
             }
         }
     }
 
     private void uponReceivePrune(PruneMessage msg, Host from, short sourceProto, int channelId) {
-        logger.info("Received {} from {}", msg, from);
+        logger.debug("Received {} from {}", msg, from);
         if (eager.remove(from)) {
-            logger.info("Removed {} from eager due to prune {}", from, eager);
+            logger.debug("Removed {} from eager due to prune {}", from, eager);
 
             if (lazy.add(from)) {
-                logger.info("Added {} to lazy due to prune {}", from, lazy);
+                logger.debug("Added {} to lazy due to prune {}", from, lazy);
             }
         }
     }
 
     private void uponReceiveGraft(GraftMessage msg, Host from, short sourceProto, int channelId) {
-        logger.info("Received {} from {}", msg, from);
+        logger.debug("Received {} from {}", msg, from);
         startSynchronization(from, false);
     }
 
@@ -189,20 +228,20 @@ public class PlumTree extends GenericProtocol {
     }
 
     private void uponReceiveVectorClock(VectorClockMessage msg, Host from, short sourceProto, int channelId) {
-        logger.info("Received {} from {}", msg, from);
-        if(!from.equals(currentPending))
+        logger.debug("Received {} from {}", msg, from);
+        if (!from.equals(currentPending))
             return;
         this.buffering = true;
         triggerNotification(new VectorClockNotification(msg.getSender(), msg.getVectorClock()));
     }
 
     private void uponReceiveSendVectorClock(SendVectorClockMessage msg, Host from, short sourceProto, int channelId) {
-        logger.info("Received {} from {}", msg, from);
+        logger.debug("Received {} from {}", msg, from);
         triggerNotification(new SendVectorClockNotification(msg.getSender()));
     }
 
     private void uponReceiveSyncOps(SyncOpsMessage msg, Host from, short sourceProto, int channelId) {
-        logger.info("Received {} from {}", msg, from);
+        logger.debug("Received {} from {}", msg, from);
 
         Iterator<byte[]> opIt = msg.getOperations().iterator();
         Iterator<byte[]> idIt = msg.getIds().iterator();
@@ -213,9 +252,12 @@ public class PlumTree extends GenericProtocol {
             UUID mid = deserializeId(serId);
 
             if (!received.contains(mid)) {
+                logger.info("RECEIVED {}", mid);
                 triggerNotification(new DeliverNotification(mid, from, serOp, true));
-                logger.info("Propagating sync op {} to {}", mid, eager);
+                logger.debug("Propagating sync op {} to {}", mid, eager);
                 handleGossipMessage(new GossipMessage(mid, from, 0, serOp), 0, from);
+            } else {
+                dupes++;
             }
         }
     }
@@ -223,6 +265,7 @@ public class PlumTree extends GenericProtocol {
     private void onMessageFailed(ProtoMessage protoMessage, Host host, short destProto, Throwable reason, int channel) {
         logger.warn("Message failed to " + host + ", " + protoMessage + ": " + reason.getMessage());
     }
+
 
     /*--------------------------------- Timers ---------------------------------------- */
 
@@ -235,10 +278,10 @@ public class PlumTree extends GenericProtocol {
                 onGoingTimers.put(mid, tid);
                 Host neighbour = msgSrc.peer;
                 if (partialView.contains(neighbour) && !neighbour.equals(currentPending) && !pending.contains(neighbour)) {
-                    logger.info("Sent GraftMessage for {} to {}", mid, neighbour);
+                    logger.debug("Sent GraftMessage for {} to {}", mid, neighbour);
                     sendMessage(new GraftMessage(mid, msgSrc.round), neighbour);
                 }
-                logger.info("Try sync with {} for timeout {}", neighbour, mid);
+                logger.debug("Try sync with {} for timeout {}", neighbour, mid);
                 startSynchronization(neighbour, false);
 
             }
@@ -247,44 +290,12 @@ public class PlumTree extends GenericProtocol {
 
     private void uponReconnectTimeout(ReconnectTimeout timeout, long timerId) {
         Host neighbour = timeout.getHost();
-        if(partialView.contains(neighbour)) {
-            logger.info("Reconnecting with {}", neighbour);
+        if (partialView.contains(neighbour)) {
+            logger.debug("Reconnecting with {}", neighbour);
             openConnection(neighbour);
         } else {
-            logger.info("Not reconnecting because {} is down", neighbour);
+            logger.debug("Not reconnecting because {} is down", neighbour);
         }
-    }
-
-
-    /*--------------------------------- Requests ---------------------------------------- */
-
-    private void uponBroadcast(BroadcastRequest request, short sourceProto) {
-        UUID mid = request.getMsgId();
-        Host sender = request.getSender();
-        byte[] content = request.getMsg();
-        triggerNotification(new DeliverNotification(mid, sender, content, false));
-        logger.info("Propagating my {} to {}", mid, eager);
-        GossipMessage msg = new GossipMessage(mid, sender, 0, content);
-        handleGossipMessage(msg, 0, sender);
-    }
-
-    private void uponVectorClock(VectorClockRequest request, short sourceProto) {
-        Host neighbour = request.getTo();
-        VectorClockMessage msg = new VectorClockMessage(request.getMsgId(), request.getSender(), request.getVectorClock());
-        sendMessage(msg, neighbour, TCPChannel.CONNECTION_IN);
-        logger.info("Sent {} to {}", msg, neighbour);
-    }
-
-    private void uponSyncOps(SyncOpsRequest request, short sourceProto) {
-        Host neighbour = request.getTo();
-        if(!neighbour.equals(currentPending))
-            return;
-
-        SyncOpsMessage msg = new SyncOpsMessage(request.getMsgId(), request.getIds(), request.getOperations());
-        sendMessage(msg, neighbour);
-        logger.info("Sent {} to {}", msg, neighbour);
-        handleBufferedOperations(neighbour);
-        addPendingToEager();
     }
 
 
@@ -292,10 +303,10 @@ public class PlumTree extends GenericProtocol {
 
     private void uponNeighbourUp(NeighbourUp notification, short sourceProto) {
         Host tmp = notification.getNeighbour();
-        Host neighbour = new Host(tmp.getAddress(),tmp.getPort() + PORT_MAPPING);
+        Host neighbour = new Host(tmp.getAddress(), tmp.getPort() + PORT_MAPPING);
 
         if (partialView.add(neighbour)) {
-            logger.info("Added {} to partial view due to up {}", neighbour, partialView);
+            logger.debug("Added {} to partial view due to up {}", neighbour, partialView);
         }
 
         openConnection(neighbour);
@@ -303,22 +314,22 @@ public class PlumTree extends GenericProtocol {
 
     private void uponNeighbourDown(NeighbourDown notification, short sourceProto) {
         Host tmp = notification.getNeighbour();
-        Host neighbour = new Host(tmp.getAddress(),tmp.getPort() + PORT_MAPPING);
+        Host neighbour = new Host(tmp.getAddress(), tmp.getPort() + PORT_MAPPING);
 
         if (partialView.remove(neighbour)) {
-            logger.info("Removed {} from partial view due to down {}", neighbour, partialView);
+            logger.debug("Removed {} from partial view due to down {}", neighbour, partialView);
         }
 
         if (eager.remove(neighbour)) {
-            logger.info("Removed {} from eager due to down {}", neighbour, eager);
+            logger.debug("Removed {} from eager due to down {}", neighbour, eager);
         }
 
         if (lazy.remove(neighbour)) {
-            logger.info("Removed {} from lazy due to down {}", neighbour, lazy);
+            logger.debug("Removed {} from lazy due to down {}", neighbour, lazy);
         }
 
         if (pending.remove(neighbour)) {
-            logger.info("Removed {} from pending due to down {}", neighbour, pending);
+            logger.debug("Removed {} from pending due to down {}", neighbour, pending);
         }
 
         MessageSource msgSrc = new MessageSource(neighbour, 0);
@@ -327,10 +338,59 @@ public class PlumTree extends GenericProtocol {
         }
 
         if (neighbour.equals(currentPending)) {
-            logger.info("Removed {} from current pending due to down", neighbour);
+            logger.debug("Removed {} from current pending due to down", neighbour);
             tryNextSync();
         }
         closeConnection(neighbour);
+    }
+
+
+    /* --------------------------------- Channel Events ---------------------------- */
+
+    private void uponOutConnectionDown(OutConnectionDown event, int channelId) {
+        Host host = event.getNode();
+        logger.trace("Host {} is down, cause: {}", host, event.getCause());
+
+        if (eager.remove(host)) {
+            logger.debug("Removed {} from eager due to plumtree down {}", host, eager);
+        }
+
+        if (lazy.remove(host)) {
+            logger.debug("Removed {} from lazy due to plumtree down {}", host, lazy);
+        }
+
+        if (pending.remove(host)) {
+            logger.debug("Removed {} from pending due to plumtree down {}", host, pending);
+        }
+
+        if (host.equals(currentPending)) {
+            logger.debug("Removed {} from current pending due to plumtree down", host);
+            tryNextSync();
+        }
+        setupTimer(new ReconnectTimeout(host), reconnectTimeout);
+    }
+
+    private void uponOutConnectionFailed(OutConnectionFailed event, int channelId) {
+        Host host = event.getNode();
+        logger.trace("Connection to host {} failed, cause: {}", host, event.getCause());
+        setupTimer(new ReconnectTimeout(host), reconnectTimeout);
+    }
+
+    private void uponOutConnectionUp(OutConnectionUp event, int channelId) {
+        Host neighbour = event.getNode();
+        logger.trace("Host (out) {} is up", neighbour);
+        if (partialView.contains(neighbour)) {
+            logger.debug("Trying sync from neighbour {} up", neighbour);
+            startSynchronization(neighbour, true);
+        }
+    }
+
+    private void uponInConnectionUp(InConnectionUp event, int channelId) {
+        logger.trace("Host (in) {} is up", event.getNode());
+    }
+
+    private void uponInConnectionDown(InConnectionDown event, int channelId) {
+        logger.trace("Connection from host {} is down, cause: {}", event.getNode(), event.getCause());
     }
 
 
@@ -340,22 +400,22 @@ public class PlumTree extends GenericProtocol {
         if (neighUp || (lazy.contains(neighbour) && !neighbour.equals(currentPending) && !pending.contains(neighbour))) {
             if (currentPending == null) {
                 currentPending = neighbour;
-                logger.info("{} is my currentPending start", neighbour);
+                logger.debug("{} is my currentPending start", neighbour);
                 requestVectorClock(currentPending);
             } else {
                 pending.add(neighbour);
-                logger.info("Added {} to pending {}", neighbour, pending);
+                logger.debug("Added {} to pending {}", neighbour, pending);
             }
         }
     }
 
     private void addPendingToEager() {
         if (eager.add(currentPending)) {
-            logger.info("Added {} to eager {} : pending list {}", currentPending, eager, pending);
+            logger.debug("Added {} to eager {} : pending list {}", currentPending, eager, pending);
         }
 
         if (lazy.remove(currentPending)) {
-            logger.info("Removed {} from lazy due to sync {}", currentPending, lazy);
+            logger.debug("Removed {} from lazy due to sync {}", currentPending, lazy);
         }
         tryNextSync();
     }
@@ -363,7 +423,7 @@ public class PlumTree extends GenericProtocol {
     private void tryNextSync() {
         currentPending = pending.poll();
         if (currentPending != null) {
-            logger.info("{} is my currentPending try", currentPending);
+            logger.debug("{} is my currentPending try", currentPending);
             requestVectorClock(currentPending);
         }
     }
@@ -371,11 +431,11 @@ public class PlumTree extends GenericProtocol {
     private void requestVectorClock(Host neighbour) {
         SendVectorClockMessage msg = new SendVectorClockMessage(UUID.randomUUID(), myself);
         sendMessage(msg, neighbour);
-        logger.info("Sent {} to {}", msg, neighbour);
+        logger.debug("Sent {} to {}", msg, neighbour);
     }
 
     private void handleGossipMessage(GossipMessage msg, int round, Host from) {
-        if(buffering)
+        if (buffering)
             this.bufferedOps.add(msg);
 
         UUID mid = msg.getMid();
@@ -403,10 +463,10 @@ public class PlumTree extends GenericProtocol {
     private void handleBufferedOperations(Host neighbour) {
         this.buffering = false;
         GossipMessage msg;
-        while((msg = bufferedOps.poll()) != null) {
-            if(!msg.getSender().equals(neighbour)) {
+        while ((msg = bufferedOps.poll()) != null) {
+            if (!msg.getSender().equals(neighbour)) {
                 sendMessage(msg, neighbour);
-                logger.info("Sent buffered {} to {}", msg, neighbour);
+                logger.debug("Sent buffered {} to {}", msg, neighbour);
             }
         }
     }
@@ -416,7 +476,7 @@ public class PlumTree extends GenericProtocol {
         for (Host peer : eager) {
             if (!peer.equals(from)) {
                 sendMessage(msg, peer);
-                logger.info("Forward {} received from {} to {}", msg.getMid(), from, peer);
+                logger.debug("Forward {} received from {} to {}", msg.getMid(), from, peer);
             }
         }
     }
@@ -443,53 +503,4 @@ public class PlumTree extends GenericProtocol {
         ByteBuf buf = Unpooled.buffer().writeBytes(msg);
         return new UUID(buf.readLong(), buf.readLong());
     }
-
-    /* --------------------------------- Channel Events ---------------------------- */
-
-    private void uponOutConnectionDown(OutConnectionDown event, int channelId) {
-        Host host = event.getNode();
-        logger.info("Host {} is down, cause: {}", host, event.getCause());
-
-        if (eager.remove(host)) {
-            logger.info("Removed {} from eager due to plumtree down {}", host, eager);
-        }
-
-        if (lazy.remove(host)) {
-            logger.info("Removed {} from lazy due to plumtree down {}", host, lazy);
-        }
-
-        if (pending.remove(host)) {
-            logger.info("Removed {} from pending due to plumtree down {}", host, pending);
-        }
-
-        if (host.equals(currentPending)) {
-            logger.info("Removed {} from current pending due to plumtree down", host);
-            tryNextSync();
-        }
-        setupTimer(new ReconnectTimeout(host), reconnectTimeout);
-    }
-
-    private void uponOutConnectionFailed(OutConnectionFailed event, int channelId) {
-        Host host = event.getNode();
-        logger.info("Connection to host {} failed, cause: {}", host, event.getCause());
-        setupTimer(new ReconnectTimeout(host), reconnectTimeout);
-    }
-
-    private void uponOutConnectionUp(OutConnectionUp event, int channelId) {
-        Host neighbour = event.getNode();
-        logger.trace("Host (out) {} is up", neighbour);
-        if(partialView.contains(neighbour)) {
-            logger.info("Trying sync from neighbour {} up", neighbour);
-            startSynchronization(neighbour, true);
-        }
-    }
-
-    private void uponInConnectionUp(InConnectionUp event, int channelId) {
-        logger.trace("Host (in) {} is up", event.getNode());
-    }
-
-    private void uponInConnectionDown(InConnectionDown event, int channelId) {
-        logger.trace("Connection from host {} is down, cause: {}", event.getNode(), event.getCause());
-    }
-
 }

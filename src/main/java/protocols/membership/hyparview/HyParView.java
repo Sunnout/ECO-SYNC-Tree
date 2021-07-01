@@ -360,6 +360,7 @@ public class HyParView extends GenericProtocol {
     private void uponJoinTimeout(JoinTimeout timer, long timerId) {
         if(active.isEmpty()) {
             Host contact = timer.getContact();
+            openConnection(contact);
             logger.warn("Retrying join to {}", contact);
             JoinMessage m = new JoinMessage();
             sendMessage(m, contact);

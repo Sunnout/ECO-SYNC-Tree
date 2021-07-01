@@ -47,12 +47,17 @@ public class FloodBroadcast extends GenericProtocol  {
     private boolean buffering; //To know if we are between sending vc to kernel and sending ops to neighbour
     private final Set<UUID> received;
 
+    public static int dupes;
+
+
     /*--------------------------------- Initialization ---------------------------------------- */
 
     public FloodBroadcast(Properties properties, Host myself) throws HandlerRegistrationException, IOException {
         super(PROTOCOL_NAME, PROTOCOL_ID);
         this.myself = myself;
+
         this.reconnectTimeout = Long.parseLong(properties.getProperty("reconnect_timeout", "500"));
+
         this.partialView = new HashSet<>();
         this.neighbours = new HashSet<>();
         this.pending = new LinkedList<>();
@@ -124,6 +129,7 @@ public class FloodBroadcast extends GenericProtocol  {
         byte[] content = request.getMsg();
         logger.debug("Propagating my {} to {}", mid, neighbours);
         FloodMessage msg = new FloodMessage(mid, sender, sourceProto, content);
+        logger.info("SENT {}", mid);
         uponReceiveFlood(msg, myself, getProtoId(), -1);
     }
 
@@ -131,7 +137,7 @@ public class FloodBroadcast extends GenericProtocol  {
         Host neighbour = request.getTo();
         VectorClockMessage msg = new VectorClockMessage(request.getMsgId(), request.getSender(), request.getVectorClock());
         sendMessage(msg, neighbour, TCPChannel.CONNECTION_IN);
-        logger.info("Sent {} to {}", msg, neighbour);
+        logger.debug("Sent {} to {}", msg, neighbour);
     }
 
     private void uponSyncOps(SyncOpsRequest request, short sourceProto) {
@@ -141,36 +147,31 @@ public class FloodBroadcast extends GenericProtocol  {
 
         SyncOpsMessage msg = new SyncOpsMessage(request.getMsgId(), request.getIds(), request.getOperations());
         sendMessage(msg, neighbour);
-        logger.info("Sent {} to {}", msg, neighbour);
+        logger.debug("Sent {} to {}", msg, neighbour);
         handleBufferedOperations(neighbour);
         addPendingToNeighbours();
     }
+
 
     /*--------------------------------- Messages ---------------------------------------- */
 
     private void uponReceiveFlood(FloodMessage msg, Host from, short sourceProto, int channelId) {
         UUID mid = msg.getMid();
         if (received.add(mid)) {
-            logger.info("Received op {} from {}", mid, from);
+            logger.debug("Received op {} from {}", mid, from);
             if(buffering)
                 this.bufferedOps.add(msg);
 
+            logger.info("RECEIVED {}", mid);
             triggerNotification(new DeliverNotification(mid, msg.getSender(), msg.getContent(), false));
             forwardFloodMessage(msg, from);
+        } else {
+            dupes++;
         }
     }
 
-    private void forwardFloodMessage(FloodMessage msg, Host from) {
-        neighbours.forEach(host -> {
-            if (!host.equals(from)) {
-                logger.trace("Sent {} to {}", msg, host);
-                sendMessage(msg, host);
-            }
-        });
-    }
-
     private void uponReceiveVectorClock(VectorClockMessage msg, Host from, short sourceProto, int channelId) {
-        logger.info("Received {} from {}", msg, from);
+        logger.debug("Received {} from {}", msg, from);
         if(!from.equals(currentPending))
             return;
         this.buffering = true;
@@ -178,7 +179,7 @@ public class FloodBroadcast extends GenericProtocol  {
     }
 
     private void uponReceiveSendVectorClock(SendVectorClockMessage msg, Host from, short sourceProto, int channelId) {
-        logger.info("Received {} from {}", msg, from);
+        logger.debug("Received {} from {}", msg, from);
         triggerNotification(new SendVectorClockNotification(msg.getSender()));
     }
 
@@ -194,9 +195,12 @@ public class FloodBroadcast extends GenericProtocol  {
             UUID mid = deserializeId(serId);
 
             if (received.add(mid)) {
+                logger.info("RECEIVED {}", mid);
                 triggerNotification(new DeliverNotification(mid, from, serOp, true));
-                logger.info("Received sync op {} from {}", mid, from);
+                logger.debug("Received sync op {} from {}", mid, from);
                 forwardFloodMessage(new FloodMessage(mid, from , sourceProto, serOp), from);
+            } else {
+                dupes++;
             }
         }
     }
@@ -211,10 +215,10 @@ public class FloodBroadcast extends GenericProtocol  {
     private void uponReconnectTimeout(ReconnectTimeout timeout, long timerId) {
         Host neighbour = timeout.getHost();
         if(partialView.contains(neighbour)) {
-            logger.info("Reconnecting with {}", neighbour);
+            logger.debug("Reconnecting with {}", neighbour);
             openConnection(neighbour);
         } else {
-            logger.info("Not reconnecting because {} is down", neighbour);
+            logger.debug("Not reconnecting because {} is down", neighbour);
         }
     }
 
@@ -226,7 +230,7 @@ public class FloodBroadcast extends GenericProtocol  {
         Host neighbour = new Host(tmp.getAddress(),tmp.getPort() + PORT_MAPPING);
 
         if (partialView.add(neighbour)) {
-            logger.info("Added {} to partial view due to up {}", neighbour, partialView);
+            logger.debug("Added {} to partial view due to up {}", neighbour, partialView);
         }
 
         openConnection(neighbour);
@@ -237,92 +241,41 @@ public class FloodBroadcast extends GenericProtocol  {
         Host neighbour = new Host(tmp.getAddress(),tmp.getPort() + PORT_MAPPING);
 
         if (partialView.remove(neighbour)) {
-            logger.info("Removed {} from partial view due to down {}", neighbour, partialView);
+            logger.debug("Removed {} from partial view due to down {}", neighbour, partialView);
         }
 
         if (neighbours.remove(neighbour)) {
-            logger.info("Removed {} from neighbours due to down {}", neighbour, neighbours);
+            logger.debug("Removed {} from neighbours due to down {}", neighbour, neighbours);
         }
 
         if (pending.remove(neighbour)) {
-            logger.info("Removed {} from pending due to down {}", neighbour, pending);
+            logger.debug("Removed {} from pending due to down {}", neighbour, pending);
         }
 
         if (neighbour.equals(currentPending)) {
-            logger.info("Removed {} from current pending due to down", neighbour);
+            logger.debug("Removed {} from current pending due to down", neighbour);
             tryNextSync();
         }
         closeConnection(neighbour);
     }
 
 
-    /*--------------------------------- Procedures ---------------------------------------- */
-
-    private void startSynchronization(Host neighbour) {
-        if (currentPending == null) {
-            currentPending = neighbour;
-            logger.info("{} is my currentPending start", neighbour);
-            requestVectorClock(currentPending);
-        } else {
-            pending.add(neighbour);
-            logger.info("Added {} to pending {}", neighbour, pending);
-        }
-    }
-
-    private void addPendingToNeighbours() {
-        if (neighbours.add(currentPending)) {
-            logger.info("Added {} to neighbours {} : pending list {}", currentPending, neighbours, pending);
-        }
-
-        tryNextSync();
-    }
-
-    private void tryNextSync() {
-        currentPending = pending.poll();
-        if (currentPending != null) {
-            logger.info("{} is my currentPending try", currentPending);
-            requestVectorClock(currentPending);
-        }
-    }
-
-    private void requestVectorClock(Host neighbour) {
-        SendVectorClockMessage msg = new SendVectorClockMessage(UUID.randomUUID(), myself);
-        sendMessage(msg, neighbour);
-        logger.info("Sent {} to {}", msg, neighbour);
-    }
-
-    private void handleBufferedOperations(Host neighbour) {
-        this.buffering = false;
-        FloodMessage msg;
-        while((msg = bufferedOps.poll()) != null) {
-            if(!msg.getSender().equals(neighbour)) {
-                sendMessage(msg, neighbour);
-                logger.info("Sent buffered {} to {}", msg, neighbour);
-            }
-        }
-    }
-
-    private UUID deserializeId(byte[] msg) {
-        ByteBuf buf = Unpooled.buffer().writeBytes(msg);
-        return new UUID(buf.readLong(), buf.readLong());
-    }
-
     /* --------------------------------- Channel Events ---------------------------- */
 
     private void uponOutConnectionDown(OutConnectionDown event, int channelId) {
         Host host = event.getNode();
-        logger.info("Host {} is down, cause: {}", host, event.getCause());
+        logger.debug("Host {} is down, cause: {}", host, event.getCause());
 
         if (neighbours.remove(host)) {
-            logger.info("Removed {} from neighbours due to plumtree down {}", host, neighbours);
+            logger.debug("Removed {} from neighbours due to plumtree down {}", host, neighbours);
         }
 
         if (pending.remove(host)) {
-            logger.info("Removed {} from pending due to plumtree down {}", host, pending);
+            logger.debug("Removed {} from pending due to plumtree down {}", host, pending);
         }
 
         if (host.equals(currentPending)) {
-            logger.info("Removed {} from current pending due to plumtree down", host);
+            logger.debug("Removed {} from current pending due to plumtree down", host);
             tryNextSync();
         }
         setupTimer(new ReconnectTimeout(host), reconnectTimeout);
@@ -330,7 +283,7 @@ public class FloodBroadcast extends GenericProtocol  {
 
     private void uponOutConnectionFailed(OutConnectionFailed event, int channelId) {
         Host host = event.getNode();
-        logger.info("Connection to host {} failed, cause: {}", host, event.getCause());
+        logger.trace("Connection to host {} failed, cause: {}", host, event.getCause());
         setupTimer(new ReconnectTimeout(host), reconnectTimeout);
     }
 
@@ -338,7 +291,7 @@ public class FloodBroadcast extends GenericProtocol  {
         Host neighbour = event.getNode();
         logger.trace("Host (out) {} is up", neighbour);
         if(partialView.contains(neighbour)) {
-            logger.info("Trying sync from neighbour {} up", neighbour);
+            logger.debug("Trying sync from neighbour {} up", neighbour);
             startSynchronization(neighbour);
         }
     }
@@ -349,5 +302,66 @@ public class FloodBroadcast extends GenericProtocol  {
 
     private void uponInConnectionDown(InConnectionDown event, int channelId) {
         logger.trace("Connection from host {} is down, cause: {}", event.getNode(), event.getCause());
+    }
+
+
+    /*--------------------------------- Procedures ---------------------------------------- */
+
+    private void forwardFloodMessage(FloodMessage msg, Host from) {
+        neighbours.forEach(host -> {
+            if (!host.equals(from)) {
+                logger.debug("Sent {} to {}", msg, host);
+                sendMessage(msg, host);
+            }
+        });
+    }
+
+    private void startSynchronization(Host neighbour) {
+        if (currentPending == null) {
+            currentPending = neighbour;
+            logger.debug("{} is my currentPending start", neighbour);
+            requestVectorClock(currentPending);
+        } else {
+            pending.add(neighbour);
+            logger.debug("Added {} to pending {}", neighbour, pending);
+        }
+    }
+
+    private void addPendingToNeighbours() {
+        if (neighbours.add(currentPending)) {
+            logger.debug("Added {} to neighbours {} : pending list {}", currentPending, neighbours, pending);
+        }
+
+        tryNextSync();
+    }
+
+    private void tryNextSync() {
+        currentPending = pending.poll();
+        if (currentPending != null) {
+            logger.debug("{} is my currentPending try", currentPending);
+            requestVectorClock(currentPending);
+        }
+    }
+
+    private void requestVectorClock(Host neighbour) {
+        SendVectorClockMessage msg = new SendVectorClockMessage(UUID.randomUUID(), myself);
+        sendMessage(msg, neighbour);
+        logger.debug("Sent {} to {}", msg, neighbour);
+    }
+
+    private void handleBufferedOperations(Host neighbour) {
+        this.buffering = false;
+        FloodMessage msg;
+        while((msg = bufferedOps.poll()) != null) {
+            if(!msg.getSender().equals(neighbour)) {
+                sendMessage(msg, neighbour);
+                logger.debug("Sent buffered {} to {}", msg, neighbour);
+            }
+        }
+    }
+
+    private UUID deserializeId(byte[] msg) {
+        ByteBuf buf = Unpooled.buffer().writeBytes(msg);
+        return new UUID(buf.readLong(), buf.readLong());
     }
 }

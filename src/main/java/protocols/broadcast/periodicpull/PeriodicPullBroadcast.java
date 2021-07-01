@@ -45,13 +45,18 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
 
     private final Random rnd;
 
+    public static int dupes;
+
+
     /*--------------------------------- Initialization ---------------------------------------- */
 
     public PeriodicPullBroadcast(Properties properties, Host myself) throws HandlerRegistrationException, IOException {
         super(PROTOCOL_NAME, PROTOCOL_ID);
         this.myself = myself;
+
         this.reconnectTimeout = Long.parseLong(properties.getProperty("reconnect_timeout", "500"));
         this.pullTimeout = Long.parseLong(properties.getProperty("pull_timeout", "2000"));
+
         this.partialView = new HashSet<>();
         this.neighbours = new HashSet<>();
         this.received = new HashSet<>();
@@ -116,6 +121,7 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
     private void uponBroadcast(BroadcastRequest request, short sourceProto) {
         UUID mid = request.getMsgId();
         byte[] content = request.getMsg();
+        logger.info("SENT {}", mid);
         handlePullMessage(mid, myself, content, false);
     }
 
@@ -123,27 +129,21 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
         Host neighbour = request.getTo();
         VectorClockMessage msg = new VectorClockMessage(request.getMsgId(), request.getSender(), request.getVectorClock());
         sendMessage(msg, neighbour, TCPChannel.CONNECTION_IN);
-        logger.info("Sent {} to {}", msg, neighbour);
+        logger.debug("Sent {} to {}", msg, neighbour);
     }
 
     private void uponSyncOps(SyncOpsRequest request, short sourceProto) {
         Host neighbour = request.getTo();
         SyncOpsMessage msg = new SyncOpsMessage(request.getMsgId(), request.getIds(), request.getOperations());
         sendMessage(msg, neighbour);
-        logger.info("Sent {} to {}", msg, neighbour);
+        logger.debug("Sent {} to {}", msg, neighbour);
     }
+
 
     /*--------------------------------- Messages ---------------------------------------- */
 
-    private void handlePullMessage(UUID mid, Host sender, byte[] content, boolean fromSync) {
-        if (received.add(mid)) {
-            logger.info("Received {} from {}", mid, sender);
-            triggerNotification(new DeliverNotification(mid, sender, content, fromSync));
-        }
-    }
-
     private void uponReceiveVectorClock(VectorClockMessage msg, Host from, short sourceProto, int channelId) {
-        logger.info("Received {} from {}", msg, from);
+        logger.debug("Received {} from {}", msg, from);
         triggerNotification(new VectorClockNotification(msg.getSender(), msg.getVectorClock()));
     }
 
@@ -169,17 +169,17 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
     private void uponReconnectTimeout(ReconnectTimeout timeout, long timerId) {
         Host neighbour = timeout.getHost();
         if(partialView.contains(neighbour)) {
-            logger.info("Reconnecting with {}", neighbour);
+            logger.debug("Reconnecting with {}", neighbour);
             openConnection(neighbour);
         } else {
-            logger.info("Not reconnecting because {} is down", neighbour);
+            logger.debug("Not reconnecting because {} is down", neighbour);
         }
     }
 
     private void uponPeriodicPullTimeout(PeriodicPullTimeout timeout, long timerId) {
         Host h = getRandomNeighbour();
         if(h != null) {
-            logger.info("Pulling from {}", h);
+            logger.debug("Pulling from {}", h);
             triggerNotification(new SendVectorClockNotification(h));
         }
     }
@@ -192,7 +192,7 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
         Host neighbour = new Host(tmp.getAddress(),tmp.getPort() + PORT_MAPPING);
 
         if (partialView.add(neighbour)) {
-            logger.info("Added {} to partial view due to up {}", neighbour, partialView);
+            logger.debug("Added {} to partial view due to up {}", neighbour, partialView);
         }
 
         openConnection(neighbour);
@@ -203,17 +203,64 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
         Host neighbour = new Host(tmp.getAddress(),tmp.getPort() + PORT_MAPPING);
 
         if (partialView.remove(neighbour)) {
-            logger.info("Removed {} from partial view due to down {}", neighbour, partialView);
+            logger.debug("Removed {} from partial view due to down {}", neighbour, partialView);
         }
 
         if (neighbours.remove(neighbour)) {
-            logger.info("Removed {} from neighbours due to down {}", neighbour, neighbours);
+            logger.debug("Removed {} from neighbours due to down {}", neighbour, neighbours);
         }
         closeConnection(neighbour);
     }
 
 
+    /* --------------------------------- Channel Events ---------------------------- */
+
+    private void uponOutConnectionDown(OutConnectionDown event, int channelId) {
+        Host host = event.getNode();
+        logger.trace("Host {} is down, cause: {}", host, event.getCause());
+
+        if (neighbours.remove(host)) {
+            logger.debug("Removed {} from neighbours due to plumtree down {}", host, neighbours);
+        }
+        setupTimer(new ReconnectTimeout(host), reconnectTimeout);
+    }
+
+    private void uponOutConnectionFailed(OutConnectionFailed event, int channelId) {
+        Host host = event.getNode();
+        logger.trace("Connection to host {} failed, cause: {}", host, event.getCause());
+        setupTimer(new ReconnectTimeout(host), reconnectTimeout);
+    }
+
+    private void uponOutConnectionUp(OutConnectionUp event, int channelId) {
+        Host neighbour = event.getNode();
+        logger.trace("Host (out) {} is up", neighbour);
+        if(partialView.contains(neighbour)) {
+            if (neighbours.add(neighbour)) {
+                logger.debug("Added {} to neighbours {}", neighbour, neighbours);
+            }
+        }
+    }
+
+    private void uponInConnectionUp(InConnectionUp event, int channelId) {
+        logger.trace("Host (in) {} is up", event.getNode());
+    }
+
+    private void uponInConnectionDown(InConnectionDown event, int channelId) {
+        logger.trace("Connection from host {} is down, cause: {}", event.getNode(), event.getCause());
+    }
+
+
     /*--------------------------------- Procedures ---------------------------------------- */
+
+    private void handlePullMessage(UUID mid, Host sender, byte[] content, boolean fromSync) {
+        if (received.add(mid)) {
+            logger.debug("Received {} from {}", mid, sender);
+            logger.info("RECEIVED {}", mid);
+            triggerNotification(new DeliverNotification(mid, sender, content, fromSync));
+        } else {
+            dupes++;
+        }
+    }
 
     private UUID deserializeId(byte[] msg) {
         ByteBuf buf = Unpooled.buffer().writeBytes(msg);
@@ -227,41 +274,5 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
             return hosts[idx];
         } else
             return null;
-    }
-
-    /* --------------------------------- Channel Events ---------------------------- */
-
-    private void uponOutConnectionDown(OutConnectionDown event, int channelId) {
-        Host host = event.getNode();
-        logger.info("Host {} is down, cause: {}", host, event.getCause());
-
-        if (neighbours.remove(host)) {
-            logger.info("Removed {} from neighbours due to plumtree down {}", host, neighbours);
-        }
-        setupTimer(new ReconnectTimeout(host), reconnectTimeout);
-    }
-
-    private void uponOutConnectionFailed(OutConnectionFailed event, int channelId) {
-        Host host = event.getNode();
-        logger.info("Connection to host {} failed, cause: {}", host, event.getCause());
-        setupTimer(new ReconnectTimeout(host), reconnectTimeout);
-    }
-
-    private void uponOutConnectionUp(OutConnectionUp event, int channelId) {
-        Host neighbour = event.getNode();
-        logger.trace("Host (out) {} is up", neighbour);
-        if(partialView.contains(neighbour)) {
-            if (neighbours.add(neighbour)) {
-                logger.info("Added {} to neighbours {}", neighbour, neighbours);
-            }
-        }
-    }
-
-    private void uponInConnectionUp(InConnectionUp event, int channelId) {
-        logger.trace("Host (in) {} is up", event.getNode());
-    }
-
-    private void uponInConnectionDown(InConnectionDown event, int channelId) {
-        logger.trace("Connection from host {} is down, cause: {}", event.getNode(), event.getCause());
     }
 }

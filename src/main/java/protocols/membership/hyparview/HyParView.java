@@ -80,15 +80,11 @@ public class HyParView extends GenericProtocol {
         this.active.setOther(passive, pending);
         this.passive.setOther(active, pending);
 
-        String cMetricsInterval = properties.getProperty("channel_metrics_interval", "10000"); // 10 seconds
-
         // Create a properties object to setup channel-specific properties. See the
         // channel description for more details.
         Properties channelProps = new Properties();
         channelProps.setProperty(TCPChannel.ADDRESS_KEY, properties.getProperty("address")); // The address to bind to
         channelProps.setProperty(TCPChannel.PORT_KEY, properties.getProperty("port")); // The port to bind to
-        channelProps.setProperty(TCPChannel.METRICS_INTERVAL_KEY, cMetricsInterval); // The interval to receive channel
-        // metrics
         channelProps.setProperty(TCPChannel.HEARTBEAT_INTERVAL_KEY, "1000"); // Heartbeats interval for established
         // connections
         channelProps.setProperty(TCPChannel.HEARTBEAT_TOLERANCE_KEY, "3000"); // Time passed without heartbeats until

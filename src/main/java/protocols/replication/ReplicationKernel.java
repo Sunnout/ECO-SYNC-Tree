@@ -179,12 +179,12 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
                 Operation op = deserializeOperation(serOp);
                 Host h = op.getSender();
                 int clock = op.getSenderClock();
-                if (this.vectorClock.getHostClock(h) == clock - 1) {
+                if (vectorClock.getHostClock(h) == clock - 1) {
                     logger.debug("[{}] Accepted op {}-{} : {} from {}, Clock {}", notification.isFromSync(),
                             h, clock, notification.getMsgId(), sender, vectorClock.getHostClock(h));
                     writeOperationToFile(serOp, msgId);
                     executeOperation(h, op, msgId);
-                } else if (this.vectorClock.getHostClock(h) < clock - 1) {
+                } else if (vectorClock.getHostClock(h) < clock - 1) {
                     logger.error("[{}] Out-of-order op {}-{} : {} from {}, Clock {}", notification.isFromSync(),
                             h, clock, notification.getMsgId(), sender, vectorClock.getHostClock(h));
                 } else {
@@ -212,7 +212,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
 
     private void uponSendVectorClock(SendVectorClockNotification notification, short sourceProto) {
         Host neighbour = notification.getNeighbour();
-        VectorClockRequest request = new VectorClockRequest(UUID.randomUUID(), myself, neighbour, new VectorClock(this.vectorClock.getClock()));
+        VectorClockRequest request = new VectorClockRequest(UUID.randomUUID(), myself, neighbour, new VectorClock(vectorClock.getClock()));
         logger.debug("Sent {} to {}", request, neighbour);
         sendRequest(request, broadcastId);
     }
@@ -278,7 +278,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         } else {
             crdtsById.get(crdtId).upstream(op);
         }
-        this.vectorClock.incrementClock(sender);
+        vectorClock.incrementClock(sender);
         logger.info("EXECUTED {}", msgId);
         executedOps++;
         receivedOps++;
@@ -518,11 +518,11 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
      * Initializes local vector clock with zero in the host's slot.
      */
     private void initializeVectorClock() {
-        this.vectorClock = new VectorClock(myself);
+        vectorClock = new VectorClock(myself);
     }
 
     private void incrementAndSetVectorClock(Operation op) {
-        this.vectorClock.incrementClock(myself);
+        vectorClock.incrementClock(myself);
         op.setSender(myself);
         op.setSenderClock(++seqNumber);
     }

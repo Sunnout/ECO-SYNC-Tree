@@ -126,6 +126,7 @@ public class FloodBroadcast extends GenericProtocol  {
         registerChannelEventHandler(channelId, OutConnectionUp.EVENT_ID, this::uponOutConnectionUp);
         registerChannelEventHandler(channelId, InConnectionUp.EVENT_ID, this::uponInConnectionUp);
         registerChannelEventHandler(channelId, InConnectionDown.EVENT_ID, this::uponInConnectionDown);
+        registerChannelEventHandler(channelId, ChannelMetrics.EVENT_ID, this::uponChannelMetrics);
     }
 
     @Override
@@ -391,5 +392,49 @@ public class FloodBroadcast extends GenericProtocol  {
     private UUID deserializeId(byte[] msg) {
         ByteBuf buf = Unpooled.buffer().writeBytes(msg);
         return new UUID(buf.readLong(), buf.readLong());
+    }
+
+
+    /*--------------------------------- Metrics ---------------------------------*/
+
+    /**
+     * If we passed a value > 0 in the METRICS_INTERVAL_KEY property of the channel, this event will be triggered
+     * periodically by the channel. "getInConnections" and "getOutConnections" returns the currently established
+     * connection to/from me. "getOldInConnections" and "getOldOutConnections" returns connections that have already
+     * been closed.
+     */
+    private void uponChannelMetrics(ChannelMetrics event, int channelId) {
+        StringBuilder sb = new StringBuilder("Channel Metrics:\n");
+        long bytesSent = 0;
+        long bytesReceived = 0;
+        long messagesSent = 0;
+        long messagesReceived = 0;
+
+        for(ChannelMetrics.ConnectionMetrics c: event.getOutConnections()){
+            bytesSent += c.getSentAppBytes();
+            messagesSent += c.getSentAppMessages();
+        }
+
+        for(ChannelMetrics.ConnectionMetrics c: event.getOldOutConnections()){
+            bytesSent += c.getSentAppBytes();
+            messagesSent += c.getSentAppMessages();
+        }
+
+        for(ChannelMetrics.ConnectionMetrics c: event.getInConnections()){
+            bytesReceived += c.getReceivedAppBytes();
+            messagesReceived += c.getReceivedAppMessages();
+        }
+
+        for(ChannelMetrics.ConnectionMetrics c: event.getOldInConnections()){
+            bytesReceived += c.getReceivedAppBytes();
+            messagesReceived += c.getReceivedAppMessages();
+        }
+
+        sb.append(String.format("BytesSent = %s\n", bytesSent));
+        sb.append(String.format("BytesReceived = %s\n", bytesReceived));
+        sb.append(String.format("MessagesSent = %s\n", messagesSent));
+        sb.append(String.format("MessagesReceived = %s\n", messagesReceived));
+        sb.setLength(sb.length() - 1);
+        logger.info(sb);
     }
 }

@@ -20,9 +20,9 @@
 
 
         <Logger level="info" name="io.netty"/>
-        <Logger level="info" name="network"/>
-        <Logger level="info" name="channel"/>
-        <Logger level="info" name="babel"/>
+        <Logger level="info" name="pt.unl.fct.di.novasys.network"/>
+        <Logger level="info" name="pt.unl.fct.di.novasys.channel"/>
+        <Logger level="info" name="pt.unl.fct.di.novasys.babel"/>
 
 
         <Root level="debug">

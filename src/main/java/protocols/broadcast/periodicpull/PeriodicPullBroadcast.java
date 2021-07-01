@@ -138,7 +138,7 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
     private void uponVectorClock(VectorClockRequest request, short sourceProto) {
         Host neighbour = request.getTo();
         VectorClockMessage msg = new VectorClockMessage(request.getMsgId(), request.getSender(), request.getVectorClock());
-        sendMessage(msg, neighbour, TCPChannel.CONNECTION_IN);
+        sendMessage(msg, neighbour);
         sentVC++;
         logger.debug("Sent {} to {}", msg, neighbour);
     }
@@ -146,7 +146,7 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
     private void uponSyncOps(SyncOpsRequest request, short sourceProto) {
         Host neighbour = request.getTo();
         SyncOpsMessage msg = new SyncOpsMessage(request.getMsgId(), request.getIds(), request.getOperations());
-        sendMessage(msg, neighbour);
+        sendMessage(msg, neighbour, TCPChannel.CONNECTION_IN);
         sentSyncOps++;
         sentSyncPull += request.getIds().size();
         logger.debug("Sent {} to {}", msg, neighbour);

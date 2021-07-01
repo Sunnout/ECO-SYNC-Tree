@@ -3,6 +3,8 @@ package protocols.apps;
 import java.util.*;
 
 import crdts.interfaces.GenericCRDT;
+import protocols.broadcast.flood.FloodBroadcast;
+import protocols.broadcast.periodicpull.PeriodicPullBroadcast;
 import protocols.broadcast.plumtree.PlumTree;
 import protocols.replication.*;
 import protocols.replication.OpCounterCRDT.CounterOpType;
@@ -338,19 +340,55 @@ public class CRDTApp extends GenericProtocol {
     private void printStats() {
         //Plumtree
         if(broadcastId == 900) {
-            logger.info("Number of sent operations: {}", ReplicationKernel.sentOps);
-            logger.info("Number of received operations: {}", ReplicationKernel.receivedOps);
-            logger.info("Number of executed operations: {}", ReplicationKernel.executedOps);
+            logger.info("dupes: {}", PlumTree.dupes);
+
+            logger.info("sentGossip: {}", PlumTree.sentGossip);
+            logger.info("sentIHave: {}", PlumTree.sentIHave);
+            logger.info("sentGraft: {}", PlumTree.sentGraft);
+            logger.info("sentPrune: {}", PlumTree.sentPrune);
+            logger.info("sentSendVC: {}", PlumTree.sentSendVC);
+            logger.info("sentVC: {}", PlumTree.sentVC);
+            logger.info("sentSyncOps: {}", PlumTree.sentSyncOps);
+            logger.info("sentSyncGossip: {}", PlumTree.sentSyncGossip);
+
+            logger.info("receivedGossip: {}", PlumTree.receivedGossip);
+            logger.info("receivedIHave: {}", PlumTree.receivedIHave);
+            logger.info("receivedGraft: {}", PlumTree.receivedGraft);
+            logger.info("receivedPrune: {}", PlumTree.receivedPrune);
+            logger.info("receivedSendVC: {}", PlumTree.receivedSendVC);
+            logger.info("receivedVC: {}", PlumTree.receivedVC);
+            logger.info("receivedSyncOps: {}", PlumTree.receivedSyncOps);
+            logger.info("receivedSyncGossip: {}", PlumTree.receivedSyncGossip);
         }
+
         //Flood
         else if(broadcastId == 1500) {
-            logger.info("Number of sent operations: {}", ReplicationKernelVCs.sentOps);
-            logger.info("Number of received operations: {}", ReplicationKernelVCs.receivedOps);
-            logger.info("Number of executed operations: {}", ReplicationKernelVCs.executedOps);
+            logger.info("dupes: {}", FloodBroadcast.dupes);
+
+            logger.info("sentFlood: {}", FloodBroadcast.sentFlood);
+            logger.info("sentSendVC: {}", FloodBroadcast.sentSendVC);
+            logger.info("sentVC: {}", FloodBroadcast.sentVC);
+            logger.info("sentSyncOps: {}", FloodBroadcast.sentSyncOps);
+            logger.info("sentSyncFlood: {}", FloodBroadcast.sentSyncFlood);
+
+            logger.info("receivedFlood: {}", FloodBroadcast.receivedFlood);
+            logger.info("receivedSendVC: {}", FloodBroadcast.receivedSendVC);
+            logger.info("receivedVC: {}", FloodBroadcast.receivedVC);
+            logger.info("receivedSyncOps: {}", FloodBroadcast.receivedSyncOps);
+            logger.info("receivedSyncFlood: {}", FloodBroadcast.receivedSyncFlood);
         }
+
         //Periodic Pull
         else if(broadcastId == 490) {
+            logger.info("dupes: {}", PeriodicPullBroadcast.dupes);
 
+            logger.info("sentVC: {}", PeriodicPullBroadcast.sentVC);
+            logger.info("sentSyncOps: {}", PeriodicPullBroadcast.sentSyncOps);
+            logger.info("sentSyncPull: {}", PeriodicPullBroadcast.sentSyncPull);
+
+            logger.info("receivedVC: {}", PeriodicPullBroadcast.receivedVC);
+            logger.info("receivedSyncOps: {}", PeriodicPullBroadcast.receivedSyncOps);
+            logger.info("receivedSyncPull: {}", PeriodicPullBroadcast.receivedSyncPull);
         }
     }
 

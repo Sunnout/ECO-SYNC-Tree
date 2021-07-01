@@ -50,9 +50,12 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
 
     public static int sentVC;
     public static int sentSyncOps;
+    public static int sentSyncPull;
+
 
     public static int receivedVC;
     public static int receivedSyncOps;
+    public static int receivedSyncPull;
 
 
     /*--------------------------------- Initialization ---------------------------------------- */
@@ -145,6 +148,7 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
         SyncOpsMessage msg = new SyncOpsMessage(request.getMsgId(), request.getIds(), request.getOperations());
         sendMessage(msg, neighbour);
         sentSyncOps++;
+        sentSyncPull += request.getIds().size();
         logger.debug("Sent {} to {}", msg, neighbour);
     }
 
@@ -165,6 +169,8 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
         Iterator<byte[]> idIt = msg.getIds().iterator();
 
         while (opIt.hasNext() && idIt.hasNext()) {
+            receivedSyncPull++;
+
             byte[] serOp = opIt.next();
             byte[] serId = idIt.next();
             UUID mid = deserializeId(serId);

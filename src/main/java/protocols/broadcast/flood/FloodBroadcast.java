@@ -54,11 +54,13 @@ public class FloodBroadcast extends GenericProtocol  {
     public static int sentSendVC;
     public static int sentVC;
     public static int sentSyncOps;
+    public static int sentSyncFlood;
 
     public static int receivedFlood;
     public static int receivedSendVC;
     public static int receivedVC;
     public static int receivedSyncOps;
+    public static int receivedSyncFlood;
 
 
     /*--------------------------------- Initialization ---------------------------------------- */
@@ -160,6 +162,7 @@ public class FloodBroadcast extends GenericProtocol  {
         SyncOpsMessage msg = new SyncOpsMessage(request.getMsgId(), request.getIds(), request.getOperations());
         sendMessage(msg, neighbour);
         sentSyncOps++;
+        sentSyncFlood += request.getIds().size();
         logger.debug("Sent {} to {}", msg, neighbour);
         handleBufferedOperations(neighbour);
         addPendingToNeighbours();
@@ -210,6 +213,8 @@ public class FloodBroadcast extends GenericProtocol  {
         Iterator<byte[]> idIt = msg.getIds().iterator();
 
         while (opIt.hasNext() && idIt.hasNext()) {
+            receivedSyncFlood++;
+
             byte[] serOp = opIt.next();
             byte[] serId = idIt.next();
             UUID mid = deserializeId(serId);

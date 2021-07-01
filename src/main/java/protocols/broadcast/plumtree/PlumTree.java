@@ -69,6 +69,7 @@ public class PlumTree extends GenericProtocol {
     public static int sentSendVC;
     public static int sentVC;
     public static int sentSyncOps;
+    public static int sentSyncGossip;
 
     public static int receivedGossip;
     public static int receivedIHave;
@@ -77,6 +78,7 @@ public class PlumTree extends GenericProtocol {
     public static int receivedSendVC;
     public static int receivedVC;
     public static int receivedSyncOps;
+    public static int receivedSyncGossip;
 
 
     /*--------------------------------- Initialization ---------------------------------------- */
@@ -194,6 +196,7 @@ public class PlumTree extends GenericProtocol {
         SyncOpsMessage msg = new SyncOpsMessage(request.getMsgId(), request.getIds(), request.getOperations());
         sendMessage(msg, neighbour);
         sentSyncOps++;
+        sentSyncGossip += request.getIds().size();
         logger.debug("Sent {} to {}", msg, neighbour);
         handleBufferedOperations(neighbour);
         addPendingToEager();
@@ -280,6 +283,8 @@ public class PlumTree extends GenericProtocol {
         Iterator<byte[]> idIt = msg.getIds().iterator();
 
         while (opIt.hasNext() && idIt.hasNext()) {
+            receivedSyncGossip++;
+
             byte[] serOp = opIt.next();
             byte[] serId = idIt.next();
             UUID mid = deserializeId(serId);

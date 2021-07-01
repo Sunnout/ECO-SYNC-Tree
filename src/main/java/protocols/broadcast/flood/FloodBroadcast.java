@@ -178,13 +178,7 @@ public class FloodBroadcast extends GenericProtocol  {
 
         UUID mid = msg.getMid();
         if (received.add(mid)) {
-            logger.debug("Received op {} from {}", mid, from);
-            if(buffering)
-                this.bufferedOps.add(msg);
-
-            logger.info("RECEIVED {}", mid);
-            triggerNotification(new DeliverNotification(mid, msg.getSender(), msg.getContent(), false));
-            forwardFloodMessage(msg, from);
+            handleFloodMessage(msg, from, false);
         } else {
             receivedDupesFlood++;
         }
@@ -222,10 +216,7 @@ public class FloodBroadcast extends GenericProtocol  {
             UUID mid = deserializeId(serId);
 
             if (received.add(mid)) {
-                logger.info("RECEIVED {}", mid);
-                triggerNotification(new DeliverNotification(mid, from, serOp, true));
-                logger.debug("Received sync op {} from {}", mid, from);
-                forwardFloodMessage(new FloodMessage(mid, from , sourceProto, serOp), from);
+                handleFloodMessage(new FloodMessage(mid, from , sourceProto, serOp), from, true);
             } else {
                 receivedDupesSyncFlood++;
             }
@@ -333,6 +324,17 @@ public class FloodBroadcast extends GenericProtocol  {
 
 
     /*--------------------------------- Procedures ---------------------------------------- */
+
+    private void handleFloodMessage(FloodMessage msg, Host from, boolean fromSync) {
+        UUID mid = msg.getMid();
+        logger.debug("Received op {} from {}. Is from sync {}", mid, from, fromSync);
+        if(buffering)
+            this.bufferedOps.add(msg);
+
+        logger.info("RECEIVED {}", mid);
+        triggerNotification(new DeliverNotification(mid, msg.getSender(), msg.getContent(), fromSync));
+        forwardFloodMessage(msg, from);
+    }
 
     private void forwardFloodMessage(FloodMessage msg, Host from) {
         neighbours.forEach(host -> {

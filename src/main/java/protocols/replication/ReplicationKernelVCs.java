@@ -8,6 +8,7 @@ import exceptions.NoSuchCrdtType;
 import exceptions.NoSuchDataType;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import protocols.broadcast.common.requests.BroadcastRequest;
@@ -72,7 +73,10 @@ public class ReplicationKernelVCs extends GenericProtocol implements CRDTCommuni
 
     private File file;
     private DataOutputStream dos;
+    private Map<Host, NavigableMap<Integer, Pair<Long, Integer>>> index;
     private int nExecuted;
+    private long nBytes;
+    private int indexSpacing;
 
     //Serializers
     public static Map<String, MyOpSerializer> opSerializers = initializeOperationSerializers(); //Static map of operation serializers for each crdt type
@@ -97,6 +101,8 @@ public class ReplicationKernelVCs extends GenericProtocol implements CRDTCommuni
 
         this.file = initFile();
         this.dos = new DataOutputStream(new FileOutputStream(this.file));
+        this.index = new HashMap<>();
+        this.indexSpacing = Integer.parseInt(properties.getProperty("index_spacing", "100"));
 
         this.dataSerializers = new HashMap<>();
 
@@ -161,13 +167,14 @@ public class ReplicationKernelVCs extends GenericProtocol implements CRDTCommuni
         UUID msgId = request.getMsgId();
         logger.info("GENERATED {}", msgId);
         logger.info("EXECUTED {}", msgId);
-        logger.debug("Accepted my op {}-{} : {}", myself, seqNumber, msgId);
 
         OperationVC op = getOpWithVC(request.getOperation());
         incrementAndSetVectorClock(op);
+        logger.debug("Accepted my op {}-{} : {}", myself, seqNumber, msgId);
+
         try {
             byte[] serOp = serializeOperation(false, op);
-            writeOperationToFile(serOp, msgId);
+            writeOperationToFile(myself, seqNumber, serOp, msgId);
             sendRequest(new BroadcastRequest(msgId, request.getSender(), serOp), broadcastId);
         } catch (IOException e) {
             e.printStackTrace();
@@ -213,7 +220,7 @@ public class ReplicationKernelVCs extends GenericProtocol implements CRDTCommuni
 
                 if (vectorClock.canExecuteOperation(op)) {
                     logger.debug("Executing {} without queueing", msgId);
-                    writeOperationToFile(serOp, msgId);
+                    writeOperationToFile(h, op.getSenderClock(), serOp, msgId);
                     executeOperation(h, op, msgId);
                     executeQueuedOperations();
                 } else {
@@ -240,7 +247,7 @@ public class ReplicationKernelVCs extends GenericProtocol implements CRDTCommuni
                 OperationVC op = opAndId.getOp();
                 UUID id = opAndId.getId();
                 logger.debug("Executing queued {}", id);
-                writeOperationToFile(serializeOperation(opAndId.isCreateOp(), op), id);
+                writeOperationToFile(op.getSender(), op.getSenderClock(), serializeOperation(opAndId.isCreateOp(), op), id);
                 executeOperation(h, op, id);
                 opAndId = q.peek();
             }
@@ -368,19 +375,19 @@ public class ReplicationKernelVCs extends GenericProtocol implements CRDTCommuni
     }
 
     private void handleCRDTCreation(String crdtId, String crdtType, String[] dataTypes, Host sender, UUID msgId) throws IOException {
-        logger.debug("Created {}; Accepted my op {}-{} : {}", crdtId, myself, seqNumber, msgId);
         logger.info("GENERATED {}", msgId);
         KernelCRDT crdt = createNewCrdt(crdtId, crdtType, dataTypes, sender);
         triggerNotification(new ReturnCRDTNotification(msgId, sender, crdt));
         logger.info("EXECUTED {}", msgId);
         CreateOperationVC op = new CreateOperationVC(null, 0, CREATE_CRDT, crdtId, crdtType, dataTypes, null);
         incrementAndSetVectorClock(op);
+        logger.debug("Created {}; Accepted my op {}-{} : {}", crdtId, myself, seqNumber, msgId);
         byte[] serOp = serializeOperation(true, op);
-        writeOperationToFile(serOp, msgId);
+        writeOperationToFile(myself, seqNumber, serOp, msgId);
         sendRequest(new BroadcastRequest(msgId, sender, serOp), broadcastId);
     }
 
-    private void writeOperationToFile(byte[] serOp, UUID msgId) throws IOException {
+    private void writeOperationToFile(Host sender, int senderClock, byte[] serOp, UUID msgId) throws IOException {
         dos.writeLong(msgId.getMostSignificantBits());
         dos.writeLong(msgId.getLeastSignificantBits());
         dos.writeInt(serOp.length);
@@ -388,18 +395,38 @@ public class ReplicationKernelVCs extends GenericProtocol implements CRDTCommuni
             dos.write(serOp);
         }
         dos.flush();
+
+        if(senderClock % indexSpacing == 0) {
+            index.computeIfAbsent(sender, k -> new TreeMap<>()).put(senderClock, Pair.of(nBytes, nExecuted));
+        }
         nExecuted++;
+        nBytes += 8 + 8 + 4 + serOp.length;
     }
 
     private void readAndSendMissingOpsFromFile(Host neighbour, VectorClock neighbourClock) throws IOException {
         long startTime = System.currentTimeMillis();
+        Pair<Long, Integer> min = null;
+
+        for (Map.Entry<Host, Integer> entry : neighbourClock.getClock().entrySet()) {
+            Host h = entry.getKey();
+            Integer clock = entry.getValue();
+            Map.Entry<Integer, Pair<Long, Integer>> indexEntry = index.computeIfAbsent(h, k -> new TreeMap<>()).floorEntry(clock);
+            if(indexEntry != null && (min == null || indexEntry.getValue().getLeft() < min.getLeft()))
+                min = indexEntry.getValue();
+        }
+
+        if(min == null)
+            min = Pair.of(0L, 0);
+
         List<byte[]> ops = new LinkedList<>();
         List<byte[]> ids = new LinkedList<>();
         try (FileInputStream fis = new FileInputStream(this.file);
              BufferedInputStream bis = new BufferedInputStream(fis);
              DataInputStream dis = new DataInputStream(bis)) {
 
-            for (int i = 0; i < nExecuted; i++) {
+            dis.skip(min.getLeft());
+
+            for (int i = min.getRight(); i < nExecuted; i++) {
                 long firstLong = dis.readLong();
                 long secondLong = dis.readLong();
                 UUID msgId = new UUID(firstLong, secondLong);
@@ -418,7 +445,7 @@ public class ReplicationKernelVCs extends GenericProtocol implements CRDTCommuni
                 }
             }
             long endTime = System.currentTimeMillis();
-            logger.info("READ FROM FILE in {} ms", endTime - startTime);
+            logger.info("READ FROM FILE in {} ms started {} of {}", endTime - startTime, min.getRight(), nExecuted);
             sendRequest(new SyncOpsRequest(UUID.randomUUID(), myself, neighbour, ids, ops), broadcastId);
         } catch (IOException e) {
             logger.error("Error reading missing ops from file", e);

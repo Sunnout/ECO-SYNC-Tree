@@ -348,7 +348,7 @@ public class PlumTree extends GenericProtocol {
         if (partialView.add(neighbour)) {
             logger.debug("Added {} to partial view due to up {}", neighbour, partialView);
         } else {
-            logger.error("Tried to add {} to partial view but is already there", neighbour, partialView);
+            logger.error("Tried to add {} to partial view but is already there {}", neighbour, partialView);
         }
 
         openConnection(neighbour);

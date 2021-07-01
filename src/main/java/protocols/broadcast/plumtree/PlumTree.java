@@ -171,14 +171,13 @@ public class PlumTree extends GenericProtocol {
 
     private void uponBroadcast(BroadcastRequest request, short sourceProto) {
         UUID mid = request.getMsgId();
-        Host sender = request.getSender();
         byte[] content = request.getMsg();
         logger.info("SENT {}", mid);
         logger.info("RECEIVED {}", mid);
-        triggerNotification(new DeliverNotification(mid, sender, content, false));
+        triggerNotification(new DeliverNotification(mid, myself, content, false));
         logger.debug("Propagating my {} to {}", mid, eager);
-        GossipMessage msg = new GossipMessage(mid, sender, 0, content);
-        handleGossipMessage(msg, 0, sender);
+        GossipMessage msg = new GossipMessage(mid, myself, 0, content);
+        handleGossipMessage(msg, 0, myself);
     }
 
     private void uponVectorClock(VectorClockRequest request, short sourceProto) {
@@ -273,7 +272,7 @@ public class PlumTree extends GenericProtocol {
         receivedSendVC++;
 
         logger.debug("Received {} from {}", msg, from);
-        triggerNotification(new SendVectorClockNotification(msg.getSender()));
+        triggerNotification(new SendVectorClockNotification(from));
     }
 
     private void uponReceiveSyncOps(SyncOpsMessage msg, Host from, short sourceProto, int channelId) {
@@ -469,7 +468,7 @@ public class PlumTree extends GenericProtocol {
     }
 
     private void requestVectorClock(Host neighbour) {
-        SendVectorClockMessage msg = new SendVectorClockMessage(UUID.randomUUID(), myself);
+        SendVectorClockMessage msg = new SendVectorClockMessage(UUID.randomUUID());
         sendMessage(msg, neighbour);
         sentSendVC++;
         logger.debug("Sent {} to {}", msg, neighbour);

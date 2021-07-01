@@ -59,6 +59,7 @@ public class PlumTree extends GenericProtocol {
     private final Queue<AddressedIHaveMessage> lazyQueue;
     private final LazyQueuePolicy policy;
 
+    /*** Stats ***/
     public static int dupes;
 
     public static int sentGossip;

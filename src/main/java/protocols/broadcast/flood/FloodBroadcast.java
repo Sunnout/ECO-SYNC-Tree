@@ -47,7 +47,18 @@ public class FloodBroadcast extends GenericProtocol  {
     private boolean buffering; //To know if we are between sending vc to kernel and sending ops to neighbour
     private final Set<UUID> received;
 
+    /*** Stats ***/
     public static int dupes;
+
+    public static int sentFlood;
+    public static int sentSendVC;
+    public static int sentVC;
+    public static int sentSyncOps;
+
+    public static int receivedFlood;
+    public static int receivedSendVC;
+    public static int receivedVC;
+    public static int receivedSyncOps;
 
 
     /*--------------------------------- Initialization ---------------------------------------- */
@@ -137,6 +148,7 @@ public class FloodBroadcast extends GenericProtocol  {
         Host neighbour = request.getTo();
         VectorClockMessage msg = new VectorClockMessage(request.getMsgId(), request.getSender(), request.getVectorClock());
         sendMessage(msg, neighbour, TCPChannel.CONNECTION_IN);
+        sentVC++;
         logger.debug("Sent {} to {}", msg, neighbour);
     }
 
@@ -147,6 +159,7 @@ public class FloodBroadcast extends GenericProtocol  {
 
         SyncOpsMessage msg = new SyncOpsMessage(request.getMsgId(), request.getIds(), request.getOperations());
         sendMessage(msg, neighbour);
+        sentSyncOps++;
         logger.debug("Sent {} to {}", msg, neighbour);
         handleBufferedOperations(neighbour);
         addPendingToNeighbours();
@@ -156,6 +169,8 @@ public class FloodBroadcast extends GenericProtocol  {
     /*--------------------------------- Messages ---------------------------------------- */
 
     private void uponReceiveFlood(FloodMessage msg, Host from, short sourceProto, int channelId) {
+        receivedFlood++;
+
         UUID mid = msg.getMid();
         if (received.add(mid)) {
             logger.debug("Received op {} from {}", mid, from);
@@ -171,6 +186,8 @@ public class FloodBroadcast extends GenericProtocol  {
     }
 
     private void uponReceiveVectorClock(VectorClockMessage msg, Host from, short sourceProto, int channelId) {
+        receivedVC++;
+
         logger.debug("Received {} from {}", msg, from);
         if(!from.equals(currentPending))
             return;
@@ -179,13 +196,16 @@ public class FloodBroadcast extends GenericProtocol  {
     }
 
     private void uponReceiveSendVectorClock(SendVectorClockMessage msg, Host from, short sourceProto, int channelId) {
+        receivedSendVC++;
+
         logger.debug("Received {} from {}", msg, from);
         triggerNotification(new SendVectorClockNotification(msg.getSender()));
     }
 
     private void uponReceiveSyncOps(SyncOpsMessage msg, Host from, short sourceProto, int channelId) {
-        logger.debug("Received {} from {}", msg, from);
+        receivedSyncOps++;
 
+        logger.debug("Received {} from {}", msg, from);
         Iterator<byte[]> opIt = msg.getOperations().iterator();
         Iterator<byte[]> idIt = msg.getIds().iterator();
 
@@ -312,6 +332,7 @@ public class FloodBroadcast extends GenericProtocol  {
             if (!host.equals(from)) {
                 logger.debug("Sent {} to {}", msg, host);
                 sendMessage(msg, host);
+                sentFlood++;
             }
         });
     }
@@ -346,6 +367,7 @@ public class FloodBroadcast extends GenericProtocol  {
     private void requestVectorClock(Host neighbour) {
         SendVectorClockMessage msg = new SendVectorClockMessage(UUID.randomUUID(), myself);
         sendMessage(msg, neighbour);
+        sentSendVC++;
         logger.debug("Sent {} to {}", msg, neighbour);
     }
 
@@ -355,6 +377,7 @@ public class FloodBroadcast extends GenericProtocol  {
         while((msg = bufferedOps.poll()) != null) {
             if(!msg.getSender().equals(neighbour)) {
                 sendMessage(msg, neighbour);
+                sentFlood++;
                 logger.debug("Sent buffered {} to {}", msg, neighbour);
             }
         }

@@ -43,6 +43,8 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
     private final Set<Host> neighbours;
     private final Set<UUID> received;
 
+    private long startTime;
+
     private final Random rnd;
 
     /*** Stats ***/
@@ -69,6 +71,8 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
         this.partialView = new HashSet<>();
         this.neighbours = new HashSet<>();
         this.received = new HashSet<>();
+
+        this.startTime = 0;
 
         this.rnd = new Random();
 
@@ -122,7 +126,7 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
 
     @Override
     public void init(Properties props) throws HandlerRegistrationException, IOException {
-        setupPeriodicTimer(new PeriodicPullTimeout(), pullTimeout * 2, pullTimeout);
+        setupTimer(new PeriodicPullTimeout(), pullTimeout);
     }
 
 
@@ -176,6 +180,10 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
             UUID mid = deserializeId(serId);
             handlePullMessage(mid, from, serOp, true);
         }
+        long timeout = pullTimeout - (System.currentTimeMillis() - this.startTime);
+        if(timeout < 0)
+            timeout = 0;
+        setupTimer(new PeriodicPullTimeout(), timeout);
     }
 
     private void onMessageFailed(ProtoMessage protoMessage, Host host, short destProto, Throwable reason, int channel) {
@@ -200,6 +208,7 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
         if(h != null) {
             logger.debug("Pulling from {}", h);
             triggerNotification(new SendVectorClockNotification(h));
+            this.startTime = System.currentTimeMillis();
         }
     }
 

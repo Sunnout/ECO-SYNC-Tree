@@ -317,57 +317,71 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         dos.flush();
 
         if(senderClock % indexSpacing == 0) {
-            index.computeIfAbsent(sender, k -> new TreeMap<>()).put(senderClock, Pair.of(nBytes, nExecuted));
+            index.computeIfAbsent(sender, k -> treeMapWithDefaultEntry()).put(senderClock, Pair.of(nBytes, nExecuted));
         }
         nExecuted++;
         nBytes += 8 + 8 + 4 + serOp.length;
     }
 
+    private NavigableMap<Integer, Pair<Long, Integer>> treeMapWithDefaultEntry() {
+        NavigableMap<Integer, Pair<Long, Integer>> map = new TreeMap<>();
+        map.put(0, Pair.of(0L, 0));
+        return map;
+    }
+
     private void readAndSendMissingOpsFromFile(Host neighbour, VectorClock neighbourClock) throws IOException {
         long startTime = System.currentTimeMillis();
-        Pair<Long, Integer> min = Pair.of(0L, 0);
+        Pair<Long, Integer> min = null;
 
-        for (Map.Entry<Host, Integer> entry : neighbourClock.getClock().entrySet()) {
-            Host h = entry.getKey();
-            Integer clock = entry.getValue();
-            Map.Entry<Integer, Pair<Long, Integer>> indexEntry = index.computeIfAbsent(h, k -> new TreeMap<>()).floorEntry(clock);
-            if(indexEntry != null && indexEntry.getValue().getLeft() < min.getLeft())
+        for (Host h : vectorClock.getHosts()) {
+            int clock = neighbourClock.getHostClock(h);
+            if(clock >= vectorClock.getHostClock(h)) continue;
+            Map.Entry<Integer, Pair<Long, Integer>> indexEntry = index.computeIfAbsent(h, k -> treeMapWithDefaultEntry()).floorEntry(clock);
+            if(min == null || indexEntry.getValue().getLeft() < min.getLeft())
                 min = indexEntry.getValue();
         }
 
         List<byte[]> ops = new LinkedList<>();
         List<byte[]> ids = new LinkedList<>();
-        try (FileInputStream fis = new FileInputStream(this.file);
-             BufferedInputStream bis = new BufferedInputStream(fis);
-             DataInputStream dis = new DataInputStream(bis)) {
 
-            dis.skip(min.getLeft());
+        if(min != null) {
+            try (FileInputStream fis = new FileInputStream(this.file);
+                 BufferedInputStream bis = new BufferedInputStream(fis);
+                 DataInputStream dis = new DataInputStream(bis)) {
 
-            for (int i = min.getRight(); i < nExecuted; i++) {
-                long firstLong = dis.readLong();
-                long secondLong = dis.readLong();
-                UUID msgId = new UUID(firstLong, secondLong);
-                int size = dis.readInt();
-                if (size > 0) {
-                    byte[] serOp = new byte[size];
-                    dis.read(serOp, 0, size);
-                    Operation op = deserializeOperation(serOp);
-                    Host h = op.getSender();
-                    int opClock = op.getSenderClock();
-                    if (neighbourClock.getHostClock(h) < opClock) {
-                        ops.add(serOp);
-                        byte[] serializedId = serializeId(msgId);
-                        ids.add(serializedId);
+                long skipped = fis.skip(min.getLeft());
+                if (skipped != min.getLeft()) {
+                    logger.error("SKIPPED {}, WANTED {} OF {}", skipped, min.getLeft(), nBytes);
+                }
+
+                for (int i = min.getRight(); i < nExecuted; i++) {
+                    long firstLong = dis.readLong();
+                    long secondLong = dis.readLong();
+                    UUID msgId = new UUID(firstLong, secondLong);
+                    int size = dis.readInt();
+                    if (size > 0) {
+                        byte[] serOp = new byte[size];
+                        dis.read(serOp, 0, size);
+                        Operation op = deserializeOperation(serOp);
+                        Host h = op.getSender();
+                        int opClock = op.getSenderClock();
+                        if (neighbourClock.getHostClock(h) < opClock) {
+                            ops.add(serOp);
+                            byte[] serializedId = serializeId(msgId);
+                            ids.add(serializedId);
+                        }
                     }
                 }
+                long endTime = System.currentTimeMillis();
+                logger.info("READ FROM FILE in {} ms started {} of {}", endTime - startTime, min.getRight(), nExecuted);
+            } catch (IOException e) {
+                logger.error("Error reading missing ops from file", e);
+                e.printStackTrace();
             }
-            long endTime = System.currentTimeMillis();
-            logger.info("READ FROM FILE in {} ms started {} of {}", endTime - startTime, min.getRight(), nExecuted);
-            sendRequest(new SyncOpsRequest(UUID.randomUUID(), myself, neighbour, ids, ops), broadcastId);
-        } catch (IOException e) {
-            logger.error("Error reading missing ops from file", e);
-            e.printStackTrace();
+        } else {
+            logger.info("DID NOT OPEN FILE");
         }
+        sendRequest(new SyncOpsRequest(UUID.randomUUID(), myself, neighbour, ids, ops), broadcastId);
     }
 
     /**

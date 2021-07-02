@@ -10,6 +10,7 @@ import serializers.MySerializer;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 public class VectorClock {
 
@@ -40,6 +41,10 @@ public class VectorClock {
 
     public int getHostClock(Host host) {
         return this.clock.getOrDefault(host,0);
+    }
+
+    public Set<Host> getHosts() {
+        return this.clock.keySet();
     }
 
     public boolean canExecuteOperation(OperationVC op) {

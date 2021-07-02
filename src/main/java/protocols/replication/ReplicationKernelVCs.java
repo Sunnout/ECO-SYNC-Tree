@@ -407,9 +407,8 @@ public class ReplicationKernelVCs extends GenericProtocol implements CRDTCommuni
         long startTime = System.currentTimeMillis();
         Pair<Long, Integer> min = null;
 
-        for (Map.Entry<Host, Integer> entry : neighbourClock.getClock().entrySet()) {
-            Host h = entry.getKey();
-            Integer clock = entry.getValue();
+        for (Host h : vectorClock.getHosts()) {
+            int clock = neighbourClock.getHostClock(h);
             Map.Entry<Integer, Pair<Long, Integer>> indexEntry = index.computeIfAbsent(h, k -> new TreeMap<>()).floorEntry(clock);
             if(indexEntry != null && (min == null || indexEntry.getValue().getLeft() < min.getLeft()))
                 min = indexEntry.getValue();
@@ -424,7 +423,10 @@ public class ReplicationKernelVCs extends GenericProtocol implements CRDTCommuni
              BufferedInputStream bis = new BufferedInputStream(fis);
              DataInputStream dis = new DataInputStream(bis)) {
 
-            dis.skip(min.getLeft());
+            long skipped = fis.skip(min.getLeft());
+            if(skipped != min.getLeft()) {
+                logger.error("SKIPPED {}, WANTED {} OF {}", skipped, min.getLeft(), nBytes);
+            }
 
             for (int i = min.getRight(); i < nExecuted; i++) {
                 long firstLong = dis.readLong();

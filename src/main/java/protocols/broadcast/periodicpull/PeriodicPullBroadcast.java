@@ -42,7 +42,7 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
     private final Set<Host> partialView;
     private final Set<Host> neighbours;
     private final Set<UUID> received;
-
+    private Host currentPending;
     private long startTime;
 
     private final Random rnd;
@@ -71,7 +71,7 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
         this.partialView = new HashSet<>();
         this.neighbours = new HashSet<>();
         this.received = new HashSet<>();
-
+        this.currentPending = null;
         this.startTime = 0;
 
         this.rnd = new Random();
@@ -206,10 +206,12 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
     private void uponPeriodicPullTimeout(PeriodicPullTimeout timeout, long timerId) {
         Host h = getRandomNeighbour();
         if(h != null) {
+            this.currentPending = h;
             logger.debug("Pulling from {}", h);
             triggerNotification(new SendVectorClockNotification(h));
             this.startTime = System.currentTimeMillis();
-        }
+        } else
+            setupTimer(new PeriodicPullTimeout(), pullTimeout);
     }
 
 
@@ -239,7 +241,12 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
         if (neighbours.remove(neighbour)) {
             logger.debug("Removed {} from neighbours due to down {}", neighbour, neighbours);
         }
+
         closeConnection(neighbour);
+
+        if(neighbour.equals(currentPending)) {
+            setupTimer(new PeriodicPullTimeout(), pullTimeout);
+        }
     }
 
 

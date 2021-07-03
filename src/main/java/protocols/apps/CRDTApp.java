@@ -5,6 +5,7 @@ import java.util.*;
 import crdts.interfaces.GenericCRDT;
 import protocols.broadcast.flood.FloodBroadcast;
 import protocols.broadcast.periodicpull.PeriodicPullBroadcast;
+import protocols.broadcast.periodicpull.PeriodicPullDupesBroadcast;
 import protocols.broadcast.plumtree.PlumTree;
 import protocols.replication.*;
 import protocols.replication.OpCounterCRDT.CounterOpType;
@@ -339,7 +340,7 @@ public class CRDTApp extends GenericProtocol {
 
     private void printStats() {
         //Plumtree
-        if(broadcastId == 900) {
+        if(broadcastId == PlumTree.PROTOCOL_ID) {
             logger.info("sentGossip: {}", PlumTree.sentGossip);
             logger.info("sentIHave: {}", PlumTree.sentIHave);
             logger.info("sentGraft: {}", PlumTree.sentGraft);
@@ -362,7 +363,7 @@ public class CRDTApp extends GenericProtocol {
         }
 
         //Flood
-        else if(broadcastId == 1500) {
+        else if(broadcastId == FloodBroadcast.PROTOCOL_ID) {
             logger.info("sentFlood: {}", FloodBroadcast.sentFlood);
             logger.info("sentSendVC: {}", FloodBroadcast.sentSendVC);
             logger.info("sentVC: {}", FloodBroadcast.sentVC);
@@ -379,7 +380,7 @@ public class CRDTApp extends GenericProtocol {
         }
 
         //Periodic Pull
-        else if(broadcastId == 490) {
+        else if(broadcastId == PeriodicPullBroadcast.PROTOCOL_ID) {
             logger.info("sentVC: {}", PeriodicPullBroadcast.sentVC);
             logger.info("sentSyncOps: {}", PeriodicPullBroadcast.sentSyncOps);
             logger.info("sentSyncPull: {}", PeriodicPullBroadcast.sentSyncPull);
@@ -388,6 +389,18 @@ public class CRDTApp extends GenericProtocol {
             logger.info("receivedSyncOps: {}", PeriodicPullBroadcast.receivedSyncOps);
             logger.info("receivedSyncPull: {}", PeriodicPullBroadcast.receivedSyncPull);
             logger.info("receivedDupes: {}", PeriodicPullBroadcast.receivedDupes);
+        }
+
+        //Periodic Pull Dupes
+        else if(broadcastId == PeriodicPullDupesBroadcast.PROTOCOL_ID) {
+            logger.info("sentVC: {}", PeriodicPullDupesBroadcast.sentVC);
+            logger.info("sentSyncOps: {}", PeriodicPullDupesBroadcast.sentSyncOps);
+            logger.info("sentSyncPull: {}", PeriodicPullDupesBroadcast.sentSyncPull);
+
+            logger.info("receivedVC: {}", PeriodicPullDupesBroadcast.receivedVC);
+            logger.info("receivedSyncOps: {}", PeriodicPullDupesBroadcast.receivedSyncOps);
+            logger.info("receivedSyncPull: {}", PeriodicPullDupesBroadcast.receivedSyncPull);
+            logger.info("receivedDupes: {}", PeriodicPullDupesBroadcast.receivedDupes);
         }
     }
 

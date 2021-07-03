@@ -453,13 +453,13 @@ public class ReplicationKernelVCs extends GenericProtocol implements CRDTCommuni
                     }
                 }
                 long endTime = System.currentTimeMillis();
-                logger.info("READ FROM FILE in {} ms started {} of {}", endTime - startTime, min.getRight(), nExecuted);
+                logger.debug("READ FROM FILE in {} ms started {} of {}", endTime - startTime, min.getRight(), nExecuted);
             } catch (IOException e) {
                 logger.error("Error reading missing ops from file", e);
                 e.printStackTrace();
             }
         } else {
-            logger.info("DID NOT OPEN FILE");
+            logger.debug("DID NOT OPEN FILE");
         }
         sendRequest(new SyncOpsRequest(UUID.randomUUID(), myself, neighbour, ids, ops), broadcastId);
     }

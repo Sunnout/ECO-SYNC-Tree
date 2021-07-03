@@ -183,6 +183,7 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
         long timeout = pullTimeout - (System.currentTimeMillis() - this.startTime);
         if(timeout < 0)
             timeout = 0;
+        currentPending = null;
         setupTimer(new PeriodicPullTimeout(), timeout);
     }
 
@@ -245,6 +246,7 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
         closeConnection(neighbour);
 
         if(neighbour.equals(currentPending)) {
+            currentPending = null;
             setupTimer(new PeriodicPullTimeout(), pullTimeout);
         }
     }

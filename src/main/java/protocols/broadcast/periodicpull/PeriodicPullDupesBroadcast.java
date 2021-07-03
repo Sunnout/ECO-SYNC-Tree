@@ -30,7 +30,7 @@ public class PeriodicPullDupesBroadcast extends GenericProtocol  {
     private static final Logger logger = LogManager.getLogger(PeriodicPullDupesBroadcast.class);
 
     public final static short PROTOCOL_ID = 495;
-    public final static String PROTOCOL_NAME = "PeriodicPullDupes";
+    public final static String PROTOCOL_NAME = "BCAST-PeriodicPullDupes";
 
     protected int channelId;
     private final Host myself;

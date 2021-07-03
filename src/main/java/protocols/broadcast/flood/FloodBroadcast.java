@@ -31,7 +31,7 @@ public class FloodBroadcast extends GenericProtocol  {
     private static final Logger logger = LogManager.getLogger(FloodBroadcast.class);
 
     public final static short PROTOCOL_ID = 1500;
-    public final static String PROTOCOL_NAME = "Flood";
+    public final static String PROTOCOL_NAME = "BCAST-Flood";
 
     protected int channelId;
     private final Host myself;

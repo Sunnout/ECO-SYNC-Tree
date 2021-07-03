@@ -36,7 +36,7 @@ public class PlumTree extends GenericProtocol {
     private static final Logger logger = LogManager.getLogger(PlumTree.class);
 
     public final static short PROTOCOL_ID = 900;
-    public final static String PROTOCOL_NAME = "PlumTree";
+    public final static String PROTOCOL_NAME = "BCAST-PlumTree";
 
     protected int channelId;
     private final Host myself;

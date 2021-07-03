@@ -6,6 +6,7 @@ import org.apache.logging.log4j.Logger;
 
 import protocols.broadcast.flood.FloodBroadcast;
 import protocols.broadcast.periodicpull.PeriodicPullBroadcast;
+import protocols.broadcast.periodicpull.PeriodicPullDupesBroadcast;
 import protocols.broadcast.plumtree.PlumTree;
 import protocols.membership.hyparview.HyParView;
 import protocols.replication.ReplicationKernel;
@@ -80,6 +81,14 @@ public class Main {
                 crdtApp = new CRDTApp(props, myself, ReplicationKernelVCs.PROTOCOL_ID, PeriodicPullBroadcast.PROTOCOL_ID);
                 replicationKernel = new ReplicationKernelVCs(props, myself, PeriodicPullBroadcast.PROTOCOL_ID);
                 broadcast = new PeriodicPullBroadcast(props, myself);
+                membership = new HyParView(props, myself_membership);
+                registerAndStartProtocols(babel, crdtApp, replicationKernel, broadcast, membership, props);
+                break;
+
+            case "periodicpulldupes":
+                crdtApp = new CRDTApp(props, myself, ReplicationKernelVCs.PROTOCOL_ID, PeriodicPullDupesBroadcast.PROTOCOL_ID);
+                replicationKernel = new ReplicationKernelVCs(props, myself, PeriodicPullDupesBroadcast.PROTOCOL_ID);
+                broadcast = new PeriodicPullDupesBroadcast(props, myself);
                 membership = new HyParView(props, myself_membership);
                 registerAndStartProtocols(babel, crdtApp, replicationKernel, broadcast, membership, props);
                 break;

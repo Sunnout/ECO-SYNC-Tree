@@ -118,6 +118,8 @@ results/
 ### Folder for list of causally ordered ops
 data/
 
+docker/crdtsPlumtree.tar
+
 ### Mac
 .DS_Store
 

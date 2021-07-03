@@ -14,10 +14,8 @@ ADD log4j2.xml ./log4j2.xml
 
 RUN mkdir config
 
-#ADD config/inet100Latencies_x0.005.txt config/latencyMap.txt
 ADD docker/latencies100.txt config/latencyMap.txt
-#ADD config/ips100.txt config/ips.txt
-ADD docker/ips100.txt config/ips.txt
+ADD docker/ips200.txt config/ips.txt
 ADD docker/setupTc.sh .
 
 EXPOSE 10000/tcp

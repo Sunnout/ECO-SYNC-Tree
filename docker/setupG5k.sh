@@ -3,7 +3,7 @@
 subnet="10.10.0.0/24"
 gateway="10.10.0.1"
 name="crdtsnet"
-volume="logs"
+volume="/tmp/logs"
 
 
 if [ -z $subnet ] || [ -z $gateway ] || [ -z $name ] || [ -z $volume ]; then
@@ -28,7 +28,7 @@ for node in $(oarprint host); do
 done
 
 for node in $(oarprint host); do
-  oarsh $node "docker volume create $volume" &
+  oarsh $node "mkdir $volume" &
 done
 wait
 

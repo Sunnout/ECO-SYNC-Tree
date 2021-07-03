@@ -20,7 +20,7 @@ public class GenSquare {
             int iy = i / width;
             for (int j = i; j < nNodes; j++) {
                 if (i == j) {
-                    matrix[i][j] = -1;
+                    matrix[i][j] = 0;
                 } else {
                     int jx = j % width;
                     int jy = j / width;

@@ -51,7 +51,7 @@ public class Main {
         Host myself =  new Host(InetAddress.getByName(props.getProperty("address")),
                 Integer.parseInt(props.getProperty("bcast_port")));
 
-        logger.info("Hello, I am {} {}", myself_membership, myself);
+        logger.warn("Hello, I am {} {}", myself_membership, myself);
 
         String bcast_protocol = props.getProperty("bcast_protocol");
 
@@ -117,6 +117,6 @@ public class Main {
         //Start babel and protocol threads
         babel.start();
 
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> logger.info("Goodbye")));
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> logger.warn("Goodbye")));
     }
 }

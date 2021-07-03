@@ -30,7 +30,7 @@ public class CRDTApp extends GenericProtocol {
 
     //RUN = 0 --> counter; 1 --> register; 2 --> set; 3 --> map; 4 --> 8 registers;
     //5 --> 8 sets; 6 --> 8 maps; 7 --> 1 of each CRDT
-    private static final int RUN = 7;
+    private static final int RUN = 8;
 
     //True for several periodic ops, false for 1 op per crdt from each app
     private static final boolean PERIODIC_OPS = true;
@@ -71,6 +71,8 @@ public class CRDTApp extends GenericProtocol {
     //Time to wait until shut down
     private final int exitTime;
 
+    private final float prob;
+
 
     //Interval between each increment
     private final int ops1Interval;
@@ -101,6 +103,8 @@ public class CRDTApp extends GenericProtocol {
         this.exitTime = Integer.parseInt(properties.getProperty("exit_time"));
         this.ops1Interval = Integer.parseInt(properties.getProperty("ops1"));
         this.ops2Interval = Integer.parseInt(properties.getProperty("ops2"));
+        this.prob = Float.parseFloat(properties.getProperty("op_probability", "1"));
+
         this.rand = new Random();
 
         /*--------------------- Register Timer Handlers ----------------------------- */
@@ -170,6 +174,9 @@ public class CRDTApp extends GenericProtocol {
             getCRDT(LWW_REGISTER, new String[]{"int"}, CRDT1);
             getCRDT(OR_SET, new String[]{"int"}, CRDT2);
             getCRDT(OR_MAP, new String[]{"byte", "int"}, CRDT3);
+        } else if(run == 8) {
+            getCRDT(COUNTER, new String[]{"int"}, CRDT0);
+            getCRDT(LWW_REGISTER, new String[]{"int"}, CRDT1);
         }
     }
 
@@ -261,8 +268,15 @@ public class CRDTApp extends GenericProtocol {
         }
     }
 
+    private void execute(int run, double prob) {
+        if(Math.random() <= prob) {
+            executeCounterOperation(CRDT0, CounterOpType.INCREMENT);
+            executeRegisterOperation(CRDT1, RegisterOpType.ASSIGN, new IntegerType(rand.nextInt(20)));
+        }
+    }
+
     private void printFinalValues(int run) {
-        logger.info("RESULTS:");
+        logger.warn("RESULTS:");
         if(replicationKernelId == 600) {
             logger.info("Final vector clock: {}", ReplicationKernel.vectorClock);
         } else {
@@ -325,16 +339,19 @@ public class CRDTApp extends GenericProtocol {
                 logger.info("{} key {} : {}", CRDT3, key, getMapping(CRDT3, key));
             }
             logger.info("Values of {}: {}", CRDT3, getMapValues(CRDT3));
+        } else if(run == 8) {
+            logger.info("Integer value of {}: {}", CRDT0, getCounterValue(CRDT0));
+            logger.info("Integer value of {}: {}", CRDT1, getRegisterValue(CRDT1));
         }
 
         if(replicationKernelId == 600) {
             logger.info("Number of sent operations: {}", ReplicationKernel.sentOps);
             logger.info("Number of received operations: {}", ReplicationKernel.receivedOps);
-            logger.info("Number of executed operations: {}", ReplicationKernel.executedOps);
+            logger.warn("Number of executed operations: {}", ReplicationKernel.executedOps);
         } else {
             logger.info("Number of sent operations: {}", ReplicationKernelVCs.sentOps);
             logger.info("Number of received operations: {}", ReplicationKernelVCs.receivedOps);
-            logger.info("Number of executed operations: {}", ReplicationKernelVCs.executedOps);
+            logger.warn("Number of executed operations: {}", ReplicationKernelVCs.executedOps);
         }
     }
 
@@ -638,11 +655,11 @@ public class CRDTApp extends GenericProtocol {
     }
 
     private void startOperations() {
-        logger.info("Starting operations...");
+        logger.warn("Starting operations...");
 
         if(PERIODIC_OPS) {
             ops1Timer = setupPeriodicTimer(new ExecuteOps1Timer(), 0, ops1Interval);
-            ops2Timer = setupPeriodicTimer(new ExecuteOps2Timer(), 0, ops2Interval);
+//            ops2Timer = setupPeriodicTimer(new ExecuteOps2Timer(), 0, ops2Interval);
         } else {
             setupTimer(new SingleOpTimer(), ops1Interval);
         }
@@ -669,7 +686,7 @@ public class CRDTApp extends GenericProtocol {
     }
 
     private void uponExecuteOps1Timer(ExecuteOps1Timer incTimer, long timerId) {
-        executeOp1(RUN);
+        execute(RUN, prob);
     }
 
     private void uponExecuteOps2Timer(ExecuteOps2Timer decTimer, long timerId) {
@@ -681,7 +698,7 @@ public class CRDTApp extends GenericProtocol {
     }
 
     private void uponStopTimer(StopTimer stopTimer, long timerId) {
-        logger.info("Stopping broadcasts");
+        logger.warn("Stopping broadcasts");
         //Stop executing operations
         this.cancelTimer(ops1Timer);
         this.cancelTimer(ops2Timer);
@@ -696,7 +713,7 @@ public class CRDTApp extends GenericProtocol {
     }
 
     private void uponExitTimer(ExitTimer exitTimer, long timerId) {
-        logger.info("Exiting...");
+        logger.warn("Exiting...");
         //Shutting down
         System.exit(0);
     }

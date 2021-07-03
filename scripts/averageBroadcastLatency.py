@@ -31,12 +31,12 @@ def avg_latency(start_name, n_processes, n_runs, protocol, workload, to_print=Fa
             
             for i in f:
                 line = i.split(" ")
-                if line[1].__contains__("Periodic") and line[2].__contains__("SENT"):
+                if line[2].__contains__("SENT"):
                     send_time = line[0].split("[")[1][:-1]
                     send_time_obj = dt.datetime.strptime(send_time, '%H:%M:%S,%f').time()
                     msg_send_time[run][line[3]] = send_time_obj
 
-                elif line[1].__contains__("Periodic") and line[2].__contains__("RECEIVED"):
+                elif line[2].__contains__("RECEIVED"):
                     deliver_time = line[0].split("[")[1][:-1]
                     deliver_time_obj = dt.datetime.strptime(deliver_time, '%H:%M:%S,%f').time()
                     msg_id = line[3]
@@ -50,12 +50,12 @@ def avg_latency(start_name, n_processes, n_runs, protocol, workload, to_print=Fa
                         elif msg_deliver_time[run][msg_id] < deliver_time_obj:
                             msg_deliver_time[run][msg_id] = deliver_time_obj
 
-                elif line[1].__contains__("ReplicationKernel") and line[2].__contains__("GENERATED"):
+                elif line[2].__contains__("GENERATED"):
                     gen_time = line[0].split("[")[1][:-1]
                     gen_time_obj = dt.datetime.strptime(gen_time, '%H:%M:%S,%f').time()
                     msg_gen_time[run][line[3]] = gen_time_obj
 
-                elif line[1].__contains__("ReplicationKernel") and line[2].__contains__("EXECUTED"):
+                elif line[2].__contains__("EXECUTED"):
                     exec_time = line[0].split("[")[1][:-1]
                     exec_time_obj = dt.datetime.strptime(exec_time, '%H:%M:%S,%f').time()
                     msg_id = line[3]

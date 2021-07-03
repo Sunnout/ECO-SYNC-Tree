@@ -2,11 +2,11 @@
 
 idx=$1
 bandwith=$2
-latencyMap="config/latencyMap.txt"
+latencyMap=$3
 ipsMap="config/ips.txt"
 
 if [ -z $bandwith ]; then
-  bandwith=1000
+  bandwith=20000
 fi
 
 ips=""

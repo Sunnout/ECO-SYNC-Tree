@@ -417,33 +417,25 @@ public class FloodBroadcast extends GenericProtocol  {
         StringBuilder sb = new StringBuilder("Channel Metrics: ");
         long bytesSent = 0;
         long bytesReceived = 0;
-        long messagesSent = 0;
-        long messagesReceived = 0;
 
         for(ChannelMetrics.ConnectionMetrics c: event.getOutConnections()){
             bytesSent += c.getSentAppBytes();
-            messagesSent += c.getSentAppMessages();
         }
 
         for(ChannelMetrics.ConnectionMetrics c: event.getOldOutConnections()){
             bytesSent += c.getSentAppBytes();
-            messagesSent += c.getSentAppMessages();
         }
 
         for(ChannelMetrics.ConnectionMetrics c: event.getInConnections()){
             bytesReceived += c.getReceivedAppBytes();
-            messagesReceived += c.getReceivedAppMessages();
         }
 
         for(ChannelMetrics.ConnectionMetrics c: event.getOldInConnections()){
             bytesReceived += c.getReceivedAppBytes();
-            messagesReceived += c.getReceivedAppMessages();
         }
 
         sb.append(String.format("BytesSent=%s ", bytesSent));
-        sb.append(String.format("BytesReceived=%s ", bytesReceived));
-        sb.append(String.format("MessagesSent=%s ", messagesSent));
-        sb.append(String.format("MessagesReceived=%s", messagesReceived));
+        sb.append(String.format("BytesReceived=%s", bytesReceived));
         logger.info(sb);
     }
 }

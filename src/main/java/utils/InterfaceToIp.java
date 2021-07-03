@@ -11,7 +11,6 @@ import java.util.Properties;
 public class InterfaceToIp {
     public static String getIpOfInterface(String interfaceName) throws SocketException {
         NetworkInterface networkInterface = NetworkInterface.getByName(interfaceName);
-        System.out.println(networkInterface);
         Enumeration<InetAddress> inetAddress = networkInterface.getInetAddresses();
         InetAddress currentAddress;
         while (inetAddress.hasMoreElements()) {

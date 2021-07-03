@@ -37,14 +37,14 @@ if [ ! -z $runcontact ]; then
   i=1
 fi
 
-sleep 1
+sleep 0.5
 
 while [ $i -lt $processes ]
 do
 	java -Xmx1024M -DlogFilename=/tmp/plumtreelogs/results-$(hostname)-$[$port+$i] -jar target/PlumtreeOpLogs.jar -conf config.properties address=$(hostname) port=$[$port+$i] bcast_port=$[$bcastport+$i] contact=$contactnode | sed "s/^/[$(($port + $i))] /"&
 	echo "launched process on port $[$port+$i]"
 	i=$[$i+1]
-	sleep 1
+	sleep 0.5
 done
 
 sleep 25

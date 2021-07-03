@@ -14,7 +14,10 @@ ADD log4j2.xml ./log4j2.xml
 
 RUN mkdir config
 
-ADD docker/latencies100.txt config/latencyMap.txt
+ADD docker/latencies50.txt config/latencies50.txt
+ADD docker/latencies100.txt config/latencies100.txt
+ADD docker/latencies150.txt config/latencies150.txt
+ADD docker/latencies200.txt config/latencies200.txt
 ADD docker/ips200.txt config/ips.txt
 ADD docker/setupTc.sh .
 

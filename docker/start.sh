@@ -39,7 +39,7 @@ fi
 #java -DlogFilename=${exppath}_${nnodes}_${dissemination}_${servernode}.log -cp ./net.jar Main -overlay $overlay -dissemination $dissemination -babelConfFile ./network_config.properties $4 2> logs/${exppath}/${overlay}_${dissemination}_${servernode}.err
 
 if [ -z $contactnode ]; then
-  java -Xmx1024M -DlogFilename=${exppath}/${servernode} -jar PlumtreeOpLogs.jar -conf config.properties address=${servernode} bcast_protocol=${protocol} op_probability=${probability} create_time=${warmup} cooldown_time=${cooldown}
-elif
-  java -Xmx1024M -DlogFilename=${exppath}/${servernode} -jar PlumtreeOpLogs.jar -conf config.properties address=${servernode} bcast_protocol=${protocol} op_probability=${probability} create_time=${warmup} cooldown_time=${cooldown} contact=${contactnode}
+  java -Xmx1024M -DlogFilename=${exppath}/${servernode} -jar PlumtreeOpLogs.jar -conf config.properties interface=eth0 bcast_protocol=${protocol} op_probability=${probability} create_time=${warmup} cooldown_time=${cooldown}
+else
+  java -Xmx1024M -DlogFilename=${exppath}/${servernode} -jar PlumtreeOpLogs.jar -conf config.properties interface=eth0 bcast_protocol=${protocol} op_probability=${probability} create_time=${warmup} cooldown_time=${cooldown} contact=${contactnode}
 fi

@@ -7,9 +7,9 @@ public class GenSquare {
 
     public static void main(String[] args) throws IOException {
 
-        int width = 10;
-        int height = 5;
-        int dist = 20;
+        int width = 19;
+        int height = 8;
+        int dist = 5;
 
         int nNodes = width * height;
 

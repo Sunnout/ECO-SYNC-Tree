@@ -4,7 +4,7 @@ subnet="10.10.0.0/24"
 gateway="10.10.0.1"
 name="crdtsnet"
 volume="/tmp/logs"
-
+docker network create -d overlay --attachable --subnet $subnet --gateway $gateway $name
 
 if [ -z $subnet ] || [ -z $gateway ] || [ -z $name ] || [ -z $volume ]; then
   echo "setup needs exactly 3 arguments"

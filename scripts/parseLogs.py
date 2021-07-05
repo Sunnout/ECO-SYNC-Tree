@@ -1,6 +1,12 @@
+import os
 import datetime as dt
 
-def parse_logs(start_name, n_processes, n_runs, protocol, workload):
+def parse_logs(start_name, n_processes, runs, protocol, workload):
+    n_runs=len(runs)
+    i = 0
+    for i in range(len(runs)):
+        runs[i] = int(runs[i])
+
     #Average Broadcast and Replication Latency
     msg_send_time = []
     msg_deliver_time = []
@@ -14,42 +20,41 @@ def parse_logs(start_name, n_processes, n_runs, protocol, workload):
     total_bytes_received = 0
 
     #Number of Messages Sent and Received
-    sent_vc = []
-    sent_sync_ops = []
-    received_vc = []
-    received_sync_ops = []
+    sent_vc = 0
+    sent_sync_ops = 0
+    received_vc = 0
+    received_sync_ops = 0
 
     if protocol == "plumtree":
-        sent_gossip = []
-        sent_graft = []
-        sent_prune = []
-        sent_i_have = []
-        sent_send_vc = []
-        sent_sync_gossip = []
-        received_gossip = []
-        received_dupes_gossip = []
-        received_graft = []
-        received_prune = []
-        received_i_have = []
-        received_send_vc = []
-        received_sync_gossip = []
-        received_dupes_sync_gossip = []
+        sent_gossip = 0
+        sent_graft = 0
+        sent_prune = 0
+        sent_i_have = 0
+        sent_send_vc = 0
+        sent_sync_gossip = 0
+        received_gossip = 0
+        received_dupes_gossip = 0
+        received_graft = 0
+        received_prune = 0
+        received_i_have = 0
+        received_send_vc = 0
+        received_sync_gossip = 0
+        received_dupes_sync_gossip = 0
 
     elif protocol == "flood":
-        sent_flood = []
-        sent_send_vc = []
-        sent_sync_flood = []
-        received_flood = []
-        received_dupes_flood = []
-        received_send_vc = []
-        received_sync_flood = []
-        received_dupes_sync_flood = []
+        sent_flood = 0
+        sent_send_vc = 0
+        sent_sync_flood = 0
+        received_flood = 0
+        received_dupes_flood = 0
+        received_send_vc = 0
+        received_sync_flood = 0
+        received_dupes_sync_flood = 0
 
     elif protocol == "periodicpull":
-        sent_sync_pull = []
-        received_sync_pull = []
-        received_dupes_pull = []
-
+        sent_sync_pull = 0
+        received_sync_pull = 0
+        received_dupes_pull = 0
 
     for run in range(n_runs):
         msg_send_time.append({})
@@ -59,42 +64,6 @@ def parse_logs(start_name, n_processes, n_runs, protocol, workload):
         msg_exec_time.append({})
         msg_exec_per_run.append({})
 
-        sent_vc.append(0)
-        sent_sync_ops.append(0)
-        received_vc.append(0)
-        received_sync_ops.append(0)
-
-        if protocol == "plumtree":
-            sent_gossip.append(0)
-            sent_graft.append(0)
-            sent_prune.append(0)
-            sent_i_have.append(0)
-            sent_send_vc.append(0)
-            sent_sync_gossip.append(0)
-            received_gossip.append(0)
-            received_dupes_gossip.append(0)
-            received_graft.append(0)
-            received_prune.append(0)
-            received_i_have.append(0)
-            received_send_vc.append(0)
-            received_sync_gossip.append(0)
-            received_dupes_sync_gossip.append(0)
-
-        elif protocol == "flood":
-            sent_flood.append(0)
-            sent_send_vc.append(0)
-            sent_sync_flood.append(0)
-            received_flood.append(0)
-            received_dupes_flood.append(0)
-            received_send_vc.append(0)
-            received_sync_flood.append(0)
-            received_dupes_sync_flood.append(0)
-
-        elif protocol == "periodicpull":
-            sent_sync_pull.append(0)
-            received_sync_pull.append(0)
-            received_dupes_pull.append(0)
-
     for proc in range(n_processes):
         for run in range(n_runs):
             msg_deliver_per_run[run][proc] = []
@@ -103,8 +72,9 @@ def parse_logs(start_name, n_processes, n_runs, protocol, workload):
     for proc in range(n_processes):
         progressBar(proc, n_processes)
         for run in range(n_runs):
-            f = open(start_name.format(proc, protocol, workload, run+1), "r")
-#             f = open(start_name, "r")
+            name=start_name.format(n_processes, protocol, workload, runs[run], proc)
+            f = open(start_name.format(n_processes, protocol, workload, runs[run], proc), "r")
+#             f = open("../results-chiclet-7.lille.grid5000.fr-5010.txt", "r")
 
             final_bytes_transmitted = 0
             final_bytes_received = 0
@@ -156,98 +126,97 @@ def parse_logs(start_name, n_processes, n_runs, protocol, workload):
 
                 #MESSAGE COUNTS
                 elif line[3] == "sentVC:":
-                    sent_vc[run] += int(line[4])
+                    sent_vc += int(line[4])
 
                 elif line[3] == "sentSyncOps:":
-                    sent_sync_ops[run] += int(line[4])
+                    sent_sync_ops += int(line[4])
 
                 elif line[3] == "receivedVC:":
-                    received_vc[run] += int(line[4])
+                    received_vc += int(line[4])
 
                 elif line[3] == "receivedSyncOps:":
-                    received_sync_ops[run] += int(line[4])
+                    received_sync_ops += int(line[4])
 
                 elif protocol == "plumtree":
                     if line[3] == "sentGossip:":
-                        sent_gossip[run] += int(line[4])
+                        sent_gossip += int(line[4])
 
                     elif line[3] == "sentIHave:":
-                        sent_i_have[run] += int(line[4])
+                        sent_i_have += int(line[4])
 
                     elif line[3] == "sentGraft:":
-                        sent_graft[run] += int(line[4])
+                        sent_graft += int(line[4])
 
                     elif line[3] == "sentPrune:":
-                        sent_prune[run] += int(line[4])
+                        sent_prune += int(line[4])
 
                     elif line[3] == "sentSendVC:":
-                        sent_send_vc[run] += int(line[4])
+                        sent_send_vc += int(line[4])
 
                     elif line[3] == "sentSyncGossip:":
-                        sent_sync_gossip[run] += int(line[4])
+                        sent_sync_gossip += int(line[4])
 
                     elif line[3] == "receivedGossip:":
-                        received_gossip[run] += int(line[4])
+                        received_gossip += int(line[4])
 
                     elif line[3] == "receivedDupesGossip:":
-                        received_dupes_gossip[run] += int(line[4])
+                        received_dupes_gossip += int(line[4])
 
                     elif line[3] == "receivedIHave:":
-                        received_i_have[run] += int(line[4])
+                        received_i_have += int(line[4])
 
                     elif line[3] == "receivedGraft:":
-                        received_graft[run] += int(line[4])
+                        received_graft += int(line[4])
 
                     elif line[3] == "receivedPrune:":
-                        received_prune[run] += int(line[4])
+                        received_prune += int(line[4])
 
                     elif line[3] == "receivedSendVC:":
-                        received_send_vc[run] += int(line[4])
+                        received_send_vc += int(line[4])
 
                     elif line[3] == "receivedSyncGossip:":
-                        received_sync_gossip[run] += int(line[4])
+                        received_sync_gossip += int(line[4])
 
                     elif line[3] == "receivedDupesSyncGossip:":
-                        received_dupes_sync_gossip[run] += int(line[4])
+                        received_dupes_sync_gossip += int(line[4])
 
                 elif protocol == "flood":
                     if line[3] == "sentFlood:":
-                        sent_flood[run] += int(line[4])
+                        sent_flood += int(line[4])
 
                     elif line[3] == "sentSendVC:":
-                        sent_send_vc[run] += int(line[4])
+                        sent_send_vc += int(line[4])
 
                     elif line[3] == "sentSyncFlood:":
-                        sent_sync_flood[run] += int(line[4])
+                        sent_sync_flood += int(line[4])
 
                     elif line[3] == "receivedFlood:":
-                        received_flood[run] += int(line[4])
+                        received_flood += int(line[4])
 
                     elif line[3] == "receivedDupesFlood:":
-                        received_dupes_flood[run] += int(line[4])
+                        received_dupes_flood += int(line[4])
 
                     elif line[3] == "receivedSendVC:":
-                        received_send_vc[run] += int(line[4])
+                        received_send_vc += int(line[4])
 
                     elif line[3] == "receivedSyncFlood:":
-                        received_sync_flood[run] += int(line[4])
+                        received_sync_flood += int(line[4])
 
                     elif line[3] == "receivedDupesSyncFlood:":
-                        received_dupes_sync_flood[run] += int(line[4])
+                        received_dupes_sync_flood += int(line[4])
 
                 elif protocol == "periodicpull":
                     if line[3] == "sentSyncPull:":
-                        sent_sync_pull[run] += int(line[4])
+                        sent_sync_pull += int(line[4])
 
                     elif line[3] == "receivedSyncPull:":
-                        received_sync_pull[run] += int(line[4])
+                        received_sync_pull += int(line[4])
 
                     elif line[3] == "receivedDupes:":
-                        received_dupes_pull[run] += int(line[4])
+                        received_dupes_pull += int(line[4])
 
             total_bytes_transmitted += final_bytes_transmitted
             total_bytes_received += final_bytes_received
-
 
     #LATENCY BROADCAST LAYER
     latency = []
@@ -295,45 +264,45 @@ def parse_logs(start_name, n_processes, n_runs, protocol, workload):
     avg_bytes_transmitted = total_bytes_transmitted / n_runs
 
     #MESSAGES STATS
-    avg_sent_vc = sum(sent_vc) / n_runs
-    avg_sent_sync_ops = sum(sent_sync_ops) / n_runs
-    avg_received_vc = sum(received_vc) / n_runs
-    avg_received_sync_ops = sum(received_sync_ops) / n_runs
+    avg_sent_vc = sent_vc / n_runs
+    avg_sent_sync_ops = sent_sync_ops / n_runs
+    avg_received_vc = received_vc / n_runs
+    avg_received_sync_ops = received_sync_ops / n_runs
 
     print("Progress: [------------------->] 100%", end='\n')
 
     if protocol == "plumtree":
-        avg_sent_gossip = sum(sent_gossip) / n_runs
-        avg_sent_graft = sum(sent_graft) / n_runs
-        avg_sent_prune = sum(sent_prune) / n_runs
-        avg_sent_i_have = sum(sent_i_have) / n_runs
-        avg_sent_send_vc = sum(sent_send_vc) / n_runs
-        avg_sent_sync_gossip = sum(sent_sync_gossip) / n_runs
-        avg_received_gossip = sum(received_gossip) / n_runs
-        avg_received_dupes_gossip = sum(received_dupes_gossip) / n_runs
-        avg_received_graft = sum(received_graft) / n_runs
-        avg_received_prune = sum(received_prune) / n_runs
-        avg_received_i_have = sum(received_i_have) / n_runs
-        avg_received_send_vc = sum(received_send_vc) / n_runs
-        avg_received_sync_gossip = sum(received_sync_gossip) / n_runs
-        avg_received_dupes_sync_gossip = sum(received_dupes_sync_gossip) / n_runs
+        avg_sent_gossip = sent_gossip / n_runs
+        avg_sent_graft = sent_graft / n_runs
+        avg_sent_prune = sent_prune / n_runs
+        avg_sent_i_have = sent_i_have / n_runs
+        avg_sent_send_vc = sent_send_vc / n_runs
+        avg_sent_sync_gossip = sent_sync_gossip / n_runs
+        avg_received_gossip = received_gossip / n_runs
+        avg_received_dupes_gossip = received_dupes_gossip / n_runs
+        avg_received_graft = received_graft / n_runs
+        avg_received_prune = received_prune / n_runs
+        avg_received_i_have = received_i_have / n_runs
+        avg_received_send_vc = received_send_vc / n_runs
+        avg_received_sync_gossip = received_sync_gossip / n_runs
+        avg_received_dupes_sync_gossip = received_dupes_sync_gossip / n_runs
         return int(avg_broadcast_latency), int(avg_replication_latency), avg_bytes_received, avg_bytes_transmitted, avg_sent_vc, avg_sent_sync_ops, avg_received_vc, avg_received_sync_ops, avg_sent_gossip, avg_sent_graft, avg_sent_prune, avg_sent_i_have, avg_sent_send_vc, avg_sent_sync_gossip, avg_received_gossip, avg_received_dupes_gossip, avg_received_graft, avg_received_prune, avg_received_i_have, avg_received_send_vc, avg_received_sync_gossip, avg_received_dupes_sync_gossip
 
     elif protocol == "flood":
-        avg_sent_flood = sum(sent_flood) / n_runs
-        avg_sent_send_vc = sum(sent_send_vc) / n_runs
-        avg_sent_sync_flood = sum(sent_sync_flood) / n_runs
-        avg_received_flood = sum(received_flood) / n_runs
-        avg_received_dupes_flood = sum(received_dupes_flood) / n_runs
-        avg_received_send_vc = sum(received_send_vc) / n_runs
-        avg_received_sync_flood = sum(received_sync_flood) / n_runs
-        avg_received_dupes_sync_flood = sum(received_dupes_sync_flood) / n_runs
+        avg_sent_flood = sent_flood / n_runs
+        avg_sent_send_vc = sent_send_vc / n_runs
+        avg_sent_sync_flood = sent_sync_flood / n_runs
+        avg_received_flood = received_flood / n_runs
+        avg_received_dupes_flood = received_dupes_flood / n_runs
+        avg_received_send_vc = received_send_vc / n_runs
+        avg_received_sync_flood = received_sync_flood / n_runs
+        avg_received_dupes_sync_flood = received_dupes_sync_flood / n_runs
         return int(avg_broadcast_latency), int(avg_replication_latency), avg_bytes_received, avg_bytes_transmitted, avg_sent_vc, avg_sent_sync_ops, avg_received_vc, avg_received_sync_ops, avg_sent_flood, avg_sent_send_vc, avg_sent_sync_flood, avg_received_flood, avg_received_dupes_flood, avg_received_send_vc, avg_received_sync_flood, avg_received_dupes_sync_flood
 
     elif protocol == "periodicpull":
-        avg_sent_sync_pull = sum(sent_sync_pull) / n_runs
-        avg_received_sync_pull = sum(received_sync_pull) / n_runs
-        avg_received_dupes_pull = sum(received_dupes_pull) / n_runs
+        avg_sent_sync_pull = sent_sync_pull / n_runs
+        avg_received_sync_pull = received_sync_pull / n_runs
+        avg_received_dupes_pull = received_dupes_pull / n_runs
         return int(avg_broadcast_latency), int(avg_replication_latency), avg_bytes_received, avg_bytes_transmitted, avg_sent_vc, avg_sent_sync_ops, avg_received_vc, avg_received_sync_ops, avg_sent_sync_pull, avg_received_sync_pull, avg_received_dupes_pull
 
 def progressBar(current, total, barLength = 20):

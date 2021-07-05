@@ -66,13 +66,12 @@ def parse_logs(start_name, n_processes, runs, protocol, workload):
 
     for proc in range(n_processes):
         for run in range(n_runs):
-            msg_deliver_per_run[run][proc] = []
-            msg_exec_per_run[run][proc] = []
+            msg_deliver_per_run[run][proc] = set(())
+            msg_exec_per_run[run][proc] = set(())
 
     for proc in range(n_processes):
         progressBar(proc, n_processes)
         for run in range(n_runs):
-            name=start_name.format(n_processes, protocol, workload, runs[run], proc)
             f = open(start_name.format(n_processes, protocol, workload, runs[run], proc), "r")
 #             f = open("../results-chiclet-7.lille.grid5000.fr-5010.txt", "r")
 
@@ -92,7 +91,7 @@ def parse_logs(start_name, n_processes, runs, protocol, workload):
                     msg_id = line[4]
 
                     if msg_id not in msg_deliver_per_run[run][proc]:
-                        msg_deliver_per_run[run][proc].append(msg_id)
+                        msg_deliver_per_run[run][proc].add(msg_id)
 
                         if not msg_deliver_time[run].get(msg_id):
                             msg_deliver_time[run][msg_id] = deliver_time_obj
@@ -111,7 +110,7 @@ def parse_logs(start_name, n_processes, runs, protocol, workload):
                     final_bytes_received = 0
 
                     if msg_id not in msg_exec_per_run[run][proc]:
-                        msg_exec_per_run[run][proc].append(msg_id)
+                        msg_exec_per_run[run][proc].add(msg_id)
 
                         if not msg_exec_time[run].get(msg_id):
                             msg_exec_time[run][msg_id] = exec_time_obj
@@ -297,7 +296,9 @@ def parse_logs(start_name, n_processes, runs, protocol, workload):
         avg_received_send_vc = received_send_vc / n_runs
         avg_received_sync_flood = received_sync_flood / n_runs
         avg_received_dupes_sync_flood = received_dupes_sync_flood / n_runs
-        return int(avg_broadcast_latency), int(avg_replication_latency), avg_bytes_received, avg_bytes_transmitted, avg_sent_vc, avg_sent_sync_ops, avg_received_vc, avg_received_sync_ops, avg_sent_flood, avg_sent_send_vc, avg_sent_sync_flood, avg_received_flood, avg_received_dupes_flood, avg_received_send_vc, avg_received_sync_flood, avg_received_dupes_sync_flood
+        return int(avg_broadcast_latency), int(avg_replication_latency), avg_bytes_received, avg_bytes_transmitted, \
+               avg_sent_vc, avg_sent_sync_ops, avg_received_vc, avg_received_sync_ops, avg_sent_flood, avg_sent_send_vc, \
+               avg_sent_sync_flood, avg_received_flood, avg_received_dupes_flood, avg_received_send_vc, avg_received_sync_flood, avg_received_dupes_sync_flood
 
     elif protocol == "periodicpull":
         avg_sent_sync_pull = sent_sync_pull / n_runs

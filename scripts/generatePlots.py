@@ -217,7 +217,7 @@ for prob in probs:
         # TOTAL DUPE MSGS
         total_dupes_plum[prob][node] = results[prob]["plumtree"][node][15] + results[prob]["plumtree"][node][21]
         total_dupes_flood[prob][node] = results[prob]["flood"][node][15] + results[prob]["flood"][node][12]
-        total_dupes_plum[prob][node] = results[prob]["periodicpull"][node][10]
+        total_dupes_pull[prob][node] = results[prob]["periodicpull"][node][10]
 
         # DUPES %
         percent_dupes_flood[prob][node] = (total_dupes_flood[prob][node] / total_received_flood[prob][node] ) * 100

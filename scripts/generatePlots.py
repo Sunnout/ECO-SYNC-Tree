@@ -24,7 +24,7 @@ def create_bytes_graph(probability, nbytes, grey_scale):
         rects1 = ax.bar(ind - width, [nbytes["plumtree"]["50"], nbytes["plumtree"]["100"], nbytes["plumtree"]["150"], nbytes["plumtree"]["200"]], width, color='black', edgecolor='black')
         rects2 = ax.bar(ind, [nbytes["flood"]["50"], nbytes["flood"]["100"], nbytes["flood"]["150"], nbytes["flood"]["200"]], width, color='white', edgecolor='black', hatch=patterns[0])
         rects3 = ax.bar(ind + width, [nbytes["periodicpull"]["50"], nbytes["periodicpull"]["100"], nbytes["periodicpull"]["150"], nbytes["periodicpull"]["200"]], width, color='white', edgecolor='black', hatch=patterns[1])
-        ax.legend((rects1[0], rects2[0], rects3[0]), ("Plumtree Causal", "Flood", "Pull Periódico"), fontsize='x-large')
+        ax.legend((rects1[0], rects2[0], rects3[0]), ("Plumtree Causal", "Inundação Causal", "Sincronização Periódica"), fontsize='x-large')
         plt.savefig('../plots/bytes_prob{}_grey.pdf'.format(probability), format='pdf')
     else:
         rects1 = ax.bar(ind - width, [nbytes["plumtree"]["50"], nbytes["plumtree"]["100"], nbytes["plumtree"]["150"],
@@ -35,7 +35,7 @@ def create_bytes_graph(probability, nbytes, grey_scale):
         rects3 = ax.bar(ind + width,
                         [nbytes["periodicpull"]["50"], nbytes["periodicpull"]["100"], nbytes["periodicpull"]["150"],
                          nbytes["periodicpull"]["200"]], width, color='#9400D3', edgecolor='black')
-        ax.legend((rects1[0], rects2[0], rects3[0]), ("Plumtree Causal", "Flood", "Pull Periódico"), fontsize='x-large')
+        ax.legend((rects1[0], rects2[0], rects3[0]), ("Plumtree Causal", "Inundação Causal", "Sincronização Periódica"), fontsize='x-large')
         plt.savefig('../plots/bytes_prob{}.pdf'.format(probability), format='pdf')
     plt.close(fig)
 
@@ -57,13 +57,13 @@ def create_latency_graph(probability, latency, grey_scale):
         rects1 = ax.bar(ind - width, [latency["plumtree"]["50"], latency["plumtree"]["100"], latency["plumtree"]["150"], latency["plumtree"]["200"]], width, color='black', edgecolor='black')
         rects2 = ax.bar(ind, [latency["flood"]["50"], latency["flood"]["100"], latency["flood"]["150"], latency["flood"]["200"]], width, color='white', edgecolor='black', hatch=patterns[0])
         rects3 = ax.bar(ind + width, [latency["periodicpull"]["50"], latency["periodicpull"]["100"], latency["periodicpull"]["150"], latency["periodicpull"]["200"]], width, color='white', edgecolor='black', hatch=patterns[1])
-        ax.legend((rects1[0], rects2[0], rects3[0]), ("Plumtree Causal", "Flood", "Pull Periódico"), fontsize='x-large')
+        ax.legend((rects1[0], rects2[0], rects3[0]), ("Plumtree Causal", "Inundação Causal", "Sincronização Periódica"), fontsize='x-large')
         plt.savefig('../plots/latency_prob{}_grey.pdf'.format(probability), format='pdf')
     else:
         rects1 = ax.bar(ind - width, [latency["plumtree"]["50"], latency["plumtree"]["100"], latency["plumtree"]["150"], latency["plumtree"]["200"]], width, color='#009E73', edgecolor='black')
         rects2 = ax.bar(ind, [latency["flood"]["50"], latency["flood"]["100"], latency["flood"]["150"], latency["flood"]["200"]], width, color='#E69F00', edgecolor='black')
         rects3 = ax.bar(ind + width, [latency["periodicpull"]["50"], latency["periodicpull"]["100"], latency["periodicpull"]["150"], latency["periodicpull"]["200"]], width, color='#9400D3', edgecolor='black')
-        ax.legend((rects1[0], rects2[0], rects3[0]), ("Plumtree Causal", "Flood", "Pull Periódico"), fontsize='x-large')
+        ax.legend((rects1[0], rects2[0], rects3[0]), ("Plumtree Causal", "Inundação Causal", "Sincronização Periódica"), fontsize='x-large')
         plt.savefig('../plots/latency_prob{}.pdf'.format(probability), format='pdf')
     plt.close(fig)
 
@@ -192,7 +192,7 @@ for prob in probs:
         for proto in protocols:
             # READ FILES
             results[prob][proto][node] = np.genfromtxt(
-                "../results/{}nodes_{}_{}prob_runs1.csv".format(node, proto, prob), delimiter=',')
+                "../results3Runs/{}nodes_{}_{}prob_runs123.csv".format(node, proto, prob), delimiter=',')
 
             # TOTAL BYTES
             total_bytes[prob][proto][node] = results[prob][proto][node][3]

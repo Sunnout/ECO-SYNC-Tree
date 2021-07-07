@@ -571,17 +571,21 @@ public class PlumTree extends GenericProtocol {
 
         for(ChannelMetrics.ConnectionMetrics c: event.getOutConnections()){
             bytesSent += c.getSentAppBytes();
+            bytesReceived += c.getReceivedAppBytes();
         }
 
         for(ChannelMetrics.ConnectionMetrics c: event.getOldOutConnections()){
             bytesSent += c.getSentAppBytes();
+            bytesReceived += c.getReceivedAppBytes();
         }
 
         for(ChannelMetrics.ConnectionMetrics c: event.getInConnections()){
+            bytesSent += c.getSentAppBytes();
             bytesReceived += c.getReceivedAppBytes();
         }
 
         for(ChannelMetrics.ConnectionMetrics c: event.getOldInConnections()){
+            bytesSent += c.getSentAppBytes();
             bytesReceived += c.getReceivedAppBytes();
         }
 

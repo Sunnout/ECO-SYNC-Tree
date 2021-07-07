@@ -78,7 +78,7 @@ def create_percent_dupes_graph(probability, plumtree, flood, pull, grey_scale):
     axes.set_ylim([None, 70])
     ax.tick_params(axis='both', which='major', labelsize='large')
     ax.tick_params(axis='both', which='minor', labelsize='large')
-    ax.set_title('Percentagem de Mensagens Duplicadas')
+    ax.set_title('Percentagem de Mensagens Duplicadas', fontsize='x-large')
     ax.set_xticks(ind + width / 2)
     ax.set_xticklabels(('50 nós', '100 nós', '150 nós', '200 nós'), fontsize='large')
     ax.yaxis.set_major_formatter(mtick.PercentFormatter())

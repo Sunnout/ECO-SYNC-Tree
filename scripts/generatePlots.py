@@ -44,13 +44,13 @@ def create_latency_graph(probability, latency, grey_scale):
     ind = np.arange(n)
     width = 0.2
 
-    fig = plt.figure(figsize=(8, 6))
+    fig = plt.figure()
     ax = fig.add_subplot(111)
     ax.tick_params(axis='both', which='major', labelsize='large')
     ax.tick_params(axis='both', which='minor', labelsize='large')
     ax.set_xticks(ind + width / 2)
     ax.set_xticklabels(('50 nós', '100 nós', '150 nós', '200 nós'), fontsize='large')
-    plt.ylabel('Latência Média de Difusão (ms)', fontsize='x-large')
+    plt.ylabel('Latência Média de Difusão (s)', fontsize='x-large')
 
     if grey_scale:
         rects1 = ax.bar(ind - width, [latency["plumtree"]["50"], latency["plumtree"]["100"], latency["plumtree"]["150"], latency["plumtree"]["200"]], width, color='black', edgecolor='black')
@@ -197,7 +197,7 @@ for prob in probs:
             total_bytes[prob][proto][node] = results[prob][proto][node][3]
 
             # AVG BCAST LATENCY
-            latency[prob][proto][node] = results[prob][proto][node][0]
+            latency[prob][proto][node] = results[prob][proto][node][0] / 1000
 
 for prob in probs:
     for node in nodes:

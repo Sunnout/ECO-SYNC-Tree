@@ -192,7 +192,7 @@ for prob in probs:
         for proto in protocols:
             # READ FILES
             results[prob][proto][node] = np.genfromtxt(
-                "../results/{}nodes_{}_{}prob_runs123.csv".format(node, proto, prob), delimiter=',')
+                "../results/{}nodes_{}_{}prob_runs1.csv".format(node, proto, prob), delimiter=',')
 
             # TOTAL BYTES
             total_bytes[prob][proto][node] = results[prob][proto][node][3]

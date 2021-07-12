@@ -177,8 +177,8 @@ public class PlumTree extends GenericProtocol {
         logger.info("RECEIVED {}", mid);
         triggerNotification(new DeliverNotification(mid, myself, content, false));
         logger.debug("Propagating my {} to {}", mid, eager);
-        GossipMessage msg = new GossipMessage(mid, myself, 0, content);
-        handleGossipMessage(msg, 0, myself);
+        GossipMessage msg = new GossipMessage(mid, myself, content);
+        handleGossipMessage(msg, myself);
     }
 
     private void uponVectorClock(VectorClockRequest request, short sourceProto) {
@@ -214,7 +214,7 @@ public class PlumTree extends GenericProtocol {
         if (!received.contains(mid)) {
             logger.info("RECEIVED {}", mid);
             triggerNotification(new DeliverNotification(mid, from, msg.getContent(), false));
-            handleGossipMessage(msg, msg.getRound() + 1, from);
+            handleGossipMessage(msg, from);
         } else {
             receivedDupesGossip++;
             logger.debug("{} was duplicated msg from {}", mid, from);
@@ -256,7 +256,7 @@ public class PlumTree extends GenericProtocol {
         receivedIHave++;
 
         logger.debug("Received {} from {}", msg, from);
-        handleAnnouncement(msg.getMid(), from, msg.getRound());
+        handleAnnouncement(msg.getMid(), from);
     }
 
     private void uponReceiveVectorClock(VectorClockMessage msg, Host from, short sourceProto, int channelId) {
@@ -294,7 +294,7 @@ public class PlumTree extends GenericProtocol {
                 logger.info("RECEIVED {}", mid);
                 triggerNotification(new DeliverNotification(mid, from, serOp, true));
                 logger.debug("Propagating sync op {} to {}", mid, eager);
-                handleGossipMessage(new GossipMessage(mid, from, 0, serOp), 0, from);
+                handleGossipMessage(new GossipMessage(mid, from, serOp), from);
             } else {
                 receivedDupesSyncGossip++;
             }
@@ -318,7 +318,7 @@ public class PlumTree extends GenericProtocol {
                 Host neighbour = msgSrc.peer;
                 if (partialView.contains(neighbour) && !neighbour.equals(currentPending) && !pending.contains(neighbour)) {
                     logger.debug("Sent GraftMessage for {} to {}", mid, neighbour);
-                    sendMessage(new GraftMessage(mid, msgSrc.round), neighbour);
+                    sendMessage(new GraftMessage(mid), neighbour);
                     sentGraft++;
                 }
                 logger.debug("Try sync with {} for timeout {}", neighbour, mid);
@@ -374,7 +374,7 @@ public class PlumTree extends GenericProtocol {
             logger.debug("Removed {} from pending due to down {}", neighbour, pending);
         }
 
-        MessageSource msgSrc = new MessageSource(neighbour, 0);
+        MessageSource msgSrc = new MessageSource(neighbour);
         for (Queue<MessageSource> iHaves : missing.values()) {
             iHaves.remove(msgSrc);
         }
@@ -482,7 +482,7 @@ public class PlumTree extends GenericProtocol {
         logger.debug("Sent {} to {}", msg, neighbour);
     }
 
-    private void handleGossipMessage(GossipMessage msg, int round, Host from) {
+    private void handleGossipMessage(GossipMessage msg, Host from) {
         if (buffering)
             this.bufferedOps.add(msg);
 
@@ -494,17 +494,17 @@ public class PlumTree extends GenericProtocol {
             cancelTimer(tid);
         }
 
-        eagerPush(msg, round, from);
-        lazyPush(msg, round, from);
+        eagerPush(msg, from);
+        lazyPush(msg, from);
     }
 
-    private void handleAnnouncement(UUID mid, Host from, int round) {
+    private void handleAnnouncement(UUID mid, Host from) {
         if (!received.contains(mid)) {
             if (!onGoingTimers.containsKey(mid)) {
                 long tid = setupTimer(new IHaveTimeout(mid), timeout1);
                 onGoingTimers.put(mid, tid);
             }
-            missing.computeIfAbsent(mid, v -> new LinkedList<>()).add(new MessageSource(from, round));
+            missing.computeIfAbsent(mid, v -> new LinkedList<>()).add(new MessageSource(from));
         }
     }
 
@@ -520,8 +520,7 @@ public class PlumTree extends GenericProtocol {
         }
     }
 
-    private void eagerPush(GossipMessage msg, int round, Host from) {
-        msg.setRound(round);
+    private void eagerPush(GossipMessage msg, Host from) {
         for (Host peer : eager) {
             if (!peer.equals(from)) {
                 sendMessage(msg, peer);
@@ -531,10 +530,10 @@ public class PlumTree extends GenericProtocol {
         }
     }
 
-    private void lazyPush(GossipMessage msg, int round, Host from) {
+    private void lazyPush(GossipMessage msg, Host from) {
         for (Host peer : lazy) {
             if (!peer.equals(from)) {
-                lazyQueue.add(new AddressedIHaveMessage(new IHaveMessage(msg.getMid(), round), peer));
+                lazyQueue.add(new AddressedIHaveMessage(new IHaveMessage(msg.getMid()), peer));
             }
         }
         dispatch();

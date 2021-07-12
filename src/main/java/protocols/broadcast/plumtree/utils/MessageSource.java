@@ -5,11 +5,9 @@ import pt.unl.fct.di.novasys.network.data.Host;
 public class MessageSource {
 
     public Host peer;
-    public int round;
 
-    public MessageSource(Host peer, int round) {
+    public MessageSource(Host peer) {
         this.peer = peer;
-        this.round = round;
     }
 
     @Override

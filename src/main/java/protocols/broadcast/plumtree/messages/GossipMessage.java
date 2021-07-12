@@ -14,7 +14,6 @@ public class GossipMessage extends ProtoMessage {
     private final UUID mid;
     private final Host sender;
     private final byte[] content;
-    private int round;
 
     @Override
     public String toString() {
@@ -24,27 +23,12 @@ public class GossipMessage extends ProtoMessage {
                 '}';
     }
 
-    public GossipMessage(UUID mid, Host sender, int round, byte[] content) {
+    public GossipMessage(UUID mid, Host sender, byte[] content) {
         super(MSG_ID);
         this.mid = mid;
         this.sender = sender;
-        this.round = round;
         this.content = content;
     }
-
-    public int getRound() {
-		return round;
-	}
-
-    public GossipMessage setRound(int round) {
-        this.round = round;
-        return this;
-    }
-    
-    public void incrementRound() {
-		this.round++;
-	}
-
 
 	public Host getSender() {
         return sender;
@@ -64,7 +48,6 @@ public class GossipMessage extends ProtoMessage {
             out.writeLong(plumtreeGossipMessage.mid.getMostSignificantBits());
             out.writeLong(plumtreeGossipMessage.mid.getLeastSignificantBits());
             Host.serializer.serialize(plumtreeGossipMessage.sender, out);
-            out.writeInt(plumtreeGossipMessage.round);
             out.writeInt(plumtreeGossipMessage.content.length);
             if (plumtreeGossipMessage.content.length > 0) {
                 out.writeBytes(plumtreeGossipMessage.content);
@@ -77,13 +60,12 @@ public class GossipMessage extends ProtoMessage {
             long secondLong = in.readLong();
             UUID mid = new UUID(firstLong, secondLong);
             Host sender = Host.serializer.deserialize(in);
-            int round = in.readInt();
             int size = in.readInt();
             byte[] content = new byte[size];
             if (size > 0)
                 in.readBytes(content);
 
-            return new GossipMessage(mid, sender, round, content);
+            return new GossipMessage(mid, sender, content);
         }
     };
 }

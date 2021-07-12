@@ -21,12 +21,12 @@ public class PruneMessage extends ProtoMessage {
 
     public static ISerializer<PruneMessage> serializer = new ISerializer<PruneMessage>() {
         @Override
-        public void serialize(PruneMessage pruneMessage, ByteBuf out) throws IOException {
+        public void serialize(PruneMessage pruneMessage, ByteBuf out) {
 
         }
 
         @Override
-        public PruneMessage deserialize(ByteBuf in) throws IOException {
+        public PruneMessage deserialize(ByteBuf in) {
             return new PruneMessage();
         }
     };

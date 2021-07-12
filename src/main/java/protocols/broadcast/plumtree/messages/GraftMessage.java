@@ -12,28 +12,21 @@ public class GraftMessage extends ProtoMessage {
     public static final short MSG_ID = 902;
 
     private final UUID mid;
-    private final int round;
 
     @Override
     public String toString() {
         return "GraftMessage{" +
                 "mid=" + mid +
-                ", round=" + round +
                 '}';
     }
 
-    public GraftMessage(UUID mid, int round) {
+    public GraftMessage(UUID mid) {
         super(MSG_ID);
         this.mid = mid;
-        this.round = round;
     }
 
     public UUID getMid() {
         return mid;
-    }
-
-    public int getRound() {
-        return round;
     }
 
     public static ISerializer<GraftMessage> serializer = new ISerializer<GraftMessage>() {
@@ -41,7 +34,6 @@ public class GraftMessage extends ProtoMessage {
         public void serialize(GraftMessage graftMessage, ByteBuf out) throws IOException {
             out.writeLong(graftMessage.mid.getMostSignificantBits());
             out.writeLong(graftMessage.mid.getLeastSignificantBits());
-            out.writeInt(graftMessage.round);
         }
 
         @Override
@@ -49,7 +41,7 @@ public class GraftMessage extends ProtoMessage {
             long firstLong = in.readLong();
             long secondLong = in.readLong();
             UUID mid = new UUID(firstLong, secondLong);
-            return new GraftMessage(mid, in.readInt());
+            return new GraftMessage(mid);
         }
     };
 }

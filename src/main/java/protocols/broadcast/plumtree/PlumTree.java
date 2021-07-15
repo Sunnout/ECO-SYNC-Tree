@@ -218,17 +218,54 @@ public class PlumTree extends GenericProtocol {
         } else {
             receivedDupesGossip++;
             logger.debug("{} was duplicated msg from {}", mid, from);
+            StringBuilder sb = new StringBuilder("VIS-DUPE: ");
+            boolean print = false;
+
             if (eager.remove(from)) {
                 logger.debug("Removed {} from eager due to duplicate {}", from, eager);
-
-                if (lazy.add(from)) {
-                    logger.debug("Added {} to lazy due to duplicate {}", from, lazy);
-                }
-
-                logger.debug("Sent PruneMessage to {}", from);
-                sendMessage(new PruneMessage(), from);
-                sentPrune++;
+                print = true;
+                sb.append(String.format("Removed %s from eager; ", from));
             }
+
+            if (pending.remove(from)) {
+                logger.debug("Removed {} from pending due to duplicate {}", from, pending);
+                print = true;
+                sb.append(String.format("Removed %s from pending; ", from));
+            }
+
+            if (from.equals(currentPending)) {
+                logger.debug("Removed {} from current pending due to duplicate", from);
+                print = true;
+                sb.append(String.format("Removed %s from currPending; ", from));
+                tryNextSync();
+            }
+
+            if (lazy.add(from)) {
+                logger.debug("Added {} to lazy due to duplicate {}", from, lazy);
+                print = true;
+                sb.append(String.format("Added %s to lazy; ", from));
+            }
+
+            logger.debug("Sent PruneMessage to {}", from);
+            sendMessage(new PruneMessage(), from);
+            sentPrune++;
+
+            if(print) {
+                sb.append(String.format("VIEWS: partialView %s eager %s lazy %s currPending %s pending %s", partialView, eager, lazy, currentPending, pending));
+                logger.info(sb);
+            }
+
+//            if (eager.remove(from)) {
+//                logger.debug("Removed {} from eager due to duplicate {}", from, eager);
+//
+//                if (lazy.add(from)) {
+//                    logger.debug("Added {} to lazy due to duplicate {}", from, lazy);
+//                }
+//
+//                logger.debug("Sent PruneMessage to {}", from);
+//                sendMessage(new PruneMessage(), from);
+//                sentPrune++;
+//            }
         }
     }
 
@@ -236,12 +273,19 @@ public class PlumTree extends GenericProtocol {
         receivedPrune++;
 
         logger.debug("Received {} from {}", msg, from);
+        StringBuilder sb = new StringBuilder("VIS-PRUNE: ");
+
         if (eager.remove(from)) {
             logger.debug("Removed {} from eager due to prune {}", from, eager);
+            sb.append(String.format("Removed %s from eager; ", from));
 
             if (lazy.add(from)) {
                 logger.debug("Added {} to lazy due to prune {}", from, lazy);
+                sb.append(String.format("Added %s to lazy; ", from));
             }
+
+            sb.append(String.format("VIEWS: partialView %s eager %s lazy %s currPending %s pending %s", partialView, eager, lazy, currentPending, pending));
+            logger.info(sb);
         }
     }
 
@@ -296,6 +340,7 @@ public class PlumTree extends GenericProtocol {
                 logger.debug("Propagating sync op {} to {}", mid, eager);
                 handleGossipMessage(new GossipMessage(mid, from, serOp), from);
             } else {
+                logger.debug("Sync op {} was dupe", mid);
                 receivedDupesSyncGossip++;
             }
         }
@@ -345,8 +390,13 @@ public class PlumTree extends GenericProtocol {
         Host tmp = notification.getNeighbour();
         Host neighbour = new Host(tmp.getAddress(), tmp.getPort() + PORT_MAPPING);
 
+        StringBuilder sb = new StringBuilder("VIS-NEIGHUP: ");
+
         if (partialView.add(neighbour)) {
             logger.debug("Added {} to partial view due to up {}", neighbour, partialView);
+            sb.append(String.format("Added %s to partialView; ", neighbour));
+            sb.append(String.format("VIEWS: partialView %s eager %s lazy %s currPending %s pending %s", partialView, eager, lazy, currentPending, pending));
+            logger.info(sb);
         } else {
             logger.error("Tried to add {} to partial view but is already there {}", neighbour, partialView);
         }
@@ -358,20 +408,31 @@ public class PlumTree extends GenericProtocol {
         Host tmp = notification.getNeighbour();
         Host neighbour = new Host(tmp.getAddress(), tmp.getPort() + PORT_MAPPING);
 
+        StringBuilder sb = new StringBuilder("VIS-NEIGHDOWN: ");
+        boolean print = false;
+
         if (partialView.remove(neighbour)) {
             logger.debug("Removed {} from partial view due to down {}", neighbour, partialView);
+            print = true;
+            sb.append(String.format("Removed %s from partialView; ", neighbour));
         }
 
         if (eager.remove(neighbour)) {
             logger.debug("Removed {} from eager due to down {}", neighbour, eager);
+            print = true;
+            sb.append(String.format("Removed %s from eager; ", neighbour));
         }
 
         if (lazy.remove(neighbour)) {
             logger.debug("Removed {} from lazy due to down {}", neighbour, lazy);
+            print = true;
+            sb.append(String.format("Removed %s from lazy; ", neighbour));
         }
 
         if (pending.remove(neighbour)) {
             logger.debug("Removed {} from pending due to down {}", neighbour, pending);
+            print = true;
+            sb.append(String.format("Removed %s from pending; ", neighbour));
         }
 
         MessageSource msgSrc = new MessageSource(neighbour);
@@ -381,8 +442,16 @@ public class PlumTree extends GenericProtocol {
 
         if (neighbour.equals(currentPending)) {
             logger.debug("Removed {} from current pending due to down", neighbour);
+            print = true;
+            sb.append(String.format("Removed %s from currPending; ", neighbour));
             tryNextSync();
         }
+
+        if(print) {
+            sb.append(String.format("VIEWS: partialView %s eager %s lazy %s currPending %s pending %s", partialView, eager, lazy, currentPending, pending));
+            logger.info(sb);
+        }
+
         closeConnection(neighbour);
     }
 
@@ -393,21 +462,37 @@ public class PlumTree extends GenericProtocol {
         Host host = event.getNode();
         logger.trace("Host {} is down, cause: {}", host, event.getCause());
 
+        StringBuilder sb = new StringBuilder("VIS-CONNDOWN: ");
+        boolean print = false;
+
         if (eager.remove(host)) {
             logger.debug("Removed {} from eager due to plumtree down {}", host, eager);
+            print = true;
+            sb.append(String.format("Removed %s from eager; ", host));
         }
 
         if (lazy.remove(host)) {
             logger.debug("Removed {} from lazy due to plumtree down {}", host, lazy);
+            print = true;
+            sb.append(String.format("Removed %s from lazy; ", host));
         }
 
         if (pending.remove(host)) {
             logger.debug("Removed {} from pending due to plumtree down {}", host, pending);
+            print = true;
+            sb.append(String.format("Removed %s from pending; ", host));
         }
 
         if (host.equals(currentPending)) {
             logger.debug("Removed {} from current pending due to plumtree down", host);
+            print = true;
+            sb.append(String.format("Removed %s from currPending; ", host));
             tryNextSync();
+        }
+
+        if(print) {
+            sb.append(String.format("VIEWS: partialView %s eager %s lazy %s currPending %s pending %s", partialView, eager, lazy, currentPending, pending));
+            logger.info(sb);
         }
 
         if(partialView.contains(host)) {
@@ -444,35 +529,59 @@ public class PlumTree extends GenericProtocol {
     /*--------------------------------- Procedures ---------------------------------------- */
 
     private void startSynchronization(Host neighbour, boolean neighUp) {
+        StringBuilder sb = new StringBuilder("VIS-STARTSYNC: ");
+
         if (neighUp || (lazy.contains(neighbour) && !neighbour.equals(currentPending) && !pending.contains(neighbour))) {
             if (currentPending == null) {
                 currentPending = neighbour;
                 logger.debug("{} is my currentPending start", neighbour);
+                sb.append(String.format("Added %s to currPending; ", neighbour));
                 requestVectorClock(currentPending);
             } else {
                 pending.add(neighbour);
                 logger.debug("Added {} to pending {}", neighbour, pending);
+                sb.append(String.format("Added %s to pending; ", neighbour));
             }
+            sb.append(String.format("VIEWS: partialView %s eager %s lazy %s currPending %s pending %s", partialView, eager, lazy, currentPending, pending));
+            logger.info(sb);
         }
     }
 
     private void addPendingToEager() {
+        StringBuilder sb = new StringBuilder("VIS-ENDSYNC: ");
+        boolean print = false;
+
         if (eager.add(currentPending)) {
             logger.debug("Added {} to eager {} : pending list {}", currentPending, eager, pending);
+            print = true;
+            sb.append(String.format("Added %s to eager; ", currentPending));
         }
 
         if (lazy.remove(currentPending)) {
             logger.debug("Removed {} from lazy due to sync {}", currentPending, lazy);
+            print = true;
+            sb.append(String.format("Removed %s from lazy; ", currentPending));
         }
+
+        if(print) {
+            sb.append(String.format("VIEWS: partialView %s eager %s lazy %s currPending %s pending %s", partialView, eager, lazy, currentPending, pending));
+            logger.info(sb);
+        }
+
         tryNextSync();
     }
 
     private void tryNextSync() {
+        StringBuilder sb = new StringBuilder("VIS-NEXTSYNC: ");
+        sb.append(String.format("Removed %s from currPending; ", currentPending));
         currentPending = pending.poll();
         if (currentPending != null) {
             logger.debug("{} is my currentPending try", currentPending);
+            sb.append(String.format("Added %s to currPending; ", currentPending));
             requestVectorClock(currentPending);
         }
+        sb.append(String.format("VIEWS: partialView %s eager %s lazy %s currPending %s pending %s", partialView, eager, lazy, currentPending, pending));
+        logger.info(sb);
     }
 
     private void requestVectorClock(Host neighbour) {

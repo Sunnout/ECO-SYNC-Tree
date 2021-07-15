@@ -115,6 +115,8 @@ buildNumber.properties
 ### Folder for logs
 results(bytes)/
 results3Runs/
+resultsForDupes/
+
 
 ### Folder for list of causally ordered ops
 data/

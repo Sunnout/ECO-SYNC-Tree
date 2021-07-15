@@ -191,8 +191,12 @@ for prob in probs:
     for node in nodes:
         for proto in protocols:
             # READ FILES
-            results[prob][proto][node] = np.genfromtxt(
-                "../results3Runs/{}nodes_{}_{}prob_runs123.csv".format(node, proto, prob), delimiter=',')
+            if proto == "plumtree" and (node == "50" or node == "100"):
+                results[prob][proto][node] = np.genfromtxt(
+                    "../resultsForDupes/{}nodes_{}_{}prob_runs1.csv".format(node, proto, prob), delimiter=',')
+            else:
+                results[prob][proto][node] = np.genfromtxt(
+                "../resultsForDupes/{}nodes_{}_{}prob_runs123.csv".format(node, proto, prob), delimiter=',')
 
             # TOTAL BYTES
             total_bytes[prob][proto][node] = results[prob][proto][node][3]

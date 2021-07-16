@@ -408,7 +408,6 @@ public class PlumTree extends GenericProtocol {
 
         if (partialView.remove(neighbour)) {
             logger.debug("Removed {} from partial view due to down {}", neighbour, partialView);
-            print = true;
         }
 
         if (eager.remove(neighbour)) {
@@ -567,10 +566,10 @@ public class PlumTree extends GenericProtocol {
             logger.debug("{} is my currentPending try", currentPending);
             sb.append(String.format("Removed %s from pending; ", currentPending));
             sb.append(String.format("Added %s to currPending; ", currentPending));
+            sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s", eager, lazy, currentPending, pending));
+            logger.info(sb);
             requestVectorClock(currentPending);
         }
-        sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s", eager, lazy, currentPending, pending));
-        logger.info(sb);
     }
 
     private void requestVectorClock(Host neighbour) {

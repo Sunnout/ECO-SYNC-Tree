@@ -222,11 +222,11 @@ public class PlumTree extends GenericProtocol {
             handleGossipMessage(msg, from);
         } else {
             receivedDupesGossip++;
+            logger.info("DUPLICATE");
             logger.debug("{} was duplicated msg from {}", mid, from);
             StringBuilder sb = new StringBuilder("VIS-DUPE: ");
             boolean print = false;
 
-            //COMENTAR DAQUI
             if (eager.remove(from)) {
                 logger.debug("Removed {} from eager due to duplicate {}", from, eager);
                 print = true;
@@ -260,25 +260,6 @@ public class PlumTree extends GenericProtocol {
                 sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s", eager, lazy, currentPendingInfo.getLeft(), pending));
                 logger.info(sb);
             }
-            //ATÉ AQUI
-
-//            if (eager.remove(from)) {
-//                logger.debug("Removed {} from eager due to duplicate {}", from, eager);
-//                sb.append(String.format("Removed %s from eager; ", from));
-//
-//                if (lazy.add(from)) {
-//                    logger.debug("Added {} to lazy due to duplicate {}", from, lazy);
-//                    sb.append(String.format("Added %s to lazy; ", from));
-//                }
-//
-//                sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s", eager, lazy, currentPending, pending));
-//                logger.info(sb);
-//
-//                logger.debug("Sent PruneMessage to {}", from);
-//                sendMessage(new PruneMessage(), from);
-//                sentPrune++;
-//            }
-
         }
     }
 
@@ -354,6 +335,7 @@ public class PlumTree extends GenericProtocol {
                 logger.debug("Propagating sync op {} to {}", mid, eager);
                 handleGossipMessage(new GossipMessage(mid, from, serOp), from);
             } else {
+                logger.info("DUPLICATE");
                 logger.debug("Sync op {} was dupe", mid);
                 receivedDupesSyncGossip++;
             }

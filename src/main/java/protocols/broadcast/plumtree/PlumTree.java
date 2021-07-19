@@ -173,6 +173,8 @@ public class PlumTree extends GenericProtocol {
     /*--------------------------------- Requests ---------------------------------------- */
 
     private void uponBroadcast(BroadcastRequest request, short sourceProto) {
+        receivedGossip++;
+
         UUID mid = request.getMsgId();
         byte[] content = request.getMsg();
         logger.info("SENT {}", mid);

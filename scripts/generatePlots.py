@@ -141,7 +141,7 @@ protocols = protocols.split(",")
 results = {}
 total_bytes = {}
 latency = {}
-received_mine_plum = {}
+# received_mine_plum = {}
 total_received_plum = {}
 total_received_flood = {}
 total_received_pull = {}
@@ -156,7 +156,7 @@ for prob in probs:
     results[prob] = {}
     total_bytes[prob] = {}
     latency[prob] = {}
-    received_mine_plum[prob] = {}
+#     received_mine_plum[prob] = {}
     total_received_plum[prob] = {}
     total_received_flood[prob] = {}
     total_received_pull[prob] = {}
@@ -175,7 +175,7 @@ for prob in probs:
             results[prob][proto][node] = 0
             total_bytes[prob][proto][node] = 0
             latency[prob][proto][node] = 0
-            received_mine_plum[prob][node] = 0
+#             received_mine_plum[prob][node] = 0
             total_received_plum[prob][node] = 0
             total_received_flood[prob][node] = 0
             total_received_pull[prob][node] = 0
@@ -207,14 +207,15 @@ for prob in probs:
 for prob in probs:
     for node in nodes:
 
+#             received_mine_plum[prob][node] = results[prob]["plumtree"][node][8] - (results[prob]["plumtree"][node][20] -
+#                                                                                    results[prob]["plumtree"][node][21]) - (
+#                                                      results[prob]["plumtree"][node][14] -
+#                                                      results[prob]["plumtree"][node][15])
+#             total_received_plum[prob][node] = received_mine_plum[prob][node] + results[prob]["plumtree"][node][20] + \
+#                                               results[prob]["plumtree"][node][14]
         if "plumtree" in protocols:
             #PLUM
-            received_mine_plum[prob][node] = results[prob]["plumtree"][node][8] - (results[prob]["plumtree"][node][20] -
-                                                                                   results[prob]["plumtree"][node][21]) - (
-                                                     results[prob]["plumtree"][node][14] -
-                                                     results[prob]["plumtree"][node][15])
-            total_received_plum[prob][node] = received_mine_plum[prob][node] + results[prob]["plumtree"][node][20] + \
-                                              results[prob]["plumtree"][node][14]
+            total_received_plum[prob][node] = results[prob]["plumtree"][node][20] + results[prob]["plumtree"][node][14]
             total_dupes_plum[prob][node] = results[prob]["plumtree"][node][15] + results[prob]["plumtree"][node][21]
             percent_dupes_plum[prob][node] = (total_dupes_plum[prob][node] / total_received_plum[prob][node]) * 100
 

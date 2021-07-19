@@ -219,9 +219,6 @@ for prob in probs:
             total_dupes_plum[prob][node] = results[prob]["plumtree"][node][15] + results[prob]["plumtree"][node][21]
             percent_dupes_plum[prob][node] = (total_dupes_plum[prob][node] / total_received_plum[prob][node]) * 100
 
-            print(total_dupes_plum)
-            print(percent_dupes_plum)
-
         if "flood" in protocols:
             #FLOOD
             total_received_flood[prob][node] = results[prob]["flood"][node][11] + results[prob]["flood"][node][14]

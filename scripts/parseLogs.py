@@ -1,7 +1,7 @@
 import os
 import datetime as dt
 
-def parse_logs(start_name, n_processes, runs, protocol, workload):
+def parse_logs(start_name, n_processes, runs, protocol, probability, interval):
     n_runs=len(runs)
     i = 0
     for i in range(len(runs)):
@@ -72,7 +72,7 @@ def parse_logs(start_name, n_processes, runs, protocol, workload):
     for proc in range(n_processes):
         progressBar(proc, n_processes)
         for run in range(n_runs):
-            f = open(start_name.format(n_processes, protocol, workload, runs[run], proc), "r")
+            f = open(start_name.format(n_processes, protocol, probability, runs[run], proc), "r")
 #             f = open("../results-chiclet-7.lille.grid5000.fr-5010.txt", "r")
 
             final_bytes_transmitted = 0
@@ -80,6 +80,7 @@ def parse_logs(start_name, n_processes, runs, protocol, workload):
 
             for i in f:
                 line = i.split(" ")
+                #guardar start time da exp se for 1º linha do 1º ficheiro e depois usar interval para acumular dupes
 
                 #LATENCY
                 if line[3] == "SENT":

@@ -222,7 +222,7 @@ public class PlumTree extends GenericProtocol {
             handleGossipMessage(msg, from);
         } else {
             receivedDupesGossip++;
-            logger.info("DUPLICATE");
+            logger.info("DUPLICATE from {}", from);
             logger.debug("{} was duplicated msg from {}", mid, from);
             StringBuilder sb = new StringBuilder("VIS-DUPE: ");
             boolean print = false;
@@ -335,7 +335,7 @@ public class PlumTree extends GenericProtocol {
                 logger.debug("Propagating sync op {} to {}", mid, eager);
                 handleGossipMessage(new GossipMessage(mid, from, serOp), from);
             } else {
-                logger.info("DUPLICATE");
+                logger.info("DUPLICATE from {}", from);
                 logger.debug("Sync op {} was dupe", mid);
                 receivedDupesSyncGossip++;
             }

@@ -2,6 +2,7 @@ package protocols.broadcast.periodicpull;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import protocols.broadcast.common.messages.SyncOpsMessage;
@@ -42,7 +43,7 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
     private final Set<Host> partialView;
     private final Set<Host> neighbours;
     private final Set<UUID> received;
-    private Host currentPending;
+    private Pair<Host, UUID> currentPendingInfo;
     private long startTime;
 
     private final Random rnd;
@@ -71,7 +72,7 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
         this.partialView = new HashSet<>();
         this.neighbours = new HashSet<>();
         this.received = new HashSet<>();
-        this.currentPending = null;
+        this.currentPendingInfo = Pair.of(null, null);
         this.startTime = 0;
 
         this.rnd = new Random();
@@ -141,6 +142,10 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
 
     private void uponVectorClock(VectorClockRequest request, short sourceProto) {
         Host neighbour = request.getTo();
+        Pair<Host, UUID> info = Pair.of(neighbour, request.getMsgId());
+        if (!info.equals(currentPendingInfo))
+            return;
+
         VectorClockMessage msg = new VectorClockMessage(request.getMsgId(), request.getSender(), request.getVectorClock());
         sendMessage(msg, neighbour);
         sentVC++;
@@ -163,11 +168,15 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
         receivedVC++;
 
         logger.debug("Received {} from {}", msg, from);
-        triggerNotification(new VectorClockNotification(msg.getSender(), msg.getVectorClock()));
+        triggerNotification(new VectorClockNotification(msg.getMid(), msg.getSender(), msg.getVectorClock()));
     }
 
     private void uponReceiveSyncOps(SyncOpsMessage msg, Host from, short sourceProto, int channelId) {
         receivedSyncOps++;
+
+        Pair<Host, UUID> info = Pair.of(from, msg.getMid());
+        if (!info.equals(currentPendingInfo))
+            return;
 
         Iterator<byte[]> opIt = msg.getOperations().iterator();
         Iterator<byte[]> idIt = msg.getIds().iterator();
@@ -183,7 +192,7 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
         long timeout = pullTimeout - (System.currentTimeMillis() - this.startTime);
         if(timeout < 0)
             timeout = 0;
-        currentPending = null;
+        this.currentPendingInfo = Pair.of(null, null);
         setupTimer(new PeriodicPullTimeout(), timeout);
     }
 
@@ -207,9 +216,10 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
     private void uponPeriodicPullTimeout(PeriodicPullTimeout timeout, long timerId) {
         Host h = getRandomNeighbour();
         if(h != null) {
-            this.currentPending = h;
+            UUID currentPendingID = UUID.randomUUID();
+            this.currentPendingInfo = Pair.of(h, currentPendingID);
             logger.debug("Pulling from {}", h);
-            triggerNotification(new SendVectorClockNotification(h));
+            triggerNotification(new SendVectorClockNotification(currentPendingID, h));
             this.startTime = System.currentTimeMillis();
         } else
             setupTimer(new PeriodicPullTimeout(), pullTimeout);
@@ -245,8 +255,8 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
 
         closeConnection(neighbour);
 
-        if(neighbour.equals(currentPending)) {
-            currentPending = null;
+        if(neighbour.equals(currentPendingInfo.getLeft())) {
+            this.currentPendingInfo = Pair.of(null, null);
             setupTimer(new PeriodicPullTimeout(), pullTimeout);
         }
     }

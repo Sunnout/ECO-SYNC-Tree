@@ -2,6 +2,7 @@ package protocols.broadcast.plumtree;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import protocols.broadcast.common.messages.SendVectorClockMessage;
@@ -50,7 +51,7 @@ public class PlumTree extends GenericProtocol {
     private final Set<Host> eager;
     private final Set<Host> lazy;
     private final Queue<Host> pending;
-    private Host currentPending;
+    private Pair<Host, UUID> currentPendingInfo;
     private final Queue<GossipMessage> bufferedOps; //Buffer ops received between sending vc to kernel and sending sync ops (and send them after)
     private boolean buffering; //To know if we are between sending vc to kernel and sending ops to neighbour
     private final Map<UUID, Queue<MessageSource>> missing;
@@ -96,6 +97,7 @@ public class PlumTree extends GenericProtocol {
         this.eager = new HashSet<>();
         this.lazy = new HashSet<>();
         this.pending = new LinkedList<>();
+        this.currentPendingInfo = Pair.of(null, null);
         this.bufferedOps = new LinkedList<>();
         this.buffering = false;
         this.missing = new HashMap<>();
@@ -191,7 +193,8 @@ public class PlumTree extends GenericProtocol {
 
     private void uponSyncOps(SyncOpsRequest request, short sourceProto) {
         Host neighbour = request.getTo();
-        if (!neighbour.equals(currentPending))
+        Pair<Host, UUID> info = Pair.of(neighbour, request.getMsgId());
+        if (!info.equals(currentPendingInfo))
             return;
 
         SyncOpsMessage msg = new SyncOpsMessage(request.getMsgId(), request.getIds(), request.getOperations());
@@ -234,7 +237,7 @@ public class PlumTree extends GenericProtocol {
                 sb.append(String.format("Removed %s from pending; ", from));
             }
 
-            if (from.equals(currentPending)) {
+            if (from.equals(currentPendingInfo.getLeft())) {
                 logger.debug("Removed {} from current pending due to duplicate", from);
                 print = true;
                 sb.append(String.format("Removed %s from currPending; ", from));
@@ -252,7 +255,7 @@ public class PlumTree extends GenericProtocol {
             sentPrune++;
 
             if(print) {
-                sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s", eager, lazy, currentPending, pending));
+                sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s", eager, lazy, currentPendingInfo.getLeft(), pending));
                 logger.info(sb);
             }
             //ATÉ AQUI
@@ -292,7 +295,7 @@ public class PlumTree extends GenericProtocol {
                 sb.append(String.format("Added %s to lazy; ", from));
             }
 
-            sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s", eager, lazy, currentPending, pending));
+            sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s", eager, lazy, currentPendingInfo.getLeft(), pending));
             logger.info(sb);
         }
     }
@@ -311,21 +314,22 @@ public class PlumTree extends GenericProtocol {
         handleAnnouncement(msg.getMid(), from);
     }
 
-    private void uponReceiveVectorClock(VectorClockMessage msg, Host from, short sourceProto, int channelId) {
+    private void uponReceiveVectorClock(VectorClockMessage msg, Host from, short sourceProto, int channelId) { //TODO: id = vc
         receivedVC++;
 
         logger.debug("Received {} from {}", msg, from);
-        if (!from.equals(currentPending))
+        Pair<Host, UUID> info = Pair.of(from, msg.getMid());
+        if (!info.equals(currentPendingInfo))
             return;
         this.buffering = true;
-        triggerNotification(new VectorClockNotification(msg.getSender(), msg.getVectorClock()));
+        triggerNotification(new VectorClockNotification(msg.getMid(), msg.getSender(), msg.getVectorClock()));
     }
 
     private void uponReceiveSendVectorClock(SendVectorClockMessage msg, Host from, short sourceProto, int channelId) {
         receivedSendVC++;
 
         logger.debug("Received {} from {}", msg, from);
-        triggerNotification(new SendVectorClockNotification(from));
+        triggerNotification(new SendVectorClockNotification(msg.getMid(), from));
     }
 
     private void uponReceiveSyncOps(SyncOpsMessage msg, Host from, short sourceProto, int channelId) {
@@ -369,7 +373,7 @@ public class PlumTree extends GenericProtocol {
                 long tid = setupTimer(timeout, timeout2);
                 onGoingTimers.put(mid, tid);
                 Host neighbour = msgSrc.peer;
-                if (partialView.contains(neighbour) && !neighbour.equals(currentPending) && !pending.contains(neighbour)) {
+                if (partialView.contains(neighbour) && !neighbour.equals(currentPendingInfo.getLeft()) && !pending.contains(neighbour)) {
                     logger.debug("Sent GraftMessage for {} to {}", mid, neighbour);
                     sendMessage(new GraftMessage(mid), neighbour);
                     sentGraft++;
@@ -441,7 +445,7 @@ public class PlumTree extends GenericProtocol {
             iHaves.remove(msgSrc);
         }
 
-        if (neighbour.equals(currentPending)) {
+        if (neighbour.equals(currentPendingInfo.getLeft())) {
             logger.debug("Removed {} from current pending due to down", neighbour);
             print = true;
             sb.append(String.format("Removed %s from currPending; ", neighbour));
@@ -449,7 +453,7 @@ public class PlumTree extends GenericProtocol {
         }
 
         if(print) {
-            sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s", eager, lazy, currentPending, pending));
+            sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s", eager, lazy, currentPendingInfo.getLeft(), pending));
             logger.info(sb);
         }
 
@@ -484,7 +488,7 @@ public class PlumTree extends GenericProtocol {
             sb.append(String.format("Removed %s from pending; ", host));
         }
 
-        if (host.equals(currentPending)) {
+        if (host.equals(currentPendingInfo.getLeft())) {
             logger.debug("Removed {} from current pending due to plumtree down", host);
             print = true;
             sb.append(String.format("Removed %s from currPending; ", host));
@@ -492,7 +496,7 @@ public class PlumTree extends GenericProtocol {
         }
 
         if(print) {
-            sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s", eager, lazy, currentPending, pending));
+            sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s", eager, lazy, currentPendingInfo.getLeft(), pending));
             logger.info(sb);
         }
 
@@ -532,18 +536,24 @@ public class PlumTree extends GenericProtocol {
     private void startSynchronization(Host neighbour, boolean neighUp) {
         StringBuilder sb = new StringBuilder("VIS-STARTSYNC: ");
 
+        Host currentPending = currentPendingInfo.getLeft();
         if (neighUp || (lazy.contains(neighbour) && !neighbour.equals(currentPending) && !pending.contains(neighbour))) {
             if (currentPending == null) {
                 currentPending = neighbour;
+                UUID currentPendingID = UUID.randomUUID();
+                currentPendingInfo = Pair.of(currentPending, currentPendingID);
                 logger.debug("{} is my currentPending start", neighbour);
-                sb.append(String.format("Added %s to currPending; ", neighbour));
-                requestVectorClock(currentPending);
+                sb.append(String.format("Added %s to currPending; ", currentPending));
+                SendVectorClockMessage msg = new SendVectorClockMessage(currentPendingID);
+                sendMessage(msg, currentPending);
+                sentSendVC++;
+                logger.debug("Sent {} to {}", msg, neighbour);
             } else {
                 pending.add(neighbour);
                 logger.debug("Added {} to pending {}", neighbour, pending);
                 sb.append(String.format("Added %s to pending; ", neighbour));
             }
-            sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s", eager, lazy, currentPending, pending));
+            sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s", eager, lazy, currentPendingInfo.getLeft(), pending));
             logger.info(sb);
         }
     }
@@ -551,6 +561,7 @@ public class PlumTree extends GenericProtocol {
     private void addPendingToEager() {
         StringBuilder sb = new StringBuilder("VIS-ENDSYNC: ");
 
+        Host currentPending = currentPendingInfo.getLeft();
         if (eager.add(currentPending)) {
             logger.debug("Added {} to eager {} : pending list {}", currentPending, eager, pending);
             sb.append(String.format("Added %s to eager; ", currentPending));
@@ -562,29 +573,33 @@ public class PlumTree extends GenericProtocol {
         }
 
         sb.append(String.format("Removed %s from currPending; ", currentPending));
-        sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s", eager, lazy, currentPending, pending));
+        sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s", eager, lazy, currentPendingInfo.getLeft(), pending));
         logger.info(sb);
         tryNextSync();
     }
 
     private void tryNextSync() {
+        //To prevent dupes when sync is aborted midway
+        this.buffering = false;
+        this.bufferedOps.clear();
+
         StringBuilder sb = new StringBuilder("VIS-NEXTSYNC: ");
-        currentPending = pending.poll();
+        Host currentPending = pending.poll();
         if (currentPending != null) {
+            UUID currentPendingID = UUID.randomUUID();
+            currentPendingInfo = Pair.of(currentPending, currentPendingID);
             logger.debug("{} is my currentPending try", currentPending);
             sb.append(String.format("Removed %s from pending; ", currentPending));
             sb.append(String.format("Added %s to currPending; ", currentPending));
-            sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s", eager, lazy, currentPending, pending));
+            sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s", eager, lazy, currentPendingInfo.getLeft(), pending));
             logger.info(sb);
-            requestVectorClock(currentPending);
+            SendVectorClockMessage msg = new SendVectorClockMessage(currentPendingID);
+            sendMessage(msg, currentPending);
+            sentSendVC++;
+            logger.debug("Sent {} to {}", msg, currentPending);
+        } else {
+            currentPendingInfo = Pair.of(null, null);
         }
-    }
-
-    private void requestVectorClock(Host neighbour) {
-        SendVectorClockMessage msg = new SendVectorClockMessage(UUID.randomUUID());
-        sendMessage(msg, neighbour);
-        sentSendVC++;
-        logger.debug("Sent {} to {}", msg, neighbour);
     }
 
     private void handleGossipMessage(GossipMessage msg, Host from) {

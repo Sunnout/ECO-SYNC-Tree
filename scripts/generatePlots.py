@@ -191,7 +191,7 @@ for prob in probs:
     for node in nodes:
         for proto in protocols:
             # READ FILES
-            if proto == "plumtree" and (node == "50" or node == "100"):
+            if proto == "plumtree" and node == "50":
                 results[prob][proto][node] = np.genfromtxt(
                     "../resultsForDupes/{}nodes_{}_{}prob_runs1.csv".format(node, proto, prob), delimiter=',')
             else:
@@ -206,27 +206,33 @@ for prob in probs:
 
 for prob in probs:
     for node in nodes:
-        # MSGS RECEIVED MINE PLUM
-        received_mine_plum[prob][node] = results[prob]["plumtree"][node][8] - (results[prob]["plumtree"][node][20] -
-                                                                               results[prob]["plumtree"][node][21]) - (
-                                                 results[prob]["plumtree"][node][14] -
-                                                 results[prob]["plumtree"][node][15])
 
-        # TOTAL MSGS RECEIVED
-        total_received_plum[prob][node] = received_mine_plum[prob][node] + results[prob]["plumtree"][node][20] + \
-                                          results[prob]["plumtree"][node][14]
-        total_received_flood[prob][node] = results[prob]["flood"][node][11] + results[prob]["flood"][node][14]
-        total_received_pull[prob][node] = results[prob]["periodicpull"][node][9]
+        if "plumtree" in protocols:
+            #PLUM
+            received_mine_plum[prob][node] = results[prob]["plumtree"][node][8] - (results[prob]["plumtree"][node][20] -
+                                                                                   results[prob]["plumtree"][node][21]) - (
+                                                     results[prob]["plumtree"][node][14] -
+                                                     results[prob]["plumtree"][node][15])
+            total_received_plum[prob][node] = received_mine_plum[prob][node] + results[prob]["plumtree"][node][20] + \
+                                              results[prob]["plumtree"][node][14]
+            total_dupes_plum[prob][node] = results[prob]["plumtree"][node][15] + results[prob]["plumtree"][node][21]
+            percent_dupes_plum[prob][node] = (total_dupes_plum[prob][node] / total_received_plum[prob][node]) * 100
 
-        # TOTAL DUPE MSGS
-        total_dupes_plum[prob][node] = results[prob]["plumtree"][node][15] + results[prob]["plumtree"][node][21]
-        total_dupes_flood[prob][node] = results[prob]["flood"][node][15] + results[prob]["flood"][node][12]
-        total_dupes_pull[prob][node] = results[prob]["periodicpull"][node][10]
+            print(total_dupes_plum)
+            print(percent_dupes_plum)
 
-        # DUPES %
-        percent_dupes_flood[prob][node] = (total_dupes_flood[prob][node] / total_received_flood[prob][node] ) * 100
-        percent_dupes_pull[prob][node] = (total_dupes_pull[prob][node] / total_received_pull[prob][node]) * 100
-        percent_dupes_plum[prob][node] = (total_dupes_plum[prob][node] / total_received_plum[prob][node]) * 100
+        if "flood" in protocols:
+            #FLOOD
+            total_received_flood[prob][node] = results[prob]["flood"][node][11] + results[prob]["flood"][node][14]
+            total_dupes_flood[prob][node] = results[prob]["flood"][node][15] + results[prob]["flood"][node][12]
+            percent_dupes_flood[prob][node] = (total_dupes_flood[prob][node] / total_received_flood[prob][node] ) * 100
+
+        if "periodicpull" in protocols:
+            #PULL
+            total_received_pull[prob][node] = results[prob]["periodicpull"][node][9]
+            total_dupes_pull[prob][node] = results[prob]["periodicpull"][node][10]
+            percent_dupes_pull[prob][node] = (total_dupes_pull[prob][node] / total_received_pull[prob][node]) * 100
+
 
 # PLOT
 for prob in probs:

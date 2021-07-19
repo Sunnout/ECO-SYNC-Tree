@@ -2,6 +2,7 @@ package protocols.broadcast.flood;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import protocols.broadcast.common.messages.SendVectorClockMessage;
@@ -42,7 +43,7 @@ public class FloodBroadcast extends GenericProtocol  {
     private final Set<Host> partialView;
     private final Set<Host> neighbours;
     private final Queue<Host> pending;
-    private Host currentPending;
+    private Pair<Host, UUID> currentPendingInfo;
     private final Queue<FloodMessage> bufferedOps; //Buffer ops received between sending vc to kernel and sending sync ops (and send them after)
     private boolean buffering; //To know if we are between sending vc to kernel and sending ops to neighbour
     private final Set<UUID> received;
@@ -75,6 +76,7 @@ public class FloodBroadcast extends GenericProtocol  {
         this.partialView = new HashSet<>();
         this.neighbours = new HashSet<>();
         this.pending = new LinkedList<>();
+        this.currentPendingInfo = Pair.of(null, null);
         this.bufferedOps = new LinkedList<>();
         this.buffering = false;
         this.received = new HashSet<>();
@@ -158,7 +160,8 @@ public class FloodBroadcast extends GenericProtocol  {
 
     private void uponSyncOps(SyncOpsRequest request, short sourceProto) {
         Host neighbour = request.getTo();
-        if(!neighbour.equals(currentPending))
+        Pair<Host, UUID> info = Pair.of(neighbour, request.getMsgId());
+        if (!info.equals(currentPendingInfo))
             return;
 
         SyncOpsMessage msg = new SyncOpsMessage(request.getMsgId(), request.getIds(), request.getOperations());
@@ -188,17 +191,18 @@ public class FloodBroadcast extends GenericProtocol  {
         receivedVC++;
 
         logger.debug("Received {} from {}", msg, from);
-        if(!from.equals(currentPending))
+        Pair<Host, UUID> info = Pair.of(from, msg.getMid());
+        if (!info.equals(currentPendingInfo))
             return;
         this.buffering = true;
-        triggerNotification(new VectorClockNotification(msg.getSender(), msg.getVectorClock()));
+        triggerNotification(new VectorClockNotification(msg.getMid(), msg.getSender(), msg.getVectorClock()));
     }
 
     private void uponReceiveSendVectorClock(SendVectorClockMessage msg, Host from, short sourceProto, int channelId) {
         receivedSendVC++;
 
         logger.debug("Received {} from {}", msg, from);
-        triggerNotification(new SendVectorClockNotification(from));
+        triggerNotification(new SendVectorClockNotification(msg.getMid(), from));
     }
 
     private void uponReceiveSyncOps(SyncOpsMessage msg, Host from, short sourceProto, int channelId) {
@@ -272,7 +276,7 @@ public class FloodBroadcast extends GenericProtocol  {
             logger.debug("Removed {} from pending due to down {}", neighbour, pending);
         }
 
-        if (neighbour.equals(currentPending)) {
+        if (neighbour.equals(currentPendingInfo.getLeft())) {
             logger.debug("Removed {} from current pending due to down", neighbour);
             tryNextSync();
         }
@@ -294,7 +298,7 @@ public class FloodBroadcast extends GenericProtocol  {
             logger.debug("Removed {} from pending due to plumtree down {}", host, pending);
         }
 
-        if (host.equals(currentPending)) {
+        if (host.equals(currentPendingInfo.getLeft())) {
             logger.debug("Removed {} from current pending due to plumtree down", host);
             tryNextSync();
         }
@@ -354,10 +358,16 @@ public class FloodBroadcast extends GenericProtocol  {
     }
 
     private void startSynchronization(Host neighbour) {
+        Host currentPending = currentPendingInfo.getLeft();
         if (currentPending == null) {
             currentPending = neighbour;
+            UUID currentPendingID = UUID.randomUUID();
+            currentPendingInfo = Pair.of(currentPending, currentPendingID);
             logger.debug("{} is my currentPending start", neighbour);
-            requestVectorClock(currentPending);
+            SendVectorClockMessage msg = new SendVectorClockMessage(currentPendingID);
+            sendMessage(msg, currentPending);
+            sentSendVC++;
+            logger.debug("Sent {} to {}", msg, currentPending);
         } else {
             pending.add(neighbour);
             logger.debug("Added {} to pending {}", neighbour, pending);
@@ -365,26 +375,30 @@ public class FloodBroadcast extends GenericProtocol  {
     }
 
     private void addPendingToNeighbours() {
-        if (neighbours.add(currentPending)) {
-            logger.debug("Added {} to neighbours {} : pending list {}", currentPending, neighbours, pending);
+        if (neighbours.add(currentPendingInfo.getLeft())) {
+            logger.debug("Added {} to neighbours {} : pending list {}", currentPendingInfo.getLeft(), neighbours, pending);
         }
 
         tryNextSync();
     }
 
     private void tryNextSync() {
-        currentPending = pending.poll();
-        if (currentPending != null) {
-            logger.debug("{} is my currentPending try", currentPending);
-            requestVectorClock(currentPending);
-        }
-    }
+        //To prevent dupes when sync is aborted midway
+        this.buffering = false;
+        this.bufferedOps.clear();
 
-    private void requestVectorClock(Host neighbour) {
-        SendVectorClockMessage msg = new SendVectorClockMessage(UUID.randomUUID());
-        sendMessage(msg, neighbour);
-        sentSendVC++;
-        logger.debug("Sent {} to {}", msg, neighbour);
+        Host currentPending = pending.poll();
+        if (currentPending != null) {
+            UUID currentPendingID = UUID.randomUUID();
+            currentPendingInfo = Pair.of(currentPending, currentPendingID);
+            logger.debug("{} is my currentPending try", currentPending);
+            SendVectorClockMessage msg = new SendVectorClockMessage(currentPendingID);
+            sendMessage(msg, currentPending);
+            sentSendVC++;
+            logger.debug("Sent {} to {}", msg, currentPending);
+        } else {
+            currentPendingInfo = Pair.of(null, null);
+        }
     }
 
     private void handleBufferedOperations(Host neighbour) {

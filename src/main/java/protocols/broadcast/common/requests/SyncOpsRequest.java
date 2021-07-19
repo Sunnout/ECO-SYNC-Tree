@@ -49,7 +49,8 @@ public class SyncOpsRequest extends ProtoRequest {
     @Override
     public String toString() {
         return "SyncOpsRequest{" +
-                "sender=" + sender +
+                "mid=" + msgId +
+                ", sender=" + sender +
                 ", to=" + to +
                 ", msgId=" + msgId +
                 '}';

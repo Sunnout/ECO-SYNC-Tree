@@ -70,16 +70,16 @@ public class Main {
                 break;
 
             case "flood":
-                crdtApp = new CRDTApp(props, myself, ReplicationKernelVCs.PROTOCOL_ID, FloodBroadcast.PROTOCOL_ID);
-                replicationKernel = new ReplicationKernelVCs(props, myself, FloodBroadcast.PROTOCOL_ID);
+                crdtApp = new CRDTApp(props, myself, ReplicationKernel.PROTOCOL_ID, FloodBroadcast.PROTOCOL_ID);
+                replicationKernel = new ReplicationKernel(props, myself, FloodBroadcast.PROTOCOL_ID);
                 broadcast = new FloodBroadcast(props, myself);
                 membership = new HyParView(props, myself_membership);
                 registerAndStartProtocols(babel, crdtApp, replicationKernel, broadcast, membership, props);
                 break;
 
             case "periodicpull":
-                crdtApp = new CRDTApp(props, myself, ReplicationKernelVCs.PROTOCOL_ID, PeriodicPullBroadcast.PROTOCOL_ID);
-                replicationKernel = new ReplicationKernelVCs(props, myself, PeriodicPullBroadcast.PROTOCOL_ID);
+                crdtApp = new CRDTApp(props, myself, ReplicationKernel.PROTOCOL_ID, PeriodicPullBroadcast.PROTOCOL_ID);
+                replicationKernel = new ReplicationKernel(props, myself, PeriodicPullBroadcast.PROTOCOL_ID);
                 broadcast = new PeriodicPullBroadcast(props, myself);
                 membership = new HyParView(props, myself_membership);
                 registerAndStartProtocols(babel, crdtApp, replicationKernel, broadcast, membership, props);

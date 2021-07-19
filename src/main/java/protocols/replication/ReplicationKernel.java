@@ -214,7 +214,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         Host neighbour = notification.getNeighbour();
         logger.debug("Received {}", notification);
         try {
-            readAndSendMissingOpsFromFile(neighbour,  notification.getVectorClock());
+            readAndSendMissingOpsFromFile(notification.getMid(), neighbour,  notification.getVectorClock());
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -222,7 +222,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
 
     private void uponSendVectorClock(SendVectorClockNotification notification, short sourceProto) {
         Host neighbour = notification.getNeighbour();
-        VectorClockRequest request = new VectorClockRequest(UUID.randomUUID(), myself, neighbour, new VectorClock(vectorClock.getClock()));
+        VectorClockRequest request = new VectorClockRequest(notification.getMid(), myself, neighbour, new VectorClock(vectorClock.getClock()));
         logger.debug("Sent {} to {}", request, neighbour);
         sendRequest(request, broadcastId);
     }
@@ -329,7 +329,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         return map;
     }
 
-    private void readAndSendMissingOpsFromFile(Host neighbour, VectorClock neighbourClock) throws IOException {
+    private void readAndSendMissingOpsFromFile(UUID mid, Host neighbour, VectorClock neighbourClock) throws IOException {
         long startTime = System.currentTimeMillis();
         Pair<Long, Integer> min = null;
 
@@ -381,7 +381,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         } else {
             logger.debug("DID NOT OPEN FILE");
         }
-        sendRequest(new SyncOpsRequest(UUID.randomUUID(), myself, neighbour, ids, ops), broadcastId);
+        sendRequest(new SyncOpsRequest(mid, myself, neighbour, ids, ops), broadcastId);
     }
 
     /**

@@ -3,16 +3,24 @@ package protocols.broadcast.common.notifications;
 import pt.unl.fct.di.novasys.babel.generic.ProtoNotification;
 import pt.unl.fct.di.novasys.network.data.Host;
 
+import java.util.UUID;
+
 
 public class SendVectorClockNotification extends ProtoNotification {
 
     public static final short NOTIFICATION_ID = 904;
 
+    private UUID mid;
     private final Host neighbour;
 
-    public SendVectorClockNotification(Host neighbour) {
+    public SendVectorClockNotification(UUID mid, Host neighbour) {
         super(NOTIFICATION_ID);
+        this.mid = mid;
         this.neighbour = neighbour;
+    }
+
+    public UUID getMid() {
+        return this.mid;
     }
 
     public Host getNeighbour() {
@@ -22,7 +30,8 @@ public class SendVectorClockNotification extends ProtoNotification {
     @Override
     public String toString() {
         return "SendVectorClockNotification{" +
-                "neighbour=" + neighbour +
+                "mid=" + mid +
+                ", neighbour=" + neighbour +
                 '}';
     }
 }

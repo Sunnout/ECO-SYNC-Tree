@@ -159,7 +159,7 @@ public class PeriodicPullDupesBroadcast extends GenericProtocol  {
         receivedVC++;
 
         logger.debug("Received {} from {}", msg, from);
-        triggerNotification(new VectorClockNotification(msg.getSender(), msg.getVectorClock()));
+        triggerNotification(new VectorClockNotification(msg.getMid(), msg.getSender(), msg.getVectorClock()));
     }
 
     private void uponReceiveSyncOps(SyncOpsMessage msg, Host from, short sourceProto, int channelId) {
@@ -199,7 +199,7 @@ public class PeriodicPullDupesBroadcast extends GenericProtocol  {
         Host h = getRandomNeighbour();
         if(h != null) {
             logger.debug("Pulling from {}", h);
-            triggerNotification(new SendVectorClockNotification(h));
+            triggerNotification(new SendVectorClockNotification(UUID.randomUUID(), h));
         }
     }
 

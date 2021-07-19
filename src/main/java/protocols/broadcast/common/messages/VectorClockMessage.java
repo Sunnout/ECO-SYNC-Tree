@@ -19,9 +19,9 @@ public class VectorClockMessage extends ProtoMessage {
     @Override
     public String toString() {
         return "VectorClockMessage{" +
-                "mid=" + mid + ", " +
-                "sender=" + sender + ", " +
-                "vc=" + vc +
+                "mid=" + mid +
+                ", sender=" + sender +
+                ", vc=" + vc +
                 '}';
     }
 

@@ -117,8 +117,11 @@ for nNodes in "${nNodesList[@]}"; do
   done #protocol
   echo "Killing all containers"
   for n in $(oarprint host); do
-    oarsh -n $n 'docker kill $(docker ps -aq)';
+    oarsh -n $n 'docker kill $(docker ps -aq)'
   done
   sleep 15
 done #nNodes
+for n in $(oarprint host); do
+    oarsh -n $n "$HOME/PlumtreeOpLogs/docker/compressLogs.sh $n"
+  done
 exit

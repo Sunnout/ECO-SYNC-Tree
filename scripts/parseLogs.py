@@ -125,6 +125,8 @@ def parse_logs(start_name, n_processes, runs, protocol, probability, interval):
                     final_bytes_received = int(line[6].split("=")[1])
 
                 #MESSAGE COUNTS
+                #mydupes[proc][run][proto] = gossipDupes + syncDupes talvez guardar num file por proto com linhas processos e coluna run
+
                 elif line[3] == "sentVC:":
                     sent_vc += int(line[4])
 

@@ -312,6 +312,7 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
             logger.info("RECEIVED {}", mid);
             triggerNotification(new DeliverNotification(mid, sender, content, fromSync));
         } else {
+            logger.info("DUPLICATE from {}", sender);
             receivedDupes++;
         }
     }

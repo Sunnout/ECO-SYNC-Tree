@@ -183,6 +183,7 @@ public class FloodBroadcast extends GenericProtocol  {
         if (received.add(mid)) {
             handleFloodMessage(msg, from, false);
         } else {
+            logger.info("DUPLICATE from {}", from);
             receivedDupesFlood++;
         }
     }
@@ -222,6 +223,7 @@ public class FloodBroadcast extends GenericProtocol  {
             if (received.add(mid)) {
                 handleFloodMessage(new FloodMessage(mid, from , sourceProto, serOp), from, true);
             } else {
+                logger.info("DUPLICATE from {}", from);
                 receivedDupesSyncFlood++;
             }
         }

@@ -82,7 +82,6 @@ public class PlumTree extends GenericProtocol {
     public static int receivedDupesSyncGossip;
 
 
-
     /*--------------------------------- Initialization ---------------------------------------- */
 
     public PlumTree(Properties properties, Host myself) throws HandlerRegistrationException, IOException {

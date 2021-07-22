@@ -1,5 +1,6 @@
-import os
 import datetime as dt
+from datetime import datetime
+import numpy as np
 
 def parse_logs(start_name, n_processes, runs, protocol, probability, interval):
     n_runs=len(runs)
@@ -24,6 +25,12 @@ def parse_logs(start_name, n_processes, runs, protocol, probability, interval):
     sent_sync_ops = 0
     received_vc = 0
     received_sync_ops = 0
+
+    #Dupes Per Node and Interval
+    dupes_per_run_node = np.zeros((n_processes, n_runs))
+    dupes_per_interval = []
+    is_first = []
+    start_time = []
 
     if protocol == "plumtree":
         sent_gossip = 0
@@ -57,6 +64,8 @@ def parse_logs(start_name, n_processes, runs, protocol, probability, interval):
         received_dupes_pull = 0
 
     for run in range(n_runs):
+        dupes_per_interval.append([])
+        is_first.append(True)
         msg_send_time.append({})
         msg_deliver_time.append({})
         msg_deliver_per_run.append({})
@@ -73,17 +82,32 @@ def parse_logs(start_name, n_processes, runs, protocol, probability, interval):
         progressBar(proc, n_processes)
         for run in range(n_runs):
             f = open(start_name.format(n_processes, protocol, probability, runs[run], proc), "r")
-#             f = open("../results-chiclet-7.lille.grid5000.fr-5010.txt", "r")
 
             final_bytes_transmitted = 0
             final_bytes_received = 0
 
             for i in f:
                 line = i.split(" ")
-                #guardar start time da exp se for 1º linha do 1º ficheiro e depois usar interval para acumular dupes
+
+                if is_first[run] == True:
+                    if len(start_time) <= run:
+                        start_time.append(dt.datetime.strptime(line[1], '%d/%m/%Y-%H:%M:%S,%f'))
+                    else:
+                        start_time[run] = dt.datetime.strptime(line[1], '%d/%m/%Y-%H:%M:%S,%f')
+
+                    is_first[run] = False
+
+                #DUPES
+                if line[3] == "DUPLICATE":
+                    dupe_time = dt.datetime.strptime(line[1], '%d/%m/%Y-%H:%M:%S,%f')
+                    time_delta = dupe_time - start_time[run]
+                    index = int(time_delta.total_seconds() / (int(interval) * 60))
+                    while len(dupes_per_interval[run]) <= index:
+                        dupes_per_interval[run].append(0)
+                    dupes_per_interval[run][index] += 1
 
                 #LATENCY
-                if line[3] == "SENT":
+                elif line[3] == "SENT":
                     send_time_obj = dt.datetime.strptime(line[1], '%d/%m/%Y-%H:%M:%S,%f').time()
                     msg_send_time[run][line[4]] = send_time_obj
 
@@ -125,8 +149,6 @@ def parse_logs(start_name, n_processes, runs, protocol, probability, interval):
                     final_bytes_received = int(line[6].split("=")[1])
 
                 #MESSAGE COUNTS
-                #mydupes[proc][run][proto] = gossipDupes + syncDupes talvez guardar num file por proto com linhas processos e coluna run
-
                 elif line[3] == "sentVC:":
                     sent_vc += int(line[4])
 
@@ -163,6 +185,7 @@ def parse_logs(start_name, n_processes, runs, protocol, probability, interval):
 
                     elif line[3] == "receivedDupesGossip:":
                         received_dupes_gossip += int(line[4])
+                        dupes_per_run_node[proc][run] += int(line[4])
 
                     elif line[3] == "receivedIHave:":
                         received_i_have += int(line[4])
@@ -181,6 +204,7 @@ def parse_logs(start_name, n_processes, runs, protocol, probability, interval):
 
                     elif line[3] == "receivedDupesSyncGossip:":
                         received_dupes_sync_gossip += int(line[4])
+                        dupes_per_run_node[proc][run] += int(line[4])
 
                 elif protocol == "flood":
                     if line[3] == "sentFlood:":
@@ -197,6 +221,7 @@ def parse_logs(start_name, n_processes, runs, protocol, probability, interval):
 
                     elif line[3] == "receivedDupesFlood:":
                         received_dupes_flood += int(line[4])
+                        dupes_per_run_node[proc][run] += int(line[4])
 
                     elif line[3] == "receivedSendVC:":
                         received_send_vc += int(line[4])
@@ -206,6 +231,7 @@ def parse_logs(start_name, n_processes, runs, protocol, probability, interval):
 
                     elif line[3] == "receivedDupesSyncFlood:":
                         received_dupes_sync_flood += int(line[4])
+                        dupes_per_run_node[proc][run] += int(line[4])
 
                 elif protocol == "periodicpull":
                     if line[3] == "sentSyncPull:":
@@ -216,9 +242,23 @@ def parse_logs(start_name, n_processes, runs, protocol, probability, interval):
 
                     elif line[3] == "receivedDupes:":
                         received_dupes_pull += int(line[4])
+                        dupes_per_run_node[proc][run] += int(line[4])
 
             total_bytes_transmitted += final_bytes_transmitted
             total_bytes_received += final_bytes_received
+
+        l = 0
+        for r in dupes_per_interval:
+            if len(r) > l:
+                l = len(r)
+
+        for r in dupes_per_interval:
+            while len(r) < l:
+                r.append(0)
+
+        np.savetxt(f"/home/evieira/finalResults/dupes_by_interval_{n_processes}nodes_{protocol}_{probability}_{n_runs}runs.csv", np.array(dupes_per_interval), delimiter=",", fmt='%s')
+
+
 
     #LATENCY BROADCAST LAYER
     latency = []
@@ -272,6 +312,8 @@ def parse_logs(start_name, n_processes, runs, protocol, probability, interval):
     avg_received_sync_ops = received_sync_ops / n_runs
 
     print("Progress: [------------------->] 100%", end='\n')
+
+    np.savetxt(f"/home/evieira/finalResults/dupes_by_node_run_{n_processes}_{protocol}_{probability}.csv", dupes_per_run_node, delimiter=",")
 
     if protocol == "plumtree":
         avg_sent_gossip = sent_gossip / n_runs

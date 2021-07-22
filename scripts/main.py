@@ -14,7 +14,7 @@ processes = processes_arg.split(",")
 protocols = proto_arg.split(",")
 probabilities = probs_arg.split(",")
 runs = runs_arg.split(",")
-interval = dupe_interval(",")
+interval = dupe_interval.split(",")
 
 
 runs_str=''

@@ -56,7 +56,6 @@ IFS=', ' read -r -a protocolList <<<"$protocols"
 IFS=', ' read -r -a probabilityList <<<"$probs"
 
 # ./runExperiments --nnodes 50,100,150,200 --protocols plumtree,flood --probability 1,0.5,0.3 --nruns 2,3
-
 echo "Killing previous existing containers"
 for n in $(oarprint host); do
   oarsh -n $n 'docker kill $(docker ps -aq)';
@@ -122,6 +121,6 @@ for nNodes in "${nNodesList[@]}"; do
   sleep 15
 done #nNodes
 for n in $(oarprint host); do
-    oarsh -n $n "$HOME/PlumtreeOpLogs/docker/compressLogs.sh $n"
+    oarsh -n $n "$HOME/PlumtreeOpLogs/docker/compressLogs.sh $n $nNodesList $nRunsList $protocolList $probabilityList"
   done
 exit

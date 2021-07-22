@@ -116,6 +116,7 @@ buildNumber.properties
 results(bytes)/
 results3Runs/
 resultsForDupes/
+newResults/
 
 
 ### Folder for list of causally ordered ops

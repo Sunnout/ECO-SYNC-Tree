@@ -127,6 +127,41 @@ def create_total_dupes_graph(probability, plumtree, flood, pull, grey_scale):
         plt.savefig('../plots/total_dupes_prob{}.pdf'.format(probability), format='pdf')
     plt.close(fig)
 
+def create_dupes_per_interval(probability, protocol, nodes, interval, ys, grey_scale):
+    fig = plt.figure(figsize=(12,8))
+    ax = fig.add_subplot(111)
+    colors = [0,0,0]
+    times = []
+    times.append(interval * 60)
+    for t in range(1, 100):
+        times.append(times[t-1] + (interval * 60))
+
+    if grey_scale:
+        colors[:] = 'black'
+    else:
+        colors[0] = '#009E73'
+        colors[1] = '#E69F00'
+        colors[2] = '#9400D3'
+
+    i = 0
+    for y in ys:
+        y_line = y.split(",")
+        y_line[-1] = y_line[-1].rstrip()
+        while len(y_line) < 100:
+            if y_line[0] == '':
+                y_line[0] = 0
+            y_line.append(0)
+        y_line = list(map(int, y_line))
+        plt.plot(times, y_line, label=f"{protocol.title()} - run {i+1}", markersize=10, marker=".", color=colors[i])
+        i = i + 1
+    plt.legend()
+    ax.tick_params(axis='both', labelsize='x-large')
+    ax.legend(fontsize='x-large')
+    plt.title(f"{protocol.title()} com {nodes} nós e probabilidade {probability}", fontsize='xx-large')
+    plt.ylabel('Mensagens Duplicadas Recebidas', fontsize='xx-large')
+    plt.xlabel('Tempo da experiência (s)', fontsize='xx-large')
+    plt.savefig('../plots/dupes_per_interval_{}_{}_{}.pdf'.format(node, protocol, probability), format='pdf')
+    plt.close(fig)
 
 
 probs = sys.argv[1]
@@ -202,13 +237,6 @@ for prob in probs:
 
 for prob in probs:
     for node in nodes:
-
-#             received_mine_plum[prob][node] = results[prob]["plumtree"][node][8] - (results[prob]["plumtree"][node][20] -
-#                                                                                    results[prob]["plumtree"][node][21]) - (
-#                                                      results[prob]["plumtree"][node][14] -
-#                                                      results[prob]["plumtree"][node][15])
-#             total_received_plum[prob][node] = received_mine_plum[prob][node] + results[prob]["plumtree"][node][20] + \
-#                                               results[prob]["plumtree"][node][14]
         if "plumtree" in protocols:
             #PLUM
             total_received_plum[prob][node] = results[prob]["plumtree"][node][20] + results[prob]["plumtree"][node][14]
@@ -239,3 +267,11 @@ for prob in probs:
     create_latency_graph(prob, latency[prob], True)
     create_percent_dupes_graph(prob, percent_dupes_plum[prob], percent_dupes_flood[prob], percent_dupes_pull[prob], True)
     create_total_dupes_graph(prob, total_dupes_plum[prob], total_dupes_flood[prob], total_dupes_pull[prob], True)
+
+
+# DUPES PER INTERVAL
+for proto in protocols:
+    for prob in probs:
+        for node in nodes:
+            ys = open(f"../newResults/dupes_by_interval_{node}nodes_{proto}_{prob}_3runs.csv", "r")
+            create_dupes_per_interval(prob, proto, node, 0.1, ys, False)

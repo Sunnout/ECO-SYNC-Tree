@@ -1,5 +1,4 @@
 import datetime as dt
-from datetime import datetime
 import numpy as np
 
 def parse_logs(start_name, n_processes, runs, protocol, probability, interval):
@@ -101,7 +100,7 @@ def parse_logs(start_name, n_processes, runs, protocol, probability, interval):
                 if line[3] == "DUPLICATE":
                     dupe_time = dt.datetime.strptime(line[1], '%d/%m/%Y-%H:%M:%S,%f')
                     time_delta = dupe_time - start_time[run]
-                    index = int(time_delta.total_seconds() / (int(interval) * 60))
+                    index = int(time_delta.total_seconds() / (float(interval) * 60))
                     while len(dupes_per_interval[run]) <= index:
                         dupes_per_interval[run].append(0)
                     dupes_per_interval[run][index] += 1

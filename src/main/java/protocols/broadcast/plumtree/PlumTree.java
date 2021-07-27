@@ -186,6 +186,7 @@ public class PlumTree extends GenericProtocol {
 
     private void uponVectorClock(VectorClockRequest request, short sourceProto) {
         Host neighbour = request.getTo();
+        //TODO: if neigh != currPending break
         VectorClockMessage msg = new VectorClockMessage(request.getMsgId(), request.getSender(), request.getVectorClock());
         sendMessage(msg, neighbour, TCPChannel.CONNECTION_IN);
         sentVC++;
@@ -221,7 +222,7 @@ public class PlumTree extends GenericProtocol {
             handleGossipMessage(msg, from);
         } else {
             receivedDupesGossip++;
-            logger.info("DUPLICATE from {}", from);
+            logger.info("DUPLICATE GOSSIP from {}", from);
             logger.debug("{} was duplicated msg from {}", mid, from);
             StringBuilder sb = new StringBuilder("VIS-DUPE: ");
             boolean print = false;
@@ -286,7 +287,7 @@ public class PlumTree extends GenericProtocol {
         receivedGraft++;
 
         logger.debug("Received {} from {}", msg, from);
-        startSynchronization(from, false);
+        startSynchronization(from, false, "GRAFT");
     }
 
     private void uponReceiveIHave(IHaveMessage msg, Host from, short sourceProto, int channelId) {
@@ -309,13 +310,14 @@ public class PlumTree extends GenericProtocol {
 
     private void uponReceiveSendVectorClock(SendVectorClockMessage msg, Host from, short sourceProto, int channelId) {
         receivedSendVC++;
-
+        //TODO: add to currPending or pending if there is already currPending
         logger.debug("Received {} from {}", msg, from);
         triggerNotification(new SendVectorClockNotification(msg.getMid(), from));
     }
 
     private void uponReceiveSyncOps(SyncOpsMessage msg, Host from, short sourceProto, int channelId) {
         receivedSyncOps++;
+        //TODO: if from != currPending break
 
         logger.debug("Received {} from {}", msg, from);
         Iterator<byte[]> opIt = msg.getOperations().iterator();
@@ -334,11 +336,12 @@ public class PlumTree extends GenericProtocol {
                 logger.debug("Propagating sync op {} to {}", mid, eager);
                 handleGossipMessage(new GossipMessage(mid, from, serOp), from);
             } else {
-                logger.info("DUPLICATE from {}", from);
+                logger.info("DUPLICATE SYNC from {}", from);
                 logger.debug("Sync op {} was dupe", mid);
                 receivedDupesSyncGossip++;
             }
         }
+        //TODO: try next sync
     }
 
     private void onMessageFailed(ProtoMessage protoMessage, Host host, short destProto, Throwable reason, int channel) {
@@ -362,7 +365,7 @@ public class PlumTree extends GenericProtocol {
                     sentGraft++;
                 }
                 logger.debug("Try sync with {} for timeout {}", neighbour, mid);
-                startSynchronization(neighbour, false);
+                startSynchronization(neighbour, false, "TIMEOUT");
 
             }
         }
@@ -501,7 +504,7 @@ public class PlumTree extends GenericProtocol {
         logger.trace("Host (out) {} is up", neighbour);
         if (partialView.contains(neighbour)) {
             logger.debug("Trying sync from neighbour {} up", neighbour);
-            startSynchronization(neighbour, true);
+            startSynchronization(neighbour, true, "NEIGHUP");
         }
     }
 
@@ -516,8 +519,8 @@ public class PlumTree extends GenericProtocol {
 
     /*--------------------------------- Procedures ---------------------------------------- */
 
-    private void startSynchronization(Host neighbour, boolean neighUp) {
-        StringBuilder sb = new StringBuilder("VIS-STARTSYNC: ");
+    private void startSynchronization(Host neighbour, boolean neighUp, String cause) {
+        StringBuilder sb = new StringBuilder("VIS-STARTSYNC-" + cause + ": ");
 
         Host currentPending = currentPendingInfo.getLeft();
         if (neighUp || (lazy.contains(neighbour) && !neighbour.equals(currentPending) && !pending.contains(neighbour))) {

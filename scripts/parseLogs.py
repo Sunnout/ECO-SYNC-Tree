@@ -101,8 +101,6 @@ def parse_logs(start_name, n_processes, runs, protocol, probability, interval):
                     dupe_time = dt.datetime.strptime(line[1], '%d/%m/%Y-%H:%M:%S,%f')
                     time_delta = dupe_time - start_time[run]
                     index = int(time_delta.total_seconds() / (float(interval) * 60))
-                    print(f"Dupe {dupe_time}")
-                    print(f"Start {start_time}")
                     while len(dupes_per_interval[run]) <= index:
                         dupes_per_interval[run].append(0)
                     dupes_per_interval[run][index] += 1

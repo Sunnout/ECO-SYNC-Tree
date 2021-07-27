@@ -227,34 +227,36 @@ public class PlumTree extends GenericProtocol {
             StringBuilder sb = new StringBuilder("VIS-DUPE: ");
             boolean print = false;
 
-            if (eager.remove(from)) {
-                logger.debug("Removed {} from eager due to duplicate {}", from, eager);
-                print = true;
-                sb.append(String.format("Removed %s from eager; ", from));
-            }
+            if(partialView.contains(from)) { //Because we can receive messages before neigh up
+                if (eager.remove(from)) {
+                    logger.debug("Removed {} from eager due to duplicate {}", from, eager);
+                    print = true;
+                    sb.append(String.format("Removed %s from eager; ", from));
+                }
 
-            if (pending.remove(from)) {
-                logger.debug("Removed {} from pending due to duplicate {}", from, pending);
-                print = true;
-                sb.append(String.format("Removed %s from pending; ", from));
-            }
+                if (pending.remove(from)) {
+                    logger.debug("Removed {} from pending due to duplicate {}", from, pending);
+                    print = true;
+                    sb.append(String.format("Removed %s from pending; ", from));
+                }
 
-            if (from.equals(currentPendingInfo.getLeft())) {
-                logger.debug("Removed {} from current pending due to duplicate", from);
-                print = true;
-                sb.append(String.format("Removed %s from currPending; ", from));
-                tryNextSync();
-            }
+                if (from.equals(currentPendingInfo.getLeft())) {
+                    logger.debug("Removed {} from current pending due to duplicate", from);
+                    print = true;
+                    sb.append(String.format("Removed %s from currPending; ", from));
+                    tryNextSync();
+                }
 
-            if (lazy.add(from)) {
-                logger.debug("Added {} to lazy due to duplicate {}", from, lazy);
-                print = true;
-                sb.append(String.format("Added %s to lazy; ", from));
-            }
+                if (lazy.add(from)) {
+                    logger.debug("Added {} to lazy due to duplicate {}", from, lazy);
+                    print = true;
+                    sb.append(String.format("Added %s to lazy; ", from));
+                }
 
-            logger.debug("Sent PruneMessage to {}", from);
-            sendMessage(new PruneMessage(), from);
-            sentPrune++;
+                logger.debug("Sent PruneMessage to {}", from);
+                sendMessage(new PruneMessage(), from);
+                sentPrune++;
+            }
 
             if(print) {
                 sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s", eager, lazy, currentPendingInfo.getLeft(), pending));
@@ -365,7 +367,7 @@ public class PlumTree extends GenericProtocol {
                     sentGraft++;
                 }
                 logger.debug("Try sync with {} for timeout {}", neighbour, mid);
-                startSynchronization(neighbour, false, "TIMEOUT");
+                startSynchronization(neighbour, false, "TIMEOUT-" + mid);
 
             }
         }

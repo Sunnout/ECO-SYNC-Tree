@@ -343,7 +343,7 @@ public class PlumTree extends GenericProtocol {
                 receivedDupesSyncGossip++;
             }
         }
-        //TODO: try next sync
+        //TODO: try next sync 
     }
 
     private void onMessageFailed(ProtoMessage protoMessage, Host host, short destProto, Throwable reason, int channel) {

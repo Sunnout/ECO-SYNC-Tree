@@ -46,6 +46,7 @@ public class PlumTree extends GenericProtocol {
     private final long timeout1;
     private final long timeout2;
     private final long reconnectTimeout;
+    private final boolean startInLazy;
 
     private final Set<Host> partialView;
     private final Set<Host> eager;
@@ -91,6 +92,7 @@ public class PlumTree extends GenericProtocol {
         this.timeout1 = Long.parseLong(properties.getProperty("timeout1", "1000"));
         this.timeout2 = Long.parseLong(properties.getProperty("timeout2", "500"));
         this.reconnectTimeout = Long.parseLong(properties.getProperty("reconnect_timeout", "500"));
+        this.startInLazy = properties.getProperty("start_in_lazy", "false").equals("true");
 
         this.partialView = new HashSet<>();
         this.eager = new HashSet<>();
@@ -343,7 +345,7 @@ public class PlumTree extends GenericProtocol {
                 receivedDupesSyncGossip++;
             }
         }
-        //TODO: try next sync 
+        //TODO: try next sync
     }
 
     private void onMessageFailed(ProtoMessage protoMessage, Host host, short destProto, Throwable reason, int channel) {
@@ -504,9 +506,21 @@ public class PlumTree extends GenericProtocol {
     private void uponOutConnectionUp(OutConnectionUp event, int channelId) {
         Host neighbour = event.getNode();
         logger.trace("Host (out) {} is up", neighbour);
+
+        StringBuilder sb = new StringBuilder("VIS-CONNUP: ");
+
         if (partialView.contains(neighbour)) {
-            logger.debug("Trying sync from neighbour {} up", neighbour);
-            startSynchronization(neighbour, true, "NEIGHUP");
+            if (startInLazy) {
+                if (lazy.add(neighbour)) {
+                    logger.debug("Added {} to lazy due to neigh up {}", neighbour, lazy);
+                    sb.append(String.format("Added %s to lazy; ", neighbour));
+                    sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s", eager, lazy, currentPendingInfo.getLeft(), pending));
+                    logger.info(sb);
+                }
+            } else {
+                logger.debug("Trying sync from neighbour {} up", neighbour);
+                startSynchronization(neighbour, true, "NEIGHUP");
+            }
         }
     }
 

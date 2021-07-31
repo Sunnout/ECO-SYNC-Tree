@@ -51,10 +51,10 @@ public class PlumTree extends GenericProtocol {
     private final Set<Host> partialView;
     private final Set<Host> eager;
     private final Set<Host> lazy;
-    private final Queue<Host> pending;
+    private final Set<Host> onGoingSyncs; // Set to know which hosts we have asked for vcs
+    private final Queue<Pair<Host, UUID>> pending;
     private Pair<Host, UUID> currentPendingInfo;
-    private final Queue<GossipMessage> bufferedOps; //Buffer ops received between sending vc to kernel and sending sync ops (and send them after)
-    private boolean buffering; //To know if we are between sending vc to kernel and sending ops to neighbour
+    private final Map<UUID, Queue<GossipMessage>> bufferedOps; //Buffer ops received between sending vc to kernel and sending sync ops (and send them after)
     private final Map<UUID, Queue<MessageSource>> missing;
     private final Set<UUID> received;
     private final Map<UUID, Long> onGoingTimers;
@@ -97,10 +97,10 @@ public class PlumTree extends GenericProtocol {
         this.partialView = new HashSet<>();
         this.eager = new HashSet<>();
         this.lazy = new HashSet<>();
+        this.onGoingSyncs = new HashSet<>();
         this.pending = new LinkedList<>();
         this.currentPendingInfo = Pair.of(null, null);
-        this.bufferedOps = new LinkedList<>();
-        this.buffering = false;
+        this.bufferedOps = new HashMap<>();
         this.missing = new HashMap<>();
         this.received = new HashSet<>();
         this.onGoingTimers = new HashMap<>();
@@ -109,7 +109,7 @@ public class PlumTree extends GenericProtocol {
 
         String cMetricsInterval = properties.getProperty("bcast_channel_metrics_interval", "10000"); // 10 seconds
 
-        // Create a properties object to setup channel-specific properties. See the
+        // Create a properties object to set up channel-specific properties. See the
         // channel description for more details.
         Properties channelProps = new Properties();
         channelProps.setProperty(TCPChannel.ADDRESS_KEY, properties.getProperty("address")); // The address to bind to
@@ -188,7 +188,6 @@ public class PlumTree extends GenericProtocol {
 
     private void uponVectorClock(VectorClockRequest request, short sourceProto) {
         Host neighbour = request.getTo();
-        //TODO: if neigh != currPending break
         VectorClockMessage msg = new VectorClockMessage(request.getMsgId(), request.getSender(), request.getVectorClock());
         sendMessage(msg, neighbour, TCPChannel.CONNECTION_IN);
         sentVC++;
@@ -197,17 +196,14 @@ public class PlumTree extends GenericProtocol {
 
     private void uponSyncOps(SyncOpsRequest request, short sourceProto) {
         Host neighbour = request.getTo();
-        Pair<Host, UUID> info = Pair.of(neighbour, request.getMsgId());
-        if (!info.equals(currentPendingInfo))
-            return;
-
-        SyncOpsMessage msg = new SyncOpsMessage(request.getMsgId(), request.getIds(), request.getOperations());
+        UUID mid = request.getMsgId();
+        SyncOpsMessage msg = new SyncOpsMessage(mid, request.getIds(), request.getOperations());
         sendMessage(msg, neighbour);
         sentSyncOps++;
         sentSyncGossip += request.getIds().size();
         logger.debug("Sent {} to {}", msg, neighbour);
-        handleBufferedOperations(neighbour);
-        addPendingToEager();
+        handleBufferedOperations(neighbour, mid);
+        addNeighbourToEager(neighbour);
     }
 
 
@@ -236,7 +232,7 @@ public class PlumTree extends GenericProtocol {
                     sb.append(String.format("Removed %s from eager; ", from));
                 }
 
-                if (pending.remove(from)) {
+                if (removeFromPending(from)) {
                     logger.debug("Removed {} from pending due to duplicate {}", from, pending);
                     print = true;
                     sb.append(String.format("Removed %s from pending; ", from));
@@ -261,7 +257,7 @@ public class PlumTree extends GenericProtocol {
             }
 
             if(print) {
-                sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s", eager, lazy, currentPendingInfo.getLeft(), pending));
+                sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s onGoingSyncs %s", eager, lazy, currentPendingInfo.getLeft(), pending, onGoingSyncs));
                 logger.info(sb);
             }
         }
@@ -282,7 +278,7 @@ public class PlumTree extends GenericProtocol {
                 sb.append(String.format("Added %s to lazy; ", from));
             }
 
-            sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s", eager, lazy, currentPendingInfo.getLeft(), pending));
+            sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s onGoingSyncs %s", eager, lazy, currentPendingInfo.getLeft(), pending, onGoingSyncs));
             logger.info(sb);
         }
     }
@@ -301,29 +297,46 @@ public class PlumTree extends GenericProtocol {
         handleAnnouncement(msg.getMid(), from);
     }
 
-    private void uponReceiveVectorClock(VectorClockMessage msg, Host from, short sourceProto, int channelId) { //TODO: id = vc
+    private void uponReceiveVectorClock(VectorClockMessage msg, Host from, short sourceProto, int channelId) {
         receivedVC++;
 
         logger.debug("Received {} from {}", msg, from);
-        Pair<Host, UUID> info = Pair.of(from, msg.getMid());
-        if (!info.equals(currentPendingInfo))
-            return;
-        this.buffering = true;
+        this.bufferedOps.put(msg.getMid(), new LinkedList<>());
         triggerNotification(new VectorClockNotification(msg.getMid(), msg.getSender(), msg.getVectorClock()));
     }
 
     private void uponReceiveSendVectorClock(SendVectorClockMessage msg, Host from, short sourceProto, int channelId) {
         receivedSendVC++;
-        //TODO: add to currPending or pending if there is already currPending
+
         logger.debug("Received {} from {}", msg, from);
-        triggerNotification(new SendVectorClockNotification(msg.getMid(), from));
+        StringBuilder sb = new StringBuilder("VIS-SENDVC: ");
+
+        UUID mid = msg.getMid();
+        if(partialView.contains(from)) {
+            Host currentPending = currentPendingInfo.getLeft();
+            if (currentPending == null) {
+                currentPending = from;
+                currentPendingInfo = Pair.of(currentPending, mid);
+                logger.debug("{} is my currentPending ", from);
+                sb.append(String.format("Added %s to currPending; ", from));
+                triggerNotification(new SendVectorClockNotification(mid, from));
+            } else {
+                pending.add(Pair.of(from, mid));
+                logger.debug("Added {} to pending {}", from, pending);
+                sb.append(String.format("Added %s to pending; ", from));
+            }
+            sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s onGoingSyncs %s", eager, lazy, currentPendingInfo.getLeft(), pending, onGoingSyncs));
+            logger.info(sb);
+        } else
+            triggerNotification(new SendVectorClockNotification(mid, from));
     }
 
     private void uponReceiveSyncOps(SyncOpsMessage msg, Host from, short sourceProto, int channelId) {
         receivedSyncOps++;
-        //TODO: if from != currPending break
 
         logger.debug("Received {} from {}", msg, from);
+        StringBuilder sb = new StringBuilder("VIS-SYNCOPS: ");
+
         Iterator<byte[]> opIt = msg.getOperations().iterator();
         Iterator<byte[]> idIt = msg.getIds().iterator();
 
@@ -345,7 +358,10 @@ public class PlumTree extends GenericProtocol {
                 receivedDupesSyncGossip++;
             }
         }
-        //TODO: try next sync
+        sb.append(String.format("Removed %s from currPending; ", from));
+        sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s onGoingSyncs %s", eager, lazy, currentPendingInfo.getLeft(), pending, onGoingSyncs));
+        logger.info(sb);
+        tryNextSync();
     }
 
     private void onMessageFailed(ProtoMessage protoMessage, Host host, short destProto, Throwable reason, int channel) {
@@ -363,7 +379,7 @@ public class PlumTree extends GenericProtocol {
                 long tid = setupTimer(timeout, timeout2);
                 onGoingTimers.put(mid, tid);
                 Host neighbour = msgSrc.peer;
-                if (partialView.contains(neighbour) && !neighbour.equals(currentPendingInfo.getLeft()) && !pending.contains(neighbour)) {
+                if (partialView.contains(neighbour) && !onGoingSyncs.contains(neighbour)) {
                     logger.debug("Sent GraftMessage for {} to {}", mid, neighbour);
                     sendMessage(new GraftMessage(mid), neighbour);
                     sentGraft++;
@@ -424,10 +440,16 @@ public class PlumTree extends GenericProtocol {
             sb.append(String.format("Removed %s from lazy; ", neighbour));
         }
 
-        if (pending.remove(neighbour)) {
+        if (removeFromPending(neighbour)) {
             logger.debug("Removed {} from pending due to down {}", neighbour, pending);
             print = true;
             sb.append(String.format("Removed %s from pending; ", neighbour));
+        }
+
+        if (onGoingSyncs.remove(neighbour)) {
+            logger.debug("Removed {} from onGoingSyncs due to down {}", neighbour, onGoingSyncs);
+            print = true;
+            sb.append(String.format("Removed %s from onGoingSyncs; ", neighbour));
         }
 
         MessageSource msgSrc = new MessageSource(neighbour);
@@ -443,7 +465,7 @@ public class PlumTree extends GenericProtocol {
         }
 
         if(print) {
-            sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s", eager, lazy, currentPendingInfo.getLeft(), pending));
+            sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s onGoingSyncs %s", eager, lazy, currentPendingInfo.getLeft(), pending, onGoingSyncs));
             logger.info(sb);
         }
 
@@ -472,10 +494,16 @@ public class PlumTree extends GenericProtocol {
             sb.append(String.format("Removed %s from lazy; ", host));
         }
 
-        if (pending.remove(host)) {
+        if (removeFromPending(host)) {
             logger.debug("Removed {} from pending due to plumtree down {}", host, pending);
             print = true;
             sb.append(String.format("Removed %s from pending; ", host));
+        }
+
+        if (onGoingSyncs.remove(host)) {
+            logger.debug("Removed {} from onGoingSyncs due to plumtree down {}", host, onGoingSyncs);
+            print = true;
+            sb.append(String.format("Removed %s from onGoingSyncs; ", host));
         }
 
         if (host.equals(currentPendingInfo.getLeft())) {
@@ -486,7 +514,7 @@ public class PlumTree extends GenericProtocol {
         }
 
         if(print) {
-            sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s", eager, lazy, currentPendingInfo.getLeft(), pending));
+            sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s onGoingSyncs %s", eager, lazy, currentPendingInfo.getLeft(), pending, onGoingSyncs));
             logger.info(sb);
         }
 
@@ -495,6 +523,7 @@ public class PlumTree extends GenericProtocol {
         }
     }
 
+    @SuppressWarnings("rawtypes")
     private void uponOutConnectionFailed(OutConnectionFailed event, int channelId) {
         Host host = event.getNode();
         logger.trace("Connection to host {} failed, cause: {}", host, event.getCause());
@@ -510,11 +539,11 @@ public class PlumTree extends GenericProtocol {
         StringBuilder sb = new StringBuilder("VIS-CONNUP: ");
 
         if (partialView.contains(neighbour)) {
-            if (startInLazy) {
+            if (startInLazy && !lazy.isEmpty()) {
                 if (lazy.add(neighbour)) {
                     logger.debug("Added {} to lazy due to neigh up {}", neighbour, lazy);
                     sb.append(String.format("Added %s to lazy; ", neighbour));
-                    sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s", eager, lazy, currentPendingInfo.getLeft(), pending));
+                    sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s onGoingSyncs %s", eager, lazy, currentPendingInfo.getLeft(), pending, onGoingSyncs));
                     logger.info(sb);
                 }
             } else {
@@ -538,75 +567,64 @@ public class PlumTree extends GenericProtocol {
     private void startSynchronization(Host neighbour, boolean neighUp, String cause) {
         StringBuilder sb = new StringBuilder("VIS-STARTSYNC-" + cause + ": ");
 
-        Host currentPending = currentPendingInfo.getLeft();
-        if (neighUp || (lazy.contains(neighbour) && !neighbour.equals(currentPending) && !pending.contains(neighbour))) {
-            if (currentPending == null) {
-                currentPending = neighbour;
-                UUID currentPendingID = UUID.randomUUID();
-                currentPendingInfo = Pair.of(currentPending, currentPendingID);
-                logger.debug("{} is my currentPending start", neighbour);
-                sb.append(String.format("Added %s to currPending; ", currentPending));
-                SendVectorClockMessage msg = new SendVectorClockMessage(currentPendingID);
-                sendMessage(msg, currentPending);
-                sentSendVC++;
-                logger.debug("Sent {} to {}", msg, neighbour);
-            } else {
-                pending.add(neighbour);
-                logger.debug("Added {} to pending {}", neighbour, pending);
-                sb.append(String.format("Added %s to pending; ", neighbour));
-            }
-            sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s", eager, lazy, currentPendingInfo.getLeft(), pending));
+        if (neighUp || (lazy.contains(neighbour) && !onGoingSyncs.contains(neighbour))) {
+            logger.debug("Added {} to onGoingSyncs", neighbour);
+            this.onGoingSyncs.add(neighbour);
+            UUID mid = UUID.randomUUID();
+            SendVectorClockMessage msg = new SendVectorClockMessage(mid);
+            sendMessage(msg, neighbour);
+            sentSendVC++;
+            logger.debug("Sent {} to {}", msg, neighbour);
+            sb.append(String.format("Added %s to onGoingSyncs; ", neighbour));
+            sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s onGoingSyncs %s", eager, lazy, currentPendingInfo.getLeft(), pending, onGoingSyncs));
             logger.info(sb);
         }
     }
 
-    private void addPendingToEager() {
+    private void addNeighbourToEager(Host neighbour) {
         StringBuilder sb = new StringBuilder("VIS-ENDSYNC: ");
 
-        Host currentPending = currentPendingInfo.getLeft();
-        if (eager.add(currentPending)) {
-            logger.debug("Added {} to eager {} : pending list {}", currentPending, eager, pending);
-            sb.append(String.format("Added %s to eager; ", currentPending));
+        if (eager.add(neighbour)) {
+            logger.debug("Added {} to eager {} : pending list {}", neighbour, eager, pending);
+            sb.append(String.format("Added %s to eager; ", neighbour));
         }
 
-        if (lazy.remove(currentPending)) {
-            logger.debug("Removed {} from lazy due to sync {}", currentPending, lazy);
-            sb.append(String.format("Removed %s from lazy; ", currentPending));
+        if (onGoingSyncs.remove(neighbour)) {
+            logger.debug("Removed {} from onGoingSyncs due to sync {}", neighbour, onGoingSyncs);
+            sb.append(String.format("Removed %s from onGoingSyncs; ", neighbour));
         }
 
-        sb.append(String.format("Removed %s from currPending; ", currentPending));
-        sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s", eager, lazy, currentPendingInfo.getLeft(), pending));
+        if (lazy.remove(neighbour)) {
+            logger.debug("Removed {} from lazy due to sync {}", neighbour, lazy);
+            sb.append(String.format("Removed %s from lazy; ", neighbour));
+        }
+
+        sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s onGoingSyncs %s", eager, lazy, currentPendingInfo.getLeft(), pending, onGoingSyncs));
         logger.info(sb);
-        tryNextSync();
     }
 
     private void tryNextSync() {
-        //To prevent dupes when sync is aborted midway
-        this.buffering = false;
-        this.bufferedOps.clear();
-
         StringBuilder sb = new StringBuilder("VIS-NEXTSYNC: ");
-        Host currentPending = pending.poll();
-        if (currentPending != null) {
-            UUID currentPendingID = UUID.randomUUID();
-            currentPendingInfo = Pair.of(currentPending, currentPendingID);
+        Pair<Host, UUID> nextCurrentPendingInfo = pending.poll();
+
+        if (nextCurrentPendingInfo != null) {
+            Host currentPending = nextCurrentPendingInfo.getLeft();
+            UUID mid = nextCurrentPendingInfo.getRight();
+            currentPendingInfo = nextCurrentPendingInfo;
             logger.debug("{} is my currentPending try", currentPending);
             sb.append(String.format("Removed %s from pending; ", currentPending));
             sb.append(String.format("Added %s to currPending; ", currentPending));
-            sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s", eager, lazy, currentPendingInfo.getLeft(), pending));
+            sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s onGoingSyncs %s", eager, lazy, currentPendingInfo.getLeft(), pending, onGoingSyncs));
             logger.info(sb);
-            SendVectorClockMessage msg = new SendVectorClockMessage(currentPendingID);
-            sendMessage(msg, currentPending);
-            sentSendVC++;
-            logger.debug("Sent {} to {}", msg, currentPending);
+            triggerNotification(new SendVectorClockNotification(mid, currentPending));
         } else {
             currentPendingInfo = Pair.of(null, null);
         }
     }
 
     private void handleGossipMessage(GossipMessage msg, Host from) {
-        if (buffering)
-            this.bufferedOps.add(msg);
+        for(Queue<GossipMessage> q : this.bufferedOps.values())
+            q.add(msg);
 
         UUID mid = msg.getMid();
         received.add(mid);
@@ -620,20 +638,10 @@ public class PlumTree extends GenericProtocol {
         lazyPush(msg, from);
     }
 
-    private void handleAnnouncement(UUID mid, Host from) {
-        if (!received.contains(mid)) {
-            if (!onGoingTimers.containsKey(mid)) {
-                long tid = setupTimer(new IHaveTimeout(mid), timeout1);
-                onGoingTimers.put(mid, tid);
-            }
-            missing.computeIfAbsent(mid, v -> new LinkedList<>()).add(new MessageSource(from));
-        }
-    }
-
-    private void handleBufferedOperations(Host neighbour) {
-        this.buffering = false;
+    private void handleBufferedOperations(Host neighbour, UUID mid) {
+        Queue<GossipMessage> q = this.bufferedOps.remove(mid);
         GossipMessage msg;
-        while ((msg = bufferedOps.poll()) != null) {
+        while ((msg = q.poll()) != null) {
             if (!msg.getSender().equals(neighbour)) {
                 sendMessage(msg, neighbour);
                 sentGossip++;
@@ -661,6 +669,16 @@ public class PlumTree extends GenericProtocol {
         dispatch();
     }
 
+    private void handleAnnouncement(UUID mid, Host from) {
+        if (!received.contains(mid)) {
+            if (!onGoingTimers.containsKey(mid)) {
+                long tid = setupTimer(new IHaveTimeout(mid), timeout1);
+                onGoingTimers.put(mid, tid);
+            }
+            missing.computeIfAbsent(mid, v -> new LinkedList<>()).add(new MessageSource(from));
+        }
+    }
+
     private void dispatch() {
         Set<AddressedIHaveMessage> announcements = policy.apply(lazyQueue);
         for (AddressedIHaveMessage msg : announcements) {
@@ -674,6 +692,18 @@ public class PlumTree extends GenericProtocol {
     private UUID deserializeId(byte[] msg) {
         ByteBuf buf = Unpooled.buffer().writeBytes(msg);
         return new UUID(buf.readLong(), buf.readLong());
+    }
+
+    private boolean removeFromPending(Host host) {
+        boolean removed = false;
+        Iterator<Pair<Host, UUID>> it = this.pending.iterator();
+        while(it.hasNext()) {
+            if(it.next().getLeft().equals(host)) {
+                removed = true;
+                it.remove();
+            }
+        }
+        return removed;
     }
 
 

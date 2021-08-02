@@ -16,6 +16,7 @@ import protocols.broadcast.common.notifications.VectorClockNotification;
 import protocols.broadcast.common.requests.SyncOpsRequest;
 import protocols.broadcast.common.requests.VectorClockRequest;
 import protocols.broadcast.common.timers.ReconnectTimeout;
+import protocols.broadcast.plumtree.timers.GracePeriodTimeout;
 import protocols.broadcast.plumtree.timers.IHaveTimeout;
 import protocols.broadcast.plumtree.utils.AddressedIHaveMessage;
 import protocols.broadcast.plumtree.utils.LazyQueuePolicy;
@@ -45,6 +46,7 @@ public class PlumTree extends GenericProtocol {
 
     private final long timeout1;
     private final long timeout2;
+    private final long gracePeriod;
     private final long reconnectTimeout;
     private final boolean startInLazy;
 
@@ -60,6 +62,7 @@ public class PlumTree extends GenericProtocol {
     private final Map<UUID, Long> onGoingTimers;
     private final Queue<AddressedIHaveMessage> lazyQueue;
     private final LazyQueuePolicy policy;
+    private final Queue<Pair<Host, UUID>> waitingGrafts;
 
     /*** Stats ***/
     public static int sentGossip;
@@ -91,6 +94,7 @@ public class PlumTree extends GenericProtocol {
 
         this.timeout1 = Long.parseLong(properties.getProperty("timeout1", "1000"));
         this.timeout2 = Long.parseLong(properties.getProperty("timeout2", "500"));
+        this.gracePeriod = 3 * this.timeout1;
         this.reconnectTimeout = Long.parseLong(properties.getProperty("reconnect_timeout", "500"));
         this.startInLazy = properties.getProperty("start_in_lazy", "false").equals("true");
 
@@ -106,6 +110,7 @@ public class PlumTree extends GenericProtocol {
         this.onGoingTimers = new HashMap<>();
         this.lazyQueue = new LinkedList<>();
         this.policy = HashSet::new;
+        this.waitingGrafts = new LinkedList<>();
 
         String cMetricsInterval = properties.getProperty("bcast_channel_metrics_interval", "10000"); // 10 seconds
 
@@ -125,6 +130,7 @@ public class PlumTree extends GenericProtocol {
 
         /*--------------------- Register Timer Handlers ----------------------------- */
         registerTimerHandler(IHaveTimeout.TIMER_ID, this::uponIHaveTimeout);
+        registerTimerHandler(GracePeriodTimeout.TIMER_ID, this::uponGracePeriodTimeout);
         registerTimerHandler(ReconnectTimeout.TIMER_ID, this::uponReconnectTimeout);
 
         /*--------------------- Register Request Handlers ----------------------------- */
@@ -167,7 +173,7 @@ public class PlumTree extends GenericProtocol {
 
     @Override
     public void init(Properties props) throws HandlerRegistrationException, IOException {
-
+        setupPeriodicTimer(new GracePeriodTimeout(), 0, gracePeriod);
     }
 
 
@@ -379,6 +385,17 @@ public class PlumTree extends GenericProtocol {
                 long tid = setupTimer(timeout, timeout2);
                 onGoingTimers.put(mid, tid);
                 Host neighbour = msgSrc.peer;
+                this.waitingGrafts.add(Pair.of(neighbour, mid));
+            }
+        }
+    }
+
+    private void uponGracePeriodTimeout(GracePeriodTimeout timeout, long timerId) {
+        Pair<Host, UUID> graftInfo;
+        while ((graftInfo = this.waitingGrafts.poll()) != null) {
+            UUID mid = graftInfo.getRight();
+            if (!received.contains(mid)) {
+                Host neighbour = graftInfo.getLeft();
                 if (partialView.contains(neighbour) && !onGoingSyncs.contains(neighbour)) {
                     logger.debug("Sent GraftMessage for {} to {}", mid, neighbour);
                     sendMessage(new GraftMessage(mid), neighbour);
@@ -386,9 +403,10 @@ public class PlumTree extends GenericProtocol {
                 }
                 logger.debug("Try sync with {} for timeout {}", neighbour, mid);
                 startSynchronization(neighbour, false, "TIMEOUT-" + mid);
-
+                break;
             }
         }
+
     }
 
     private void uponReconnectTimeout(ReconnectTimeout timeout, long timerId) {

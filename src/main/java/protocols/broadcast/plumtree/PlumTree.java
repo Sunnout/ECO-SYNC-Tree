@@ -600,25 +600,28 @@ public class PlumTree extends GenericProtocol {
     }
 
     private void addNeighbourToEager(Host neighbour) {
-        StringBuilder sb = new StringBuilder("VIS-ENDSYNC: ");
 
-        if (eager.add(neighbour)) {
-            logger.debug("Added {} to eager {} : pending list {}", neighbour, eager, pending);
-            sb.append(String.format("Added %s to eager; ", neighbour));
+        if(partialView.contains(neighbour)) {
+            StringBuilder sb = new StringBuilder("VIS-ENDSYNC: ");
+
+            if (eager.add(neighbour)) {
+                logger.debug("Added {} to eager {} : pending list {}", neighbour, eager, pending);
+                sb.append(String.format("Added %s to eager; ", neighbour));
+            }
+
+            if (onGoingSyncs.remove(neighbour)) {
+                logger.debug("Removed {} from onGoingSyncs due to sync {}", neighbour, onGoingSyncs);
+                sb.append(String.format("Removed %s from onGoingSyncs; ", neighbour));
+            }
+
+            if (lazy.remove(neighbour)) {
+                logger.debug("Removed {} from lazy due to sync {}", neighbour, lazy);
+                sb.append(String.format("Removed %s from lazy; ", neighbour));
+            }
+
+            sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s onGoingSyncs %s", eager, lazy, currentPendingInfo.getLeft(), pending, onGoingSyncs));
+            logger.info(sb);
         }
-
-        if (onGoingSyncs.remove(neighbour)) {
-            logger.debug("Removed {} from onGoingSyncs due to sync {}", neighbour, onGoingSyncs);
-            sb.append(String.format("Removed %s from onGoingSyncs; ", neighbour));
-        }
-
-        if (lazy.remove(neighbour)) {
-            logger.debug("Removed {} from lazy due to sync {}", neighbour, lazy);
-            sb.append(String.format("Removed %s from lazy; ", neighbour));
-        }
-
-        sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s onGoingSyncs %s", eager, lazy, currentPendingInfo.getLeft(), pending, onGoingSyncs));
-        logger.info(sb);
     }
 
     private void tryNextSync() {

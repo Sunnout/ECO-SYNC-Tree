@@ -133,7 +133,7 @@ def create_dupes_per_interval(probability, protocol, nodes, interval, ys, grey_s
     colors = [0,0,0]
     times = []
     times.append(interval * 60)
-    for t in range(1, 100):
+    for t in range(1, 150):
         times.append(times[t-1] + (interval * 60))
 
     if grey_scale:
@@ -147,7 +147,7 @@ def create_dupes_per_interval(probability, protocol, nodes, interval, ys, grey_s
     for y in ys:
         y_line = y.split(",")
         y_line[-1] = y_line[-1].rstrip()
-        while len(y_line) < 100:
+        while len(y_line) < 150:
             if y_line[0] == '':
                 y_line[0] = 0
             y_line.append(0)
@@ -242,6 +242,8 @@ for prob in probs:
             total_received_plum[prob][node] = results[prob]["plumtree"][node][20] + results[prob]["plumtree"][node][14]
             total_dupes_plum[prob][node] = results[prob]["plumtree"][node][15] + results[prob]["plumtree"][node][21]
             percent_dupes_plum[prob][node] = (total_dupes_plum[prob][node] / total_received_plum[prob][node]) * 100
+            print(f"plumtree with prob {prob} and {node} nodes - total dupes {int(total_dupes_plum[prob][node])}")
+            print(f"total msgs {int(total_received_plum[prob][node])}")
 
         if "flood" in protocols:
             #FLOOD

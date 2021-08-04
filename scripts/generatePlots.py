@@ -4,6 +4,10 @@ import sys
 import matplotlib.ticker as mtick
 
 patterns = ["//", "\\", "|", "-", "+", "x", "o", "O", ".", "*"]
+black_and_white = ['black', 'white', 'white', 'white']
+colored = ['#009E73', '#E69F00', '#9400D3', '#56B4E9']
+node_labels = ('50 nós', '100 nós', '150 nós', '200 nós')
+proto_labels = ("Plumtree Causal", "Inundação Causal", "Sincronização Periódica")
 
 
 def create_bytes_graph(probability, nbytes, grey_scale):
@@ -16,43 +20,39 @@ def create_bytes_graph(probability, nbytes, grey_scale):
     ax.tick_params(axis='both', which='major', labelsize='large')
     ax.tick_params(axis='both', which='minor', labelsize='large')
     ax.set_xticks(ind)
-    ax.set_xticklabels(('50 nós', '100 nós', '150 nós', '200 nós'), fontsize='x-large')
+    ax.set_xticklabels(node_labels, fontsize='x-large')
     plt.yscale("log")
     plt.ylabel('Número de Bytes Transmitidos', fontsize='xx-large')
 
     if grey_scale:
         rects1 = ax.bar(ind - width, [nbytes["plumtree"]["50"], nbytes["plumtree"]["100"], nbytes["plumtree"]["150"],
-                                      nbytes["plumtree"]["200"]], width, color='black', edgecolor='black')
+                                      nbytes["plumtree"]["200"]], width, color=black_and_white[0], edgecolor='black')
         rects2 = ax.bar(ind,
                         [nbytes["flood"]["50"], nbytes["flood"]["100"], nbytes["flood"]["150"], nbytes["flood"]["200"]],
-                        width, color='white', edgecolor='black', hatch=patterns[0])
+                        width, color=black_and_white[1], edgecolor='black', hatch=patterns[0])
         rects3 = ax.bar(ind + width,
                         [nbytes["periodicpull"]["50"], nbytes["periodicpull"]["100"], nbytes["periodicpull"]["150"],
-                         nbytes["periodicpull"]["200"]], width, color='white', edgecolor='black', hatch=patterns[1])
+                         nbytes["periodicpull"]["200"]], width, color=black_and_white[2], edgecolor='black', hatch=patterns[1])
         # rects4 = ax.bar(ind + 2 * width,
         #                 [nbytes["periodicpullsmallertimeout"]["50"], nbytes["periodicpullsmallertimeout"]["100"],
         #                  nbytes["periodicpullsmallertimeout"]["150"], nbytes["periodicpullsmallertimeout"]["200"]],
-        #                 width, color='white', edgecolor='black', hatch=patterns[6])
-        ax.legend((rects1[0], rects2[0], rects3[0]), (
-            "Plumtree Causal", "Inundação Causal", "Sincronização Periódica"),
-                  fontsize='x-large')
+        #                 width, color=black_and_white[3], edgecolor='black', hatch=patterns[6])
+        ax.legend((rects1[0], rects2[0], rects3[0]), proto_labels, fontsize='x-large')
         plt.savefig('../plots/bytes_prob{}_grey.pdf'.format(probability), format='pdf')
     else:
         rects1 = ax.bar(ind - width, [nbytes["plumtree"]["50"], nbytes["plumtree"]["100"], nbytes["plumtree"]["150"],
-                                      nbytes["plumtree"]["200"]], width, color='#009E73', edgecolor='black')
+                                      nbytes["plumtree"]["200"]], width, color=colored[0], edgecolor='black')
         rects2 = ax.bar(ind,
                         [nbytes["flood"]["50"], nbytes["flood"]["100"], nbytes["flood"]["150"], nbytes["flood"]["200"]],
-                        width, color='#E69F00', edgecolor='black')
+                        width, color=colored[1], edgecolor='black')
         rects3 = ax.bar(ind + width,
                         [nbytes["periodicpull"]["50"], nbytes["periodicpull"]["100"], nbytes["periodicpull"]["150"],
-                         nbytes["periodicpull"]["200"]], width, color='#9400D3', edgecolor='black')
+                         nbytes["periodicpull"]["200"]], width, color=colored[2], edgecolor='black')
         # rects4 = ax.bar(ind + 2 * width,
         #                 [nbytes["periodicpullsmallertimeout"]["50"], nbytes["periodicpullsmallertimeout"]["100"],
         #                  nbytes["periodicpullsmallertimeout"]["150"],
-        #                  nbytes["periodicpullsmallertimeout"]["200"]], width, color='#56B4E9', edgecolor='black')
-        ax.legend((rects1[0], rects2[0], rects3[0]), (
-            "Plumtree Causal", "Inundação Causal", "Sincronização Periódica"),
-                  fontsize='x-large')
+        #                  nbytes["periodicpullsmallertimeout"]["200"]], width, color=colored[3], edgecolor='black')
+        ax.legend((rects1[0], rects2[0], rects3[0]), proto_labels, fontsize='x-large')
         plt.savefig('../plots/bytes_prob{}.pdf'.format(probability), format='pdf')
     plt.close(fig)
 
@@ -68,40 +68,36 @@ def create_latency_graph(probability, latency, grey_scale):
     ax.tick_params(axis='both', which='major', labelsize='large')
     ax.tick_params(axis='both', which='minor', labelsize='large')
     ax.set_xticks(ind)
-    ax.set_xticklabels(('50 nós', '100 nós', '150 nós', '200 nós'), fontsize='x-large')
+    ax.set_xticklabels(node_labels, fontsize='x-large')
     plt.ylabel('Latência Média de Difusão (s)', fontsize='xx-large')
 
     if grey_scale:
         rects1 = ax.bar(ind - width, [latency["plumtree"]["50"], latency["plumtree"]["100"], latency["plumtree"]["150"],
-                                      latency["plumtree"]["200"]], width, color='black', edgecolor='black')
+                                      latency["plumtree"]["200"]], width, color=black_and_white[0], edgecolor='black')
         rects2 = ax.bar(ind, [latency["flood"]["50"], latency["flood"]["100"], latency["flood"]["150"],
-                              latency["flood"]["200"]], width, color='white', edgecolor='black', hatch=patterns[0])
+                              latency["flood"]["200"]], width, color=black_and_white[1], edgecolor='black', hatch=patterns[0])
         rects3 = ax.bar(ind + width,
                         [latency["periodicpull"]["50"], latency["periodicpull"]["100"], latency["periodicpull"]["150"],
-                         latency["periodicpull"]["200"]], width, color='white', edgecolor='black', hatch=patterns[1])
+                         latency["periodicpull"]["200"]], width, color=black_and_white[2], edgecolor='black', hatch=patterns[1])
         # rects4 = ax.bar(ind + 2 * width,
         #                 [latency["periodicpullsmallertimeout"]["50"], latency["periodicpullsmallertimeout"]["100"],
         #                  latency["periodicpullsmallertimeout"]["150"], latency["periodicpullsmallertimeout"]["200"]],
-        #                 width, color='white', edgecolor='black', hatch=patterns[6])
-        ax.legend((rects1[0], rects2[0], rects3[0]), (
-            "Plumtree Causal", "Inundação Causal", "Sincronização Periódica"),
-                  fontsize='x-large')
+        #                 width, color=black_and_white[3], edgecolor='black', hatch=patterns[6])
+        ax.legend((rects1[0], rects2[0], rects3[0]), proto_labels, fontsize='x-large')
         plt.savefig('../plots/latency_prob{}_grey.pdf'.format(probability), format='pdf')
     else:
         rects1 = ax.bar(ind - width, [latency["plumtree"]["50"], latency["plumtree"]["100"], latency["plumtree"]["150"],
-                                      latency["plumtree"]["200"]], width, color='#009E73', edgecolor='black')
+                                      latency["plumtree"]["200"]], width, color=colored[0], edgecolor='black')
         rects2 = ax.bar(ind, [latency["flood"]["50"], latency["flood"]["100"], latency["flood"]["150"],
-                              latency["flood"]["200"]], width, color='#E69F00', edgecolor='black')
+                              latency["flood"]["200"]], width, color=colored[1], edgecolor='black')
         rects3 = ax.bar(ind + width,
                         [latency["periodicpull"]["50"], latency["periodicpull"]["100"], latency["periodicpull"]["150"],
-                         latency["periodicpull"]["200"]], width, color='#9400D3', edgecolor='black')
+                         latency["periodicpull"]["200"]], width, color=colored[2], edgecolor='black')
         # rects4 = ax.bar(ind + 2 * width,
         #                 [latency["periodicpullsmallertimeout"]["50"], latency["periodicpullsmallertimeout"]["100"],
         #                  latency["periodicpullsmallertimeout"]["150"], latency["periodicpullsmallertimeout"]["200"]],
-        #                 width, color='#56B4E9', edgecolor='black')
-        ax.legend((rects1[0], rects2[0], rects3[0]), (
-            "Plumtree Causal", "Inundação Causal", "Sincronização Periódica"),
-                  fontsize='x-large')
+        #                 width, color='colored[3], edgecolor='black')
+        ax.legend((rects1[0], rects2[0], rects3[0]), proto_labels, fontsize='x-large')
         plt.savefig('../plots/latency_prob{}.pdf'.format(probability), format='pdf')
     plt.close(fig)
 
@@ -118,36 +114,32 @@ def create_percent_dupes_graph(probability, plumtree, flood, pull, grey_scale):
     ax.tick_params(axis='both', which='minor', labelsize='x-large')
     ax.set_title('Percentagem de Mensagens Duplicadas', fontsize='xx-large')
     ax.set_xticks(ind)
-    ax.set_xticklabels(('50 nós', '100 nós', '150 nós', '200 nós'), fontsize='x-large')
+    ax.set_xticklabels(node_labels, fontsize='x-large')
     ax.yaxis.set_major_formatter(mtick.PercentFormatter())
 
     if grey_scale:
         rects1 = ax.bar(ind - width, [plumtree["50"], plumtree["100"], plumtree["150"], plumtree["200"]], width,
-                        color='black', edgecolor='black')
-        rects2 = ax.bar(ind, [flood["50"], flood["100"], flood["150"], flood["200"]], width, color='white',
+                        color=black_and_white[0], edgecolor='black')
+        rects2 = ax.bar(ind, [flood["50"], flood["100"], flood["150"], flood["200"]], width, color=black_and_white[1],
                         edgecolor='black', hatch=patterns[0])
-        rects3 = ax.bar(ind + width, [pull["50"], pull["100"], pull["150"], pull["200"]], width, color='white',
+        rects3 = ax.bar(ind + width, [pull["50"], pull["100"], pull["150"], pull["200"]], width, color=black_and_white[2],
                         edgecolor='black', hatch=patterns[1])
         # rects4 = ax.bar(ind + 2 * width,
         #                 [pull_smaller_timeout["50"], pull_smaller_timeout["100"], pull_smaller_timeout["150"],
-        #                  pull_smaller_timeout["200"]], width, color='white', edgecolor='black', hatch=patterns[6])
-        ax.legend((rects1[0], rects2[0], rects3[0]), (
-            "Plumtree Causal", "Inundação Causal", "Sincronização Periódica"),
-                  fontsize='x-large')
+        #                  pull_smaller_timeout["200"]], width, color=black_and_white[3], edgecolor='black', hatch=patterns[6])
+        ax.legend((rects1[0], rects2[0], rects3[0]), proto_labels, fontsize='x-large')
         plt.savefig('../plots/percent_dupes_prob{}_grey.pdf'.format(probability), format='pdf')
     else:
         rects1 = ax.bar(ind - width, [plumtree["50"], plumtree["100"], plumtree["150"], plumtree["200"]], width,
-                        color='#009E73', edgecolor='black')
-        rects2 = ax.bar(ind, [flood["50"], flood["100"], flood["150"], flood["200"]], width, color='#E69F00',
+                        color=colored[0], edgecolor='black')
+        rects2 = ax.bar(ind, [flood["50"], flood["100"], flood["150"], flood["200"]], width, color=colored[1],
                         edgecolor='black')
-        rects3 = ax.bar(ind + width, [pull["50"], pull["100"], pull["150"], pull["200"]], width, color='#9400D3',
+        rects3 = ax.bar(ind + width, [pull["50"], pull["100"], pull["150"], pull["200"]], width, color=colored[2],
                         edgecolor='black')
         # rects4 = ax.bar(ind + 2 * width,
         #                 [pull_smaller_timeout["50"], pull_smaller_timeout["100"], pull_smaller_timeout["150"],
-        #                  pull_smaller_timeout["200"]], width, color='#56B4E9', edgecolor='black')
-        ax.legend((rects1[0], rects2[0], rects3[0]), (
-            "Plumtree Causal", "Inundação Causal", "Sincronização Periódica"),
-                  fontsize='x-large')
+        #                  pull_smaller_timeout["200"]], width, color=colored[3], edgecolor='black')
+        ax.legend((rects1[0], rects2[0], rects3[0]), proto_labels, fontsize='x-large')
         plt.savefig('../plots/percent_dupes_prob{}.pdf'.format(probability), format='pdf')
     plt.close(fig)
 
@@ -164,36 +156,32 @@ def create_total_dupes_graph(probability, plumtree, flood, pull, grey_scale):
     ax.tick_params(axis='both', which='major', labelsize='x-large')
     ax.tick_params(axis='both', which='minor', labelsize='x-large')
     ax.set_xticks(ind)
-    ax.set_xticklabels(('50 nós', '100 nós', '150 nós', '200 nós'), fontsize='x-large')
+    ax.set_xticklabels(node_labels, fontsize='x-large')
     plt.ylabel('Mensagens Duplicadas Recebidas', fontsize='xx-large')
 
     if grey_scale:
         rects1 = ax.bar(ind - width, [plumtree["50"], plumtree["100"], plumtree["150"], plumtree["200"]], width,
-                        color='black', edgecolor='black')
-        rects2 = ax.bar(ind, [flood["50"], flood["100"], flood["150"], flood["200"]], width, color='white',
+                        color=black_and_white[0], edgecolor='black')
+        rects2 = ax.bar(ind, [flood["50"], flood["100"], flood["150"], flood["200"]], width, color=black_and_white[1],
                         edgecolor='black', hatch=patterns[0])
-        rects3 = ax.bar(ind + width, [pull["50"], pull["100"], pull["150"], pull["200"]], width, color='white',
+        rects3 = ax.bar(ind + width, [pull["50"], pull["100"], pull["150"], pull["200"]], width, color=black_and_white[2],
                         edgecolor='black', hatch=patterns[1])
         # rects4 = ax.bar(ind + 2 * width,
         #                 [pull_smaller_timeout["50"], pull_smaller_timeout["100"], pull_smaller_timeout["150"],
-        #                  pull_smaller_timeout["200"]], width, color='white', edgecolor='black', hatch=patterns[6])
-        ax.legend((rects1[0], rects2[0], rects3[0]), (
-            "Plumtree Causal", "Inundação Causal", "Sincronização Periódica"),
-                  fontsize='x-large')
+        #                  pull_smaller_timeout["200"]], width, color=black_and_white[3], edgecolor='black', hatch=patterns[6])
+        ax.legend((rects1[0], rects2[0], rects3[0]), proto_labels, fontsize='x-large')
         plt.savefig('../plots/total_dupes_prob{}_grey.pdf'.format(probability), format='pdf')
     else:
         rects1 = ax.bar(ind - width, [plumtree["50"], plumtree["100"], plumtree["150"], plumtree["200"]], width,
-                        color='#009E73', edgecolor='black')
-        rects2 = ax.bar(ind, [flood["50"], flood["100"], flood["150"], flood["200"]], width, color='#E69F00',
+                        color=colored[0], edgecolor='black')
+        rects2 = ax.bar(ind, [flood["50"], flood["100"], flood["150"], flood["200"]], width, color=colored[1],
                         edgecolor='black')
-        rects3 = ax.bar(ind + width, [pull["50"], pull["100"], pull["150"], pull["200"]], width, color='#9400D3',
+        rects3 = ax.bar(ind + width, [pull["50"], pull["100"], pull["150"], pull["200"]], width, color=colored[2],
                         edgecolor='black')
         # rects4 = ax.bar(ind + 2 * width,
         #                 [pull_smaller_timeout["50"], pull_smaller_timeout["100"], pull_smaller_timeout["150"],
-        #                  pull_smaller_timeout["200"]], width, color='#56B4E9', edgecolor='black')
-        ax.legend((rects1[0], rects2[0], rects3[0]), (
-            "Plumtree Causal", "Inundação Causal", "Sincronização Periódica"),
-                  fontsize='x-large')
+        #                  pull_smaller_timeout["200"]], width, color=colored[3], edgecolor='black')
+        ax.legend((rects1[0], rects2[0], rects3[0]), proto_labels, fontsize='x-large')
         plt.savefig('../plots/total_dupes_prob{}.pdf'.format(probability), format='pdf')
     plt.close(fig)
 

@@ -30,5 +30,5 @@ for n_process in processes:
             for item in res:
                 res_str = res_str + str(item) + ","
             print(res_str[:-1])
-            with open (results_file.format(n_process, proto, prob, runs_str), 'a+') as fp:
+            with open (results_file.format(n_process, proto, prob, runs_str), 'w') as fp:
               fp.write(res_str[:-1])

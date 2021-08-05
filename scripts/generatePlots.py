@@ -17,11 +17,11 @@ def create_bytes_graph(probability, nbytes, grey_scale):
 
     fig = plt.figure()
     ax = fig.add_subplot(111)
+    plt.yscale("log")
     ax.tick_params(axis='both', which='major', labelsize='large')
     ax.tick_params(axis='both', which='minor', labelsize='large')
     ax.set_xticks(ind)
     ax.set_xticklabels(node_labels, fontsize='x-large')
-    plt.yscale("log")
     plt.ylabel('Número de Bytes Transmitidos', fontsize='xx-large')
 
     if grey_scale:
@@ -52,7 +52,7 @@ def create_bytes_graph(probability, nbytes, grey_scale):
         #                 [nbytes["periodicpullsmallertimeout"]["50"], nbytes["periodicpullsmallertimeout"]["100"],
         #                  nbytes["periodicpullsmallertimeout"]["150"],
         #                  nbytes["periodicpullsmallertimeout"]["200"]], width, color=colored[3], edgecolor='black')
-        ax.legend((rects1[0], rects2[0], rects3[0]), proto_labels, fontsize='x-large')
+        ax.legend((rects1[0], rects2[0], rects3[0]), proto_labels, fontsize='x-large', framealpha=0.5)
         plt.savefig('../plots/bytes_prob{}.pdf'.format(probability), format='pdf')
     plt.close(fig)
 
@@ -64,7 +64,7 @@ def create_latency_graph(probability, latency, grey_scale):
 
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    ax.set_ylim([None, 40])
+    ax.set_ylim([None, 45])
     ax.tick_params(axis='both', which='major', labelsize='large')
     ax.tick_params(axis='both', which='minor', labelsize='large')
     ax.set_xticks(ind)
@@ -97,7 +97,7 @@ def create_latency_graph(probability, latency, grey_scale):
         #                 [latency["periodicpullsmallertimeout"]["50"], latency["periodicpullsmallertimeout"]["100"],
         #                  latency["periodicpullsmallertimeout"]["150"], latency["periodicpullsmallertimeout"]["200"]],
         #                 width, color='colored[3], edgecolor='black')
-        ax.legend((rects1[0], rects2[0], rects3[0]), proto_labels, fontsize='x-large')
+        ax.legend((rects1[0], rects2[0], rects3[0]), proto_labels, fontsize='x-large', framealpha=0.5)
         plt.savefig('../plots/latency_prob{}.pdf'.format(probability), format='pdf')
     plt.close(fig)
 
@@ -152,7 +152,6 @@ def create_total_dupes_graph(probability, plumtree, flood, pull, grey_scale):
     fig = plt.figure()
     ax = fig.add_subplot(111)
     plt.yscale("log")
-    ax.set_ylim([None, 1e10])
     ax.tick_params(axis='both', which='major', labelsize='x-large')
     ax.tick_params(axis='both', which='minor', labelsize='x-large')
     ax.set_xticks(ind)
@@ -181,7 +180,7 @@ def create_total_dupes_graph(probability, plumtree, flood, pull, grey_scale):
         # rects4 = ax.bar(ind + 2 * width,
         #                 [pull_smaller_timeout["50"], pull_smaller_timeout["100"], pull_smaller_timeout["150"],
         #                  pull_smaller_timeout["200"]], width, color=colored[3], edgecolor='black')
-        ax.legend((rects1[0], rects2[0], rects3[0]), proto_labels, fontsize='x-large')
+        ax.legend((rects1[0], rects2[0], rects3[0]), proto_labels, fontsize='x-large', framealpha=0.5, loc=2)
         plt.savefig('../plots/total_dupes_prob{}.pdf'.format(probability), format='pdf')
     plt.close(fig)
 

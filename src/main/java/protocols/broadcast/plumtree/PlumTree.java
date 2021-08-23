@@ -53,7 +53,7 @@ public class PlumTree extends GenericProtocol {
     private final Set<Host> partialView;
     private final Set<Host> eager;
     private final Set<Host> lazy;
-    private final Set<Host> onGoingSyncs; // Set to know which hosts we have asked for vcs
+    private final Set<Host> onGoingSyncs; // Set to know which hosts we have asked for vcs //TODO: maybe change to host
     private final Queue<Pair<Host, UUID>> pending;
     private Pair<Host, UUID> currentPendingInfo;
     private final Map<UUID, Queue<GossipMessage>> bufferedOps; //Buffer ops received between sending vc to kernel and sending sync ops (and send them after)
@@ -94,7 +94,7 @@ public class PlumTree extends GenericProtocol {
 
         this.timeout1 = Long.parseLong(properties.getProperty("timeout1", "1000"));
         this.timeout2 = Long.parseLong(properties.getProperty("timeout2", "500"));
-        this.gracePeriod = 3 * this.timeout1;
+        this.gracePeriod = this.timeout1;
         this.reconnectTimeout = Long.parseLong(properties.getProperty("reconnect_timeout", "500"));
         this.startInLazy = properties.getProperty("start_in_lazy", "false").equals("true");
 
@@ -391,22 +391,23 @@ public class PlumTree extends GenericProtocol {
     }
 
     private void uponGracePeriodTimeout(GracePeriodTimeout timeout, long timerId) {
-        Pair<Host, UUID> graftInfo;
-        while ((graftInfo = this.waitingGrafts.poll()) != null) {
-            UUID mid = graftInfo.getRight();
-            if (!received.contains(mid)) {
-                Host neighbour = graftInfo.getLeft();
-                if (partialView.contains(neighbour) && !onGoingSyncs.contains(neighbour)) {
-                    logger.debug("Sent GraftMessage for {} to {}", mid, neighbour);
-                    sendMessage(new GraftMessage(mid), neighbour);
-                    sentGraft++;
+        if(onGoingSyncs.isEmpty()) {
+            Pair<Host, UUID> graftInfo;
+            while ((graftInfo = this.waitingGrafts.poll()) != null) {
+                UUID mid = graftInfo.getRight();
+                if (!received.contains(mid)) {
+                    Host neighbour = graftInfo.getLeft();
+                    if (partialView.contains(neighbour)) {
+                        logger.debug("Sent GraftMessage for {} to {}", mid, neighbour);
+                        sendMessage(new GraftMessage(mid), neighbour);
+                        sentGraft++;
+                    }
+                    logger.debug("Try sync with {} for timeout {}", neighbour, mid);
+                    startSynchronization(neighbour, false, "TIMEOUT-" + mid);
+                    break;
                 }
-                logger.debug("Try sync with {} for timeout {}", neighbour, mid);
-                startSynchronization(neighbour, false, "TIMEOUT-" + mid);
-                break;
             }
         }
-
     }
 
     private void uponReconnectTimeout(ReconnectTimeout timeout, long timerId) {
@@ -557,7 +558,7 @@ public class PlumTree extends GenericProtocol {
         StringBuilder sb = new StringBuilder("VIS-CONNUP: ");
 
         if (partialView.contains(neighbour)) {
-            if (startInLazy && !lazy.isEmpty()) {
+            if (startInLazy /*&& !lazy.isEmpty()*/) {
                 if (lazy.add(neighbour)) {
                     logger.debug("Added {} to lazy due to neigh up {}", neighbour, lazy);
                     sb.append(String.format("Added %s to lazy; ", neighbour));

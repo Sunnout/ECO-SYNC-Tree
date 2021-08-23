@@ -3,9 +3,10 @@
 protocol=$1
 probability=$2
 warmup=$3
-cooldown=$4
-exppath=$5
-contactnode=$6
+runtime=$4
+cooldown=$5
+exppath=$6
+contactnode=$7
 
 servernode=$(hostname)
 
@@ -24,6 +25,11 @@ if [ -z $warmup ]; then
   exit
 fi
 
+if [ -z $runtime ]; then
+  echo "Pls specify run time"
+  exit
+fi
+
 if [ -z $cooldown ]; then
   echo "Pls specify cooldown time"
   exit
@@ -34,12 +40,8 @@ if [ -z $exppath ]; then
   exit
 fi
 
-#mkdir logs/$exppath
-
-#java -DlogFilename=${exppath}_${nnodes}_${dissemination}_${servernode}.log -cp ./net.jar Main -overlay $overlay -dissemination $dissemination -babelConfFile ./network_config.properties $4 2> logs/${exppath}/${overlay}_${dissemination}_${servernode}.err
-
 if [ -z $contactnode ]; then
-  java -Xmx1024M -DlogFilename=${exppath}/${servernode} -jar PlumtreeOpLogs.jar -conf config.properties interface=eth0 bcast_protocol=${protocol} op_probability=${probability} create_time=${warmup} cooldown_time=${cooldown}
+  java -Xmx1024M -DlogFilename=${exppath}/${servernode} -jar PlumtreeOpLogs.jar -conf config.properties interface=eth0 bcast_protocol=${protocol} op_probability=${probability} create_time=${warmup} run_time=${runtime} cooldown_time=${cooldown}
 else
-  java -Xmx1024M -DlogFilename=${exppath}/${servernode} -jar PlumtreeOpLogs.jar -conf config.properties interface=eth0 bcast_protocol=${protocol} op_probability=${probability} create_time=${warmup} cooldown_time=${cooldown} contact=${contactnode}
+  java -Xmx1024M -DlogFilename=${exppath}/${servernode} -jar PlumtreeOpLogs.jar -conf config.properties interface=eth0 bcast_protocol=${protocol} op_probability=${probability} create_time=${warmup} run_time=${runtime} cooldown_time=${cooldown} contact=${contactnode}
 fi

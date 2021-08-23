@@ -77,6 +77,7 @@ def parse_logs(start_name, n_processes, runs, protocol, probability, interval):
             msg_deliver_per_run[run][proc] = set(())
             msg_exec_per_run[run][proc] = set(())
 
+    last_msg_received = {}
     for proc in range(n_processes):
         progressBar(proc, n_processes)
         for run in range(n_runs):
@@ -112,6 +113,7 @@ def parse_logs(start_name, n_processes, runs, protocol, probability, interval):
 
                 elif line[3] == "RECEIVED":
                     deliver_time_obj = dt.datetime.strptime(line[1], '%d/%m/%Y-%H:%M:%S,%f').time()
+                    last_msg_received[run] = dt.datetime.strptime(line[1], '%d/%m/%Y-%H:%M:%S,%f')
                     msg_id = line[4]
 
                     if msg_id not in msg_deliver_per_run[run][proc]:
@@ -246,14 +248,21 @@ def parse_logs(start_name, n_processes, runs, protocol, probability, interval):
             total_bytes_transmitted += final_bytes_transmitted
             total_bytes_received += final_bytes_received
 
-        l = 0
-        for r in dupes_per_interval:
-            if len(r) > l:
-                l = len(r)
 
-        for r in dupes_per_interval:
-            while len(r) < l:
-                r.append(0)
+        for run in range(n_runs):
+            time_delta = last_msg_received[run] - start_time[run]
+            index = int(time_delta.total_seconds() / (float(interval) * 60))
+            while len(dupes_per_interval[run]) <= index:
+                dupes_per_interval[run].append(0)
+
+        # l = 0
+        # for r in dupes_per_interval:
+        #     if len(r) > l:
+        #         l = len(r)
+        #
+        # for r in dupes_per_interval:
+        #     while len(r) < l:
+        #         r.append(0)
 
         np.savetxt(f"/home/evieira/finalResults/dupes_by_interval_{n_processes}nodes_{protocol}_{probability}_{n_runs}runs.csv", np.array(dupes_per_interval), delimiter=",", fmt='%s')
 

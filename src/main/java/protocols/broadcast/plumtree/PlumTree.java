@@ -367,6 +367,7 @@ public class PlumTree extends GenericProtocol {
         sb.append(String.format("Removed %s from currPending; ", from));
         sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s onGoingSyncs %s", eager, lazy, currentPendingInfo.getLeft(), pending, onGoingSyncs));
         logger.info(sb);
+        logger.info("Sync {} ENDED", msg.getMid());
         tryNextSync();
     }
 
@@ -592,6 +593,7 @@ public class PlumTree extends GenericProtocol {
             UUID mid = UUID.randomUUID();
             SendVectorClockMessage msg = new SendVectorClockMessage(mid);
             sendMessage(msg, neighbour);
+            logger.info("Sync {} STARTED", mid);
             sentSendVC++;
             logger.debug("Sent {} to {}", msg, neighbour);
             sb.append(String.format("Added %s to onGoingSyncs; ", neighbour));

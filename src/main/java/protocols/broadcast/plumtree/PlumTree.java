@@ -55,7 +55,7 @@ public class PlumTree extends GenericProtocol {
     private final Set<Host> partialView;
     private final Set<Host> eager;
     private final Set<Host> lazy;
-    private final Set<Host> onGoingSyncs; // Set to know which hosts we have asked for vcs //TODO: maybe change to host
+    private Host onGoingSync; // Host we have asked for vc
     private final Queue<Pair<Host, UUID>> pending;
     private Pair<Host, UUID> currentPendingInfo;
     private final Map<UUID, Queue<GossipMessage>> bufferedOps; //Buffer ops received between sending vc to kernel and sending sync ops (and send them after)
@@ -104,7 +104,7 @@ public class PlumTree extends GenericProtocol {
         this.partialView = new HashSet<>();
         this.eager = new HashSet<>();
         this.lazy = new HashSet<>();
-        this.onGoingSyncs = new HashSet<>();
+        this.onGoingSync = null;
         this.pending = new LinkedList<>();
         this.currentPendingInfo = Pair.of(null, null);
         this.bufferedOps = new HashMap<>();
@@ -267,7 +267,7 @@ public class PlumTree extends GenericProtocol {
             }
 
             if(print) {
-                sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s onGoingSyncs %s", eager, lazy, currentPendingInfo.getLeft(), pending, onGoingSyncs));
+                sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s onGoingSync %s", eager, lazy, currentPendingInfo.getLeft(), pending, onGoingSync));
                 logger.info(sb);
             }
         }
@@ -288,7 +288,7 @@ public class PlumTree extends GenericProtocol {
                 sb.append(String.format("Added %s to lazy; ", from));
             }
 
-            sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s onGoingSyncs %s", eager, lazy, currentPendingInfo.getLeft(), pending, onGoingSyncs));
+            sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s onGoingSync %s", eager, lazy, currentPendingInfo.getLeft(), pending, onGoingSync));
             logger.info(sb);
         }
     }
@@ -335,7 +335,7 @@ public class PlumTree extends GenericProtocol {
                 logger.debug("Added {} to pending {}", from, pending);
                 sb.append(String.format("Added %s to pending; ", from));
             }
-            sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s onGoingSyncs %s", eager, lazy, currentPendingInfo.getLeft(), pending, onGoingSyncs));
+            sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s onGoingSync %s", eager, lazy, currentPendingInfo.getLeft(), pending, onGoingSync));
             logger.info(sb);
         } else
             triggerNotification(new SendVectorClockNotification(mid, from));
@@ -369,7 +369,7 @@ public class PlumTree extends GenericProtocol {
             }
         }
         sb.append(String.format("Removed %s from currPending; ", from));
-        sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s onGoingSyncs %s", eager, lazy, currentPendingInfo.getLeft(), pending, onGoingSyncs));
+        sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s onGoingSync %s", eager, lazy, currentPendingInfo.getLeft(), pending, onGoingSync));
         logger.info(sb);
         logger.info("Sync {} ENDED", msg.getMid());
         tryNextSync();
@@ -396,7 +396,7 @@ public class PlumTree extends GenericProtocol {
     }
 
     private void uponGracePeriodTimeout(GracePeriodTimeout timeout, long timerId) {
-        if(onGoingSyncs.isEmpty()) {
+        if(onGoingSync == null) {
             Pair<Host, UUID> graftInfo;
             while ((graftInfo = this.waitingGrafts.poll()) != null) {
                 UUID mid = graftInfo.getRight();
@@ -470,10 +470,11 @@ public class PlumTree extends GenericProtocol {
             sb.append(String.format("Removed %s from pending; ", neighbour));
         }
 
-        if (onGoingSyncs.remove(neighbour)) {
-            logger.debug("Removed {} from onGoingSyncs due to down {}", neighbour, onGoingSyncs);
+        if (onGoingSync.equals(neighbour)) {
+            onGoingSync = null;
+            logger.debug("Removed {} from onGoingSync due to down {}", neighbour, onGoingSync);
             print = true;
-            sb.append(String.format("Removed %s from onGoingSyncs; ", neighbour));
+            sb.append(String.format("Removed %s from onGoingSync; ", neighbour));
         }
 
         MessageSource msgSrc = new MessageSource(neighbour);
@@ -489,7 +490,7 @@ public class PlumTree extends GenericProtocol {
         }
 
         if(print) {
-            sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s onGoingSyncs %s", eager, lazy, currentPendingInfo.getLeft(), pending, onGoingSyncs));
+            sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s onGoingSync %s", eager, lazy, currentPendingInfo.getLeft(), pending, onGoingSync));
             logger.info(sb);
         }
 
@@ -524,10 +525,11 @@ public class PlumTree extends GenericProtocol {
             sb.append(String.format("Removed %s from pending; ", host));
         }
 
-        if (onGoingSyncs.remove(host)) {
-            logger.debug("Removed {} from onGoingSyncs due to plumtree down {}", host, onGoingSyncs);
+        if (onGoingSync.equals(host)) {
+            onGoingSync = null;
+            logger.debug("Removed {} from onGoingSync due to plumtree down {}", host, onGoingSync);
             print = true;
-            sb.append(String.format("Removed %s from onGoingSyncs; ", host));
+            sb.append(String.format("Removed %s from onGoingSync; ", host));
         }
 
         if (host.equals(currentPendingInfo.getLeft())) {
@@ -538,7 +540,7 @@ public class PlumTree extends GenericProtocol {
         }
 
         if(print) {
-            sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s onGoingSyncs %s", eager, lazy, currentPendingInfo.getLeft(), pending, onGoingSyncs));
+            sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s onGoingSync %s", eager, lazy, currentPendingInfo.getLeft(), pending, onGoingSync));
             logger.info(sb);
         }
 
@@ -567,7 +569,7 @@ public class PlumTree extends GenericProtocol {
                 if (lazy.add(neighbour)) {
                     logger.debug("Added {} to lazy due to neigh up {}", neighbour, lazy);
                     sb.append(String.format("Added %s to lazy; ", neighbour));
-                    sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s onGoingSyncs %s", eager, lazy, currentPendingInfo.getLeft(), pending, onGoingSyncs));
+                    sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s onGoingSync %s", eager, lazy, currentPendingInfo.getLeft(), pending, onGoingSync));
                     logger.info(sb);
                 }
             } else {
@@ -591,17 +593,17 @@ public class PlumTree extends GenericProtocol {
     private void startSynchronization(Host neighbour, boolean neighUp, String cause) {
         StringBuilder sb = new StringBuilder("VIS-STARTSYNC-" + cause + ": ");
 
-        if (neighUp || (lazy.contains(neighbour) && !onGoingSyncs.contains(neighbour))) {
-            logger.debug("Added {} to onGoingSyncs", neighbour);
-            this.onGoingSyncs.add(neighbour);
+        if (neighUp || (lazy.contains(neighbour) && !onGoingSync.equals(neighbour))) {
+            logger.debug("Added {} to onGoingSync", neighbour);
+            onGoingSync = neighbour;
             UUID mid = UUID.randomUUID();
             SendVectorClockMessage msg = new SendVectorClockMessage(mid);
             sendMessage(msg, neighbour);
             logger.info("Sync {} STARTED", mid);
             sentSendVC++;
             logger.debug("Sent {} to {}", msg, neighbour);
-            sb.append(String.format("Added %s to onGoingSyncs; ", neighbour));
-            sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s onGoingSyncs %s", eager, lazy, currentPendingInfo.getLeft(), pending, onGoingSyncs));
+            sb.append(String.format("Added %s to onGoingSync; ", neighbour));
+            sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s onGoingSync %s", eager, lazy, currentPendingInfo.getLeft(), pending, onGoingSync));
             logger.info(sb);
         }
     }
@@ -616,9 +618,10 @@ public class PlumTree extends GenericProtocol {
                 sb.append(String.format("Added %s to eager; ", neighbour));
             }
 
-            if (onGoingSyncs.remove(neighbour)) {
-                logger.debug("Removed {} from onGoingSyncs due to sync {}", neighbour, onGoingSyncs);
-                sb.append(String.format("Removed %s from onGoingSyncs; ", neighbour));
+            if (onGoingSync.equals(neighbour)) {
+                onGoingSync = null;
+                logger.debug("Removed {} from onGoingSync due to sync {}", neighbour, onGoingSync);
+                sb.append(String.format("Removed %s from onGoingSync; ", neighbour));
             }
 
             if (lazy.remove(neighbour)) {
@@ -626,7 +629,7 @@ public class PlumTree extends GenericProtocol {
                 sb.append(String.format("Removed %s from lazy; ", neighbour));
             }
 
-            sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s onGoingSyncs %s", eager, lazy, currentPendingInfo.getLeft(), pending, onGoingSyncs));
+            sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s onGoingSync %s", eager, lazy, currentPendingInfo.getLeft(), pending, onGoingSync));
             logger.info(sb);
         }
     }
@@ -642,7 +645,7 @@ public class PlumTree extends GenericProtocol {
             logger.debug("{} is my currentPending try", currentPending);
             sb.append(String.format("Removed %s from pending; ", currentPending));
             sb.append(String.format("Added %s to currPending; ", currentPending));
-            sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s onGoingSyncs %s", eager, lazy, currentPendingInfo.getLeft(), pending, onGoingSyncs));
+            sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s onGoingSync %s", eager, lazy, currentPendingInfo.getLeft(), pending, onGoingSync));
             logger.info(sb);
             triggerNotification(new SendVectorClockNotification(mid, currentPending));
         } else {

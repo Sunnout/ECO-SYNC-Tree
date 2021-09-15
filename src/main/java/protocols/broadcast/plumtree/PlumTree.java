@@ -43,6 +43,8 @@ public class PlumTree extends GenericProtocol {
     protected int channelId;
     private final Host myself;
     private final static int PORT_MAPPING = 1000;
+    private final static int MIN_SYNC = 2000;
+    private final static int MAX_SYNC = 3000;
 
     private final long timeout1;
     private final long timeout2;
@@ -91,10 +93,11 @@ public class PlumTree extends GenericProtocol {
     public PlumTree(Properties properties, Host myself) throws HandlerRegistrationException, IOException {
         super(PROTOCOL_NAME, PROTOCOL_ID);
         this.myself = myself;
+        Random rand = new Random();
 
         this.timeout1 = Long.parseLong(properties.getProperty("timeout1", "1000"));
         this.timeout2 = Long.parseLong(properties.getProperty("timeout2", "500"));
-        this.gracePeriod = this.timeout1;
+        this.gracePeriod = 1000 + rand.nextInt(MAX_SYNC - MIN_SYNC) + MIN_SYNC;
         this.reconnectTimeout = Long.parseLong(properties.getProperty("reconnect_timeout", "500"));
         this.startInLazy = properties.getProperty("start_in_lazy", "false").equals("true");
 
@@ -111,6 +114,7 @@ public class PlumTree extends GenericProtocol {
         this.lazyQueue = new LinkedList<>();
         this.policy = HashSet::new;
         this.waitingGrafts = new LinkedList<>();
+
 
         String cMetricsInterval = properties.getProperty("bcast_channel_metrics_interval", "10000"); // 10 seconds
 

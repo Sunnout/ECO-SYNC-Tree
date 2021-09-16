@@ -235,14 +235,21 @@ public class PlumTree extends GenericProtocol {
 
     private void uponReceiveTreeMessage(TreeMessage msg, Host from, short sourceProto, int channelId) {
         UUID mid = msg.getMid();
+        logger.debug("Received tree {} from {}", mid, from);
         if (!receivedTree.contains(mid)) {
             handleTreeMessage(msg, from);
         } else {
+            StringBuilder sb = new StringBuilder("VIS-TREE: ");
+
             if(partialView.contains(from)) { //Because we can receive messages before neigh up
                 if (eager.remove(from)) {
+                    logger.debug("Removed {} from eager due to duplicate tree {}", from, eager);
+                    sb.append(String.format("Removed %s from eager; ", from));
                 }
 
                 if (removeFromPending(from)) {
+                    logger.debug("Removed {} from eager due to duplicate tree {}", from, eager);
+                    sb.append(String.format("Removed %s from eager; ", from));
                 }
 
                 if (from.equals(currentPendingInfo.getLeft())) {
@@ -261,15 +268,15 @@ public class PlumTree extends GenericProtocol {
 
     private void uponReceiveGossip(GossipMessage msg, Host from, short sourceProto, int channelId) {
         receivedGossip++;
-
-        logger.debug("Received {} from {}", msg.getMid(), from);
         UUID mid = msg.getMid();
+        logger.debug("Received gossip {} from {}", mid, from);
         if (!received.contains(mid)) {
             logger.info("RECEIVED {}", mid);
             triggerNotification(new DeliverNotification(mid, from, msg.getContent(), false));
             handleGossipMessage(msg, from);
         } else {
             receivedDupesGossip++;
+            logger.info("DUPLICATE GOSSIP from {}", from);
         }
     }
 

@@ -18,6 +18,7 @@ import protocols.broadcast.common.requests.VectorClockRequest;
 import protocols.broadcast.common.timers.ReconnectTimeout;
 import protocols.broadcast.plumtree.timers.GracePeriodTimeout;
 import protocols.broadcast.plumtree.timers.IHaveTimeout;
+import protocols.broadcast.plumtree.timers.SendTreeMessageTimeout;
 import protocols.broadcast.plumtree.utils.AddressedIHaveMessage;
 import protocols.broadcast.plumtree.utils.LazyQueuePolicy;
 import protocols.broadcast.plumtree.utils.MessageSource;
@@ -50,6 +51,8 @@ public class PlumTree extends GenericProtocol {
     private final long timeout2;
     private final long gracePeriod;
     private final long reconnectTimeout;
+    private final long treeMsgTimeout;
+    private final long treeMsgStartTime;
     private final boolean startInLazy;
 
     private final Set<Host> partialView;
@@ -59,14 +62,17 @@ public class PlumTree extends GenericProtocol {
     private final Queue<Pair<Host, UUID>> pending;
     private Pair<Host, UUID> currentPendingInfo;
     private final Map<UUID, Queue<GossipMessage>> bufferedOps; //Buffer ops received between sending vc to kernel and sending sync ops (and send them after)
+    private final Map<UUID, Queue<TreeMessage>> bufferedTreeMsgs; //Buffer tree msgs received between sending vc to kernel and sending sync ops (and send them after)
     private final Map<UUID, Queue<MessageSource>> missing;
-    private final Set<UUID> received;
-    private final Map<UUID, Long> onGoingTimers;
+    private final Set<UUID> received; // IDs of received gossip msgs
+    private final Set<UUID> receivedTree; // IDs of received tree msgs
+    private final Map<UUID, Long> onGoingTimers; // Timers for tree msgs reception
     private final Queue<AddressedIHaveMessage> lazyQueue;
     private final LazyQueuePolicy policy;
     private final Queue<Pair<Host, UUID>> waitingGrafts;
 
     /*** Stats ***/
+    public static int sentTree;
     public static int sentGossip;
     public static int sentIHave;
     public static int sentGraft;
@@ -99,6 +105,8 @@ public class PlumTree extends GenericProtocol {
         this.timeout2 = Long.parseLong(properties.getProperty("timeout2", "500"));
         this.gracePeriod = 1000 + rand.nextInt(MAX_SYNC - MIN_SYNC) + MIN_SYNC;
         this.reconnectTimeout = Long.parseLong(properties.getProperty("reconnect_timeout", "500"));
+        this.treeMsgTimeout = Long.parseLong(properties.getProperty("tree_msg_timeout", "1000"));
+        this.treeMsgStartTime = Long.parseLong(properties.getProperty("tree_msg_start", "60000"));
         this.startInLazy = properties.getProperty("start_in_lazy", "false").equals("true");
 
         this.partialView = new HashSet<>();
@@ -108,8 +116,10 @@ public class PlumTree extends GenericProtocol {
         this.pending = new LinkedList<>();
         this.currentPendingInfo = Pair.of(null, null);
         this.bufferedOps = new HashMap<>();
+        this.bufferedTreeMsgs = new HashMap<>();
         this.missing = new HashMap<>();
         this.received = new HashSet<>();
+        this.receivedTree = new HashSet<>();
         this.onGoingTimers = new HashMap<>();
         this.lazyQueue = new LinkedList<>();
         this.policy = HashSet::new;
@@ -133,6 +143,7 @@ public class PlumTree extends GenericProtocol {
         channelId = createChannel(TCPChannel.NAME, channelProps); // Create the channel with the given properties
 
         /*--------------------- Register Timer Handlers ----------------------------- */
+        registerTimerHandler(SendTreeMessageTimeout.TIMER_ID, this::uponSendTreeMessageTimeout);
         registerTimerHandler(IHaveTimeout.TIMER_ID, this::uponIHaveTimeout);
         registerTimerHandler(GracePeriodTimeout.TIMER_ID, this::uponGracePeriodTimeout);
         registerTimerHandler(ReconnectTimeout.TIMER_ID, this::uponReconnectTimeout);
@@ -147,6 +158,7 @@ public class PlumTree extends GenericProtocol {
         subscribeNotification(NeighbourDown.NOTIFICATION_ID, this::uponNeighbourDown);
 
         /*---------------------- Register Message Serializers ---------------------- */
+        registerMessageSerializer(channelId, TreeMessage.MSG_ID, TreeMessage.serializer);
         registerMessageSerializer(channelId, GossipMessage.MSG_ID, GossipMessage.serializer);
         registerMessageSerializer(channelId, PruneMessage.MSG_ID, PruneMessage.serializer);
         registerMessageSerializer(channelId, GraftMessage.MSG_ID, GraftMessage.serializer);
@@ -157,6 +169,7 @@ public class PlumTree extends GenericProtocol {
         registerMessageSerializer(channelId, SyncOpsMessage.MSG_ID, SyncOpsMessage.serializer);
 
         /*---------------------- Register Message Handlers -------------------------- */
+        registerMessageHandler(channelId, TreeMessage.MSG_ID, this::uponReceiveTreeMessage, this::onMessageFailed);
         registerMessageHandler(channelId, GossipMessage.MSG_ID, this::uponReceiveGossip, this::onMessageFailed);
         registerMessageHandler(channelId, PruneMessage.MSG_ID, this::uponReceivePrune, this::onMessageFailed);
         registerMessageHandler(channelId, GraftMessage.MSG_ID, this::uponReceiveGraft, this::onMessageFailed);
@@ -178,6 +191,7 @@ public class PlumTree extends GenericProtocol {
     @Override
     public void init(Properties props) throws HandlerRegistrationException, IOException {
         setupPeriodicTimer(new GracePeriodTimeout(), 0, gracePeriod);
+        setupPeriodicTimer(new SendTreeMessageTimeout(), treeMsgStartTime, treeMsgTimeout);
     }
 
 
@@ -212,12 +226,38 @@ public class PlumTree extends GenericProtocol {
         sentSyncOps++;
         sentSyncGossip += request.getIds().size();
         logger.debug("Sent {} to {}", msg, neighbour);
-        handleBufferedOperations(neighbour, mid);
+        handleBufferedMessages(neighbour, mid);
         addNeighbourToEager(neighbour);
     }
 
 
     /*--------------------------------- Messages ---------------------------------------- */
+
+    private void uponReceiveTreeMessage(TreeMessage msg, Host from, short sourceProto, int channelId) {
+        UUID mid = msg.getMid();
+        if (!receivedTree.contains(mid)) {
+            handleTreeMessage(msg, from);
+        } else {
+            if(partialView.contains(from)) { //Because we can receive messages before neigh up
+                if (eager.remove(from)) {
+                }
+
+                if (removeFromPending(from)) {
+                }
+
+                if (from.equals(currentPendingInfo.getLeft())) {
+                    tryNextSync();
+                }
+
+                if (lazy.add(from)) {
+                }
+
+                logger.debug("Sent PruneMessage to {}", from);
+                sendMessage(new PruneMessage(), from);
+                sentPrune++;
+            }
+        }
+    }
 
     private void uponReceiveGossip(GossipMessage msg, Host from, short sourceProto, int channelId) {
         receivedGossip++;
@@ -230,46 +270,6 @@ public class PlumTree extends GenericProtocol {
             handleGossipMessage(msg, from);
         } else {
             receivedDupesGossip++;
-            logger.info("DUPLICATE GOSSIP from {}", from);
-            logger.debug("{} was duplicated msg from {}", mid, from);
-            StringBuilder sb = new StringBuilder("VIS-DUPE: ");
-            boolean print = false;
-
-            if(partialView.contains(from)) { //Because we can receive messages before neigh up
-                if (eager.remove(from)) {
-                    logger.debug("Removed {} from eager due to duplicate {}", from, eager);
-                    print = true;
-                    sb.append(String.format("Removed %s from eager; ", from));
-                }
-
-                if (removeFromPending(from)) {
-                    logger.debug("Removed {} from pending due to duplicate {}", from, pending);
-                    print = true;
-                    sb.append(String.format("Removed %s from pending; ", from));
-                }
-
-                if (from.equals(currentPendingInfo.getLeft())) {
-                    logger.debug("Removed {} from current pending due to duplicate", from);
-                    print = true;
-                    sb.append(String.format("Removed %s from currPending; ", from));
-                    tryNextSync();
-                }
-
-                if (lazy.add(from)) {
-                    logger.debug("Added {} to lazy due to duplicate {}", from, lazy);
-                    print = true;
-                    sb.append(String.format("Added %s to lazy; ", from));
-                }
-
-                logger.debug("Sent PruneMessage to {}", from);
-                sendMessage(new PruneMessage(), from);
-                sentPrune++;
-            }
-
-            if(print) {
-                sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s onGoingSync %s", eager, lazy, currentPendingInfo.getLeft(), pending, onGoingSync));
-                logger.info(sb);
-            }
         }
     }
 
@@ -381,6 +381,13 @@ public class PlumTree extends GenericProtocol {
 
 
     /*--------------------------------- Timers ---------------------------------------- */
+
+    private void uponSendTreeMessageTimeout(SendTreeMessageTimeout timeout, long timerId) {
+        UUID mid = UUID.randomUUID();
+        logger.debug("Generated tree msg {}", mid);
+        TreeMessage msg = new TreeMessage(mid, myself);
+        handleTreeMessage(msg, myself);
+    }
 
     private void uponIHaveTimeout(IHaveTimeout timeout, long timerId) {
         UUID mid = timeout.getMid();
@@ -565,7 +572,7 @@ public class PlumTree extends GenericProtocol {
         StringBuilder sb = new StringBuilder("VIS-CONNUP: ");
 
         if (partialView.contains(neighbour)) {
-            if (startInLazy /*&& !lazy.isEmpty()*/) {
+            if (startInLazy) {
                 if (lazy.add(neighbour)) {
                     logger.debug("Added {} to lazy due to neigh up {}", neighbour, lazy);
                     sb.append(String.format("Added %s to lazy; ", neighbour));
@@ -653,6 +660,41 @@ public class PlumTree extends GenericProtocol {
         }
     }
 
+    private void handleTreeMessage(TreeMessage msg, Host from) {
+        for(Queue<TreeMessage> q : this.bufferedTreeMsgs.values())
+            q.add(msg);
+
+        UUID mid = msg.getMid();
+        receivedTree.add(mid);
+
+        Long tid;
+        if ((tid = onGoingTimers.remove(mid)) != null) {
+            cancelTimer(tid);
+        }
+
+        eagerPushTreeMessage(msg, from);
+        lazyPushTreeMessage(msg, from);
+    }
+
+    private void eagerPushTreeMessage(TreeMessage msg, Host from) {
+        for (Host peer : eager) {
+            if (!peer.equals(from)) {
+                sendMessage(msg, peer);
+                sentTree++;
+                logger.debug("Forward tree {} received from {} to {}", msg.getMid(), from, peer);
+            }
+        }
+    }
+
+    private void lazyPushTreeMessage(TreeMessage msg, Host from) {
+        for (Host peer : lazy) {
+            if (!peer.equals(from)) {
+                lazyQueue.add(new AddressedIHaveMessage(new IHaveMessage(msg.getMid()), peer));
+            }
+        }
+        dispatch();
+    }
+
     private void handleGossipMessage(GossipMessage msg, Host from) {
         for(Queue<GossipMessage> q : this.bufferedOps.values())
             q.add(msg);
@@ -660,44 +702,41 @@ public class PlumTree extends GenericProtocol {
         UUID mid = msg.getMid();
         received.add(mid);
 
-        Long tid;
-        if ((tid = onGoingTimers.remove(mid)) != null) {
-            cancelTimer(tid);
-        }
-
-        eagerPush(msg, from);
-        lazyPush(msg, from);
+        eagerPushGossipMessage(msg, from);
     }
 
-    private void handleBufferedOperations(Host neighbour, UUID mid) {
-        Queue<GossipMessage> q = this.bufferedOps.remove(mid);
-        GossipMessage msg;
-        while ((msg = q.poll()) != null) {
-            if (!msg.getSender().equals(neighbour)) {
-                sendMessage(msg, neighbour);
-                sentGossip++;
-                logger.debug("Sent buffered {} to {}", msg, neighbour);
-            }
-        }
-    }
-
-    private void eagerPush(GossipMessage msg, Host from) {
+    private void eagerPushGossipMessage(GossipMessage msg, Host from) {
         for (Host peer : eager) {
             if (!peer.equals(from)) {
                 sendMessage(msg, peer);
                 sentGossip++;
-                logger.debug("Forward {} received from {} to {}", msg.getMid(), from, peer);
+                logger.debug("Forward gossip {} received from {} to {}", msg.getMid(), from, peer);
             }
         }
     }
 
-    private void lazyPush(GossipMessage msg, Host from) {
-        for (Host peer : lazy) {
-            if (!peer.equals(from)) {
-                lazyQueue.add(new AddressedIHaveMessage(new IHaveMessage(msg.getMid()), peer));
+    private void handleBufferedMessages(Host neighbour, UUID mid) {
+        // Send buffered tree msgs
+        Queue<TreeMessage> treeQ = this.bufferedTreeMsgs.remove(mid);
+        TreeMessage treeMsg;
+        while ((treeMsg = treeQ.poll()) != null) {
+            if (!treeMsg.getSender().equals(neighbour)) {
+                sendMessage(treeMsg, neighbour);
+                sentTree++;
+                logger.debug("Sent buffered tree {} to {}", treeMsg, neighbour);
             }
         }
-        dispatch();
+
+        // Send buffered gossip msgs
+        Queue<GossipMessage> gossipQ = this.bufferedOps.remove(mid);
+        GossipMessage gossipMsg;
+        while ((gossipMsg = gossipQ.poll()) != null) {
+            if (!gossipMsg.getSender().equals(neighbour)) {
+                sendMessage(gossipMsg, neighbour);
+                sentGossip++;
+                logger.debug("Sent buffered gossip {} to {}", gossipMsg, neighbour);
+            }
+        }
     }
 
     private void handleAnnouncement(UUID mid, Host from) {

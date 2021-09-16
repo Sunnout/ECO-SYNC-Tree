@@ -10,7 +10,7 @@ import java.io.IOException;
 import java.util.UUID;
 
 public class VectorClockMessage extends ProtoMessage {
-    public static final short MSG_ID = 905;
+    public static final short MSG_ID = 906;
 
     private final UUID mid;
     private final Host sender;

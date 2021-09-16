@@ -627,7 +627,7 @@ public class PlumTree extends GenericProtocol {
     private void startSynchronization(Host neighbour, boolean neighUp, String cause) {
         StringBuilder sb = new StringBuilder("VIS-STARTSYNC-" + cause + ": ");
 
-        if (neighUp || (lazy.contains(neighbour) && !onGoingSync.equals(neighbour))) {
+        if (neighUp || (lazy.contains(neighbour) && !neighbour.equals(onGoingSync))) {
             logger.debug("Added {} to onGoingSync", neighbour);
             onGoingSync = neighbour;
             UUID mid = UUID.randomUUID();

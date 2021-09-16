@@ -65,7 +65,7 @@ public class PlumTree extends GenericProtocol {
     private final Map<UUID, Queue<TreeMessage>> bufferedTreeMsgs; //Buffer tree msgs received between sending vc to kernel and sending sync ops (and send them after)
     private final Map<UUID, Queue<MessageSource>> missing;
     private final Set<UUID> received; // IDs of received gossip msgs
-    private final Set<UUID> receivedTree; // IDs of received tree msgs
+    private final Set<UUID> receivedTreeIDs; // IDs of received tree msgs
     private final Map<UUID, Long> onGoingTimers; // Timers for tree msgs reception
     private final Queue<AddressedIHaveMessage> lazyQueue;
     private final LazyQueuePolicy policy;
@@ -82,7 +82,9 @@ public class PlumTree extends GenericProtocol {
     public static int sentSyncOps;
     public static int sentSyncGossip;
 
+    public static int receivedTree;
     public static int receivedGossip;
+    public static int receivedDupesTree;
     public static int receivedDupesGossip;
     public static int receivedIHave;
     public static int receivedGraft;
@@ -119,7 +121,7 @@ public class PlumTree extends GenericProtocol {
         this.bufferedTreeMsgs = new HashMap<>();
         this.missing = new HashMap<>();
         this.received = new HashSet<>();
-        this.receivedTree = new HashSet<>();
+        this.receivedTreeIDs = new HashSet<>();
         this.onGoingTimers = new HashMap<>();
         this.lazyQueue = new LinkedList<>();
         this.policy = HashSet::new;
@@ -234,34 +236,52 @@ public class PlumTree extends GenericProtocol {
     /*--------------------------------- Messages ---------------------------------------- */
 
     private void uponReceiveTreeMessage(TreeMessage msg, Host from, short sourceProto, int channelId) {
+        receivedTree++;
         UUID mid = msg.getMid();
         logger.debug("Received tree {} from {}", mid, from);
-        if (!receivedTree.contains(mid)) {
+        if (!receivedTreeIDs.contains(mid)) {
             handleTreeMessage(msg, from);
         } else {
+            receivedDupesTree++;
+            logger.info("dupe tree from {}", from);
+            logger.debug("{} was duplicated tree from {}", mid, from);
             StringBuilder sb = new StringBuilder("VIS-TREE: ");
+            boolean print = false;
 
             if(partialView.contains(from)) { //Because we can receive messages before neigh up
                 if (eager.remove(from)) {
                     logger.debug("Removed {} from eager due to duplicate tree {}", from, eager);
+                    print = true;
                     sb.append(String.format("Removed %s from eager; ", from));
                 }
 
                 if (removeFromPending(from)) {
-                    logger.debug("Removed {} from eager due to duplicate tree {}", from, eager);
-                    sb.append(String.format("Removed %s from eager; ", from));
+                    logger.debug("Removed {} from pending due to duplicate {}", from, pending);
+                    print = true;
+                    sb.append(String.format("Removed %s from pending; ", from));
                 }
 
                 if (from.equals(currentPendingInfo.getLeft())) {
+                    logger.debug("Removed {} from current pending due to duplicate", from);
+                    print = true;
+                    sb.append(String.format("Removed %s from currPending; ", from));
                     tryNextSync();
                 }
 
                 if (lazy.add(from)) {
+                    logger.debug("Added {} to lazy due to duplicate {}", from, lazy);
+                    print = true;
+                    sb.append(String.format("Added %s to lazy; ", from));
                 }
 
                 logger.debug("Sent PruneMessage to {}", from);
                 sendMessage(new PruneMessage(), from);
                 sentPrune++;
+            }
+
+            if(print) {
+                sb.append(String.format("VIEWS: eager %s lazy %s currPending %s pending %s onGoingSync %s", eager, lazy, currentPendingInfo.getLeft(), pending, onGoingSync));
+                logger.info(sb);
             }
         }
     }
@@ -672,7 +692,7 @@ public class PlumTree extends GenericProtocol {
             q.add(msg);
 
         UUID mid = msg.getMid();
-        receivedTree.add(mid);
+        receivedTreeIDs.add(mid);
 
         Long tid;
         if ((tid = onGoingTimers.remove(mid)) != null) {

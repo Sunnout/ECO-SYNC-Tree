@@ -1,7 +1,7 @@
 #!/bin/bash
 
 processes=$1
--.=$2
+newprocesses=$2
 killprocesses=$3
 contactnode=$4
 runcontact=$5

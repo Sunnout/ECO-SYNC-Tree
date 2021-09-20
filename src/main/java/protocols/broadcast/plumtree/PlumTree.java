@@ -32,6 +32,8 @@ import pt.unl.fct.di.novasys.channel.tcp.events.*;
 import pt.unl.fct.di.novasys.network.data.Host;
 
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.*;
 
 public class PlumTree extends GenericProtocol {
@@ -339,6 +341,7 @@ public class PlumTree extends GenericProtocol {
 
         logger.debug("Received {} from {}", msg, from);
         this.bufferedOps.put(msg.getMid(), new LinkedList<>());
+        this.bufferedTreeMsgs.put(msg.getMid(), new LinkedList<>());
         triggerNotification(new VectorClockNotification(msg.getMid(), msg.getSender(), msg.getVectorClock()));
     }
 
@@ -410,15 +413,23 @@ public class PlumTree extends GenericProtocol {
     /*--------------------------------- Timers ---------------------------------------- */
 
     private void uponSendTreeMessageTimeout(SendTreeMessageTimeout timeout, long timerId) {
-        UUID mid = UUID.randomUUID();
-        logger.debug("Generated tree msg {}", mid);
-        TreeMessage msg = new TreeMessage(mid, myself);
-        handleTreeMessage(msg, myself);
+        Host specialMsgSender = null;
+        try {
+            specialMsgSender = new Host(InetAddress.getByName("10.10.0.10"),6000);
+        } catch (UnknownHostException e) {
+            e.printStackTrace();
+        }
+        if(myself.equals(specialMsgSender)) {
+            UUID mid = UUID.randomUUID();
+            logger.debug("Generated tree msg {}", mid);
+            TreeMessage msg = new TreeMessage(mid, myself);
+            handleTreeMessage(msg, myself);
+        }
     }
 
     private void uponIHaveTimeout(IHaveTimeout timeout, long timerId) {
         UUID mid = timeout.getMid();
-        if (!received.contains(mid)) {
+        if (!receivedTreeIDs.contains(mid)) {
             MessageSource msgSrc = missing.get(mid).poll();
             if (msgSrc != null) {
                 long tid = setupTimer(timeout, timeout2);
@@ -504,7 +515,7 @@ public class PlumTree extends GenericProtocol {
             sb.append(String.format("Removed %s from pending; ", neighbour));
         }
 
-        if (onGoingSync.equals(neighbour)) {
+        if (neighbour.equals(onGoingSync)) {
             onGoingSync = null;
             logger.debug("Removed {} from onGoingSync due to down {}", neighbour, onGoingSync);
             print = true;
@@ -559,7 +570,7 @@ public class PlumTree extends GenericProtocol {
             sb.append(String.format("Removed %s from pending; ", host));
         }
 
-        if (onGoingSync.equals(host)) {
+        if (host.equals(onGoingSync)) {
             onGoingSync = null;
             logger.debug("Removed {} from onGoingSync due to plumtree down {}", host, onGoingSync);
             print = true;
@@ -652,7 +663,7 @@ public class PlumTree extends GenericProtocol {
                 sb.append(String.format("Added %s to eager; ", neighbour));
             }
 
-            if (onGoingSync.equals(neighbour)) {
+            if (neighbour.equals(onGoingSync)) {
                 onGoingSync = null;
                 logger.debug("Removed {} from onGoingSync due to sync {}", neighbour, onGoingSync);
                 sb.append(String.format("Removed %s from onGoingSync; ", neighbour));

@@ -30,7 +30,7 @@ public class CRDTApp extends GenericProtocol {
 
     //RUN = 0 --> counter; 1 --> register; 2 --> set; 3 --> map; 4 --> 8 registers;
     //5 --> 8 sets; 6 --> 8 maps; 7 --> 1 of each CRDT
-    private static final int RUN = 8;
+    private static final int RUN = 7;
 
     //True for several periodic ops, false for 1 op per crdt from each app
     private static final boolean PERIODIC_OPS = true;

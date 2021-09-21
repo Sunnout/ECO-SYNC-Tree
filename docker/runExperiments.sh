@@ -124,6 +124,14 @@ for nNodes in "${nNodesList[@]}"; do
         done
 
         sleep 230
+
+        for ((kill=1;kill<6;kill++)); do
+          node=$((kill/perHost))
+          echo killing node_$kill
+          oarsh -n ${hosts[node]} "docker exec -d node_${kill} killall java"
+          sleep 0.5
+        done
+
         newRuntime=$((runtime + warmup - 2 - 230))
         echo Newruntime is $newRuntime
         for ((nextNodeNumber=nodeNumber;nextNodeNumber<nNodes;nextNodeNumber++)); do

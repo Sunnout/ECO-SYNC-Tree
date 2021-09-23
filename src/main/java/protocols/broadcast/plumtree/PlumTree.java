@@ -750,12 +750,17 @@ public class PlumTree extends GenericProtocol {
     }
 
     private void handleAnnouncement(UUID mid, Host from) {
-        if (!received.contains(mid)) {
-            if (!onGoingTimers.containsKey(mid)) {
-                long tid = setupTimer(new IHaveTimeout(mid), timeout1);
-                onGoingTimers.put(mid, tid);
+        if (!receivedTreeIDs.contains(mid)) {
+            if (eager.isEmpty() && outgoingSyncs.isEmpty()) {
+                logger.debug("Try sync with {} before timeout {}", from, mid);
+                startSynchronization(from, false, mid, "BEFORETIMEOUT-" + mid);
+            } else {
+                if (!onGoingTimers.containsKey(mid)) {
+                    long tid = setupTimer(new IHaveTimeout(mid), timeout1);
+                    onGoingTimers.put(mid, tid);
+                }
+                missing.computeIfAbsent(mid, v -> new LinkedList<>()).add(from);
             }
-            missing.computeIfAbsent(mid, v -> new LinkedList<>()).add(from);
         }
     }
 

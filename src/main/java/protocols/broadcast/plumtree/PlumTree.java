@@ -324,7 +324,7 @@ public class PlumTree extends GenericProtocol {
         receivedGraft++;
 
         logger.debug("Received {} from {}", msg, from);
-        startSynchronization(from, false, "GRAFT");
+        startSynchronization(from, false, UUID.randomUUID(), "GRAFT");
     }
 
     private void uponReceiveIHave(IHaveMessage msg, Host from, short sourceProto, int channelId) {
@@ -350,7 +350,7 @@ public class PlumTree extends GenericProtocol {
         StringBuilder sb = new StringBuilder("VIS-SENDVC: ");
 
         UUID mid = msg.getMid();
-        if(partialView.contains(from)) { //Pq se não receber as ops dele ele fica para sempre currentPending e as syncs não avançam
+        if(partialView.contains(from)) { // Pq se não receber as ops dele ele fica para sempre currentPending e as syncs não avançam
             Host currentPending = incomingSync.getLeft();
             if (currentPending == null) {
                 currentPending = from;
@@ -424,13 +424,8 @@ public class PlumTree extends GenericProtocol {
         if (!receivedTreeIDs.contains(mid)) {
             Host msgSrc = missing.get(mid).poll();
             if (msgSrc != null) {
-                if (partialView.contains(msgSrc) && !outgoingSyncs.contains(msgSrc)) {
-                    logger.debug("Sent GraftMessage for {} to {}", mid, msgSrc);
-                    sendMessage(new GraftMessage(mid), msgSrc);
-                    sentGraft++;
-                }
                 logger.debug("Try sync with {} for timeout {}", msgSrc, mid);
-                startSynchronization(msgSrc, false, "TIMEOUT-" + mid);
+                startSynchronization(msgSrc, false, mid, "TIMEOUT-" + mid);
             }
         }
     }
@@ -591,7 +586,7 @@ public class PlumTree extends GenericProtocol {
                 }
             } else {
                 logger.debug("Trying sync from neighbour {} up", neighbour);
-                startSynchronization(neighbour, true, "NEIGHUP");
+                startSynchronization(neighbour, true, UUID.randomUUID(), "NEIGHUP");
             }
         }
     }
@@ -607,8 +602,14 @@ public class PlumTree extends GenericProtocol {
 
     /*--------------------------------- Procedures ---------------------------------------- */
 
-    private void startSynchronization(Host neighbour, boolean neighUp, String cause) {
+    private void startSynchronization(Host neighbour, boolean neighUp, UUID msgId, String cause) {
         StringBuilder sb = new StringBuilder("VIS-STARTSYNC-" + cause + ": ");
+
+        if (partialView.contains(neighbour) && !outgoingSyncs.contains(neighbour) && !eager.contains(neighbour)) {
+            logger.debug("Sent GraftMessage for {} to {}", msgId, neighbour);
+            sendMessage(new GraftMessage(msgId), neighbour);
+            sentGraft++;
+        }
 
         if (neighUp || (lazy.contains(neighbour) && !outgoingSyncs.contains(neighbour))) {
             logger.debug("Added {} to outgoingSyncs", neighbour);

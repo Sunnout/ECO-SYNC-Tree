@@ -1,7 +1,9 @@
 package protocols.broadcast.plumtree;
 
+import crdts.utils.VectorClock;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import protocols.broadcast.common.messages.SendVectorClockMessage;
@@ -27,6 +29,8 @@ import pt.unl.fct.di.novasys.channel.tcp.TCPChannel;
 import pt.unl.fct.di.novasys.channel.tcp.events.*;
 import pt.unl.fct.di.novasys.network.data.Host;
 
+import java.io.DataOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.*;
@@ -89,6 +93,17 @@ public class PlumTree extends GenericProtocol {
     public static int receivedSyncOps;
     public static int receivedSyncGossip;
     public static int receivedDupesSyncGossip;
+
+    /***** Replication Kernel stuff *****/
+    public static VectorClock vectorClock; // Local vector clock
+    private int seqNumber; // Counter of local operations
+
+    private File file;
+    private DataOutputStream dos;
+    private Map<Host, NavigableMap<Integer, Pair<Long, Integer>>> index;
+    private int nExecuted;
+    private long nBytes;
+    private int indexSpacing;
 
 
     /*--------------------------------- Initialization ---------------------------------------- */

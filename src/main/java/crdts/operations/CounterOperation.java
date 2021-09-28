@@ -1,7 +1,6 @@
 package crdts.operations;
 
 import io.netty.buffer.ByteBuf;
-import pt.unl.fct.di.novasys.network.data.Host;
 import serializers.MyOpSerializer;
 import serializers.MySerializer;
 
@@ -12,8 +11,8 @@ public class CounterOperation extends Operation {
 
     private final int value;
 
-    public CounterOperation(Host sender, int senderClock, String opType, String crdtId, String crdtType, int value) {
-        super(sender, senderClock, opType, crdtId, crdtType);
+    public CounterOperation(String opType, String crdtId, String crdtType, int value) {
+        super(opType, crdtId, crdtType);
         this.value = value;
     }
 
@@ -24,9 +23,7 @@ public class CounterOperation extends Operation {
     @Override
     public String toString() {
         return "CounterOperation{" +
-                "sender=" + sender +
-                ", senderClock=" + senderClock +
-                ", opType=" + opType +
+                "opType=" + opType +
                 ", crdtId=" + crdtId +
                 ", crdtType=" + crdtType +
                 ", value=" + value +
@@ -41,7 +38,7 @@ public class CounterOperation extends Operation {
         }
 
         @Override
-        public CounterOperation deserialize(MySerializer[] serializers, ByteBuf in) throws IOException {
+        public CounterOperation deserialize(MySerializer[] serializers, ByteBuf in) {
             int size = in.readInt();
             byte[] opType = new byte[size];
             in.readBytes(opType);
@@ -51,10 +48,8 @@ public class CounterOperation extends Operation {
             size = in.readInt();
             byte[] crdtType = new byte[size];
             in.readBytes(crdtType);
-            Host sender = Host.serializer.deserialize(in);
-            int senderClock = in.readInt();
             int value = in.readInt();
-            return new CounterOperation(sender, senderClock, new String(opType), new String(crdtId), new String(crdtType), value);
+            return new CounterOperation(new String(opType), new String(crdtId), new String(crdtType), value);
         }
     };
 

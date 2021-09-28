@@ -60,7 +60,7 @@ public class ORSetCRDT implements SetCRDT, KernelCRDT {
         Set<TaggedElement> toAdd = new HashSet<>();
         this.set.add(e);
         toAdd.add(e);
-        Operation op = new SetOperation(sender, 0, SET_ADD, crdtId, CRDT_TYPE, toAdd);
+        Operation op = new SetOperation(SET_ADD, crdtId, CRDT_TYPE, toAdd);
         UUID id = UUID.randomUUID();
         logger.debug("Downstream add {} op for {} - {}", elem, crdtId, id);
         kernel.downstream(new DownstreamRequest(id, sender, op), (short)0);
@@ -77,7 +77,7 @@ public class ORSetCRDT implements SetCRDT, KernelCRDT {
                 it.remove();
             }
         }
-        Operation op = new SetOperation(sender, 0, SET_REMOVE, crdtId, CRDT_TYPE, toRemove);
+        Operation op = new SetOperation(SET_REMOVE, crdtId, CRDT_TYPE, toRemove);
         UUID id = UUID.randomUUID();
         logger.debug("Downstream remove {} op for {} - {}", elem, crdtId, id);
         kernel.downstream(new DownstreamRequest(UUID.randomUUID(), sender, op), (short)0);

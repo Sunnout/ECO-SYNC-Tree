@@ -1,10 +1,8 @@
 package crdts.operations;
 
-import crdts.utils.VectorClock;
 import datatypes.SerializableType;
 import io.netty.buffer.ByteBuf;
 
-import pt.unl.fct.di.novasys.network.data.Host;
 import serializers.MyOpSerializer;
 import serializers.MySerializer;
 
@@ -17,8 +15,8 @@ public class RegisterOperation extends Operation {
     private final SerializableType value;
     private final Instant timestamp;
 
-    public RegisterOperation(Host sender, int senderClock, String opType, String crdtId, String crdtType, SerializableType value, Instant timestamp) {
-        super(sender, senderClock, opType, crdtId, crdtType);
+    public RegisterOperation(String opType, String crdtId, String crdtType, SerializableType value, Instant timestamp) {
+        super(opType, crdtId, crdtType);
         this.value = value;
         this.timestamp = timestamp;
     }
@@ -34,9 +32,7 @@ public class RegisterOperation extends Operation {
     @Override
     public String toString() {
         return "RegisterOperation{" +
-                "sender=" + sender +
-                ", senderClock=" + senderClock +
-                ", opType=" + opType +
+                "opType=" + opType +
                 ", crdtId=" + crdtId +
                 ", crdtType=" + crdtType +
                 ", value=" + value +
@@ -63,12 +59,10 @@ public class RegisterOperation extends Operation {
             size = in.readInt();
             byte[] crdtType = new byte[size];
             in.readBytes(crdtType);
-            Host sender = Host.serializer.deserialize(in);
-            int senderClock = in.readInt();
             SerializableType value = (SerializableType) serializers[0].deserialize(in);
             long epoch = in.readLong();
             int nano = in.readInt();
-            return new RegisterOperation(sender, senderClock, new String(opType), new String(crdtId), new String(crdtType), value, Instant.ofEpochSecond(epoch, nano));
+            return new RegisterOperation(new String(opType), new String(crdtId), new String(crdtType), value, Instant.ofEpochSecond(epoch, nano));
         }
     };
 

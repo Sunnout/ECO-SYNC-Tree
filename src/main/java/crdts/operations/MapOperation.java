@@ -1,17 +1,14 @@
 package crdts.operations;
 
 import crdts.utils.TaggedElement;
-import crdts.utils.VectorClock;
 import datatypes.SerializableType;
 import io.netty.buffer.ByteBuf;
-import pt.unl.fct.di.novasys.network.data.Host;
 import serializers.MyOpSerializer;
 import serializers.MySerializer;
 
 import java.io.*;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.Vector;
 
 
 public class MapOperation extends Operation {
@@ -21,8 +18,8 @@ public class MapOperation extends Operation {
     private final Set<TaggedElement> set;
     
 
-    public MapOperation(Host sender, int senderClock, String opType, String crdtId, String crdtType, SerializableType key, TaggedElement elem, Set<TaggedElement> set) {
-        super(sender, senderClock, opType, crdtId, crdtType);
+    public MapOperation(String opType, String crdtId, String crdtType, SerializableType key, TaggedElement elem, Set<TaggedElement> set) {
+        super(opType, crdtId, crdtType);
         this.elem = elem;
         this.key = key;
         this.set = set;
@@ -43,9 +40,7 @@ public class MapOperation extends Operation {
     @Override
     public String toString() {
         return "MapOperation{" +
-                "sender=" + sender +
-                ", senderClock=" + senderClock +
-                ", opType=" + opType +
+                "opType=" + opType +
                 ", crdtId=" + crdtId +
                 ", key=" + key +
                 ", elem=" + elem +
@@ -85,8 +80,6 @@ public class MapOperation extends Operation {
             size = in.readInt();
             byte[] crdtType = new byte[size];
             in.readBytes(crdtType);
-            Host sender = Host.serializer.deserialize(in);
-            int senderClock = in.readInt();
             SerializableType key = (SerializableType) serializers[0].deserialize(in);
             boolean isNull = in.readBoolean();
             TaggedElement elem = null;
@@ -97,7 +90,7 @@ public class MapOperation extends Operation {
             for(int i = 0; i < size; i++) {
                 set.add(TaggedElement.serializer.deserialize(teSerializer, in));
             }
-            return new MapOperation(sender, senderClock, new String(opType), new String(crdtId), new String(crdtType), key, elem, set);
+            return new MapOperation(new String(opType), new String(crdtId), new String(crdtType), key, elem, set);
         }
     };
 

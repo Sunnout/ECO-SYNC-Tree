@@ -1,23 +1,17 @@
 package crdts.operations;
 
 
-import crdts.utils.VectorClock;
 import io.netty.buffer.ByteBuf;
-import pt.unl.fct.di.novasys.network.data.Host;
 
 import java.io.*;
 
 public abstract class Operation {
 
-    protected Host sender;
-    protected int senderClock;
     protected final String opType;
     protected final String crdtId;
     protected final String crdtType;
 
-    public Operation(Host sender, int senderClock, String opType, String crdtId, String crdtType) {
-        this.sender = sender;
-        this.senderClock = senderClock;
+    public Operation(String opType, String crdtId, String crdtType) {
         this.opType = opType;
         this.crdtId = crdtId;
         this.crdtType = crdtType;
@@ -35,22 +29,6 @@ public abstract class Operation {
         return this.crdtType;
     }
 
-    public Host getSender() {
-        return sender;
-    }
-
-    public void setSender(Host sender) {
-        this.sender = sender;
-    }
-
-    public int getSenderClock() {
-        return senderClock;
-    }
-
-    public void setSenderClock(int senderClock) {
-        this.senderClock = senderClock;
-    }
-
     public static void serialize(Operation operation, ByteBuf out) throws IOException {
         out.writeInt(operation.opType.getBytes().length);
         out.writeBytes(operation.opType.getBytes());
@@ -58,11 +36,9 @@ public abstract class Operation {
         out.writeBytes(operation.crdtId.getBytes());
         out.writeInt(operation.crdtType.getBytes().length);
         out.writeBytes(operation.crdtType.getBytes());
-        Host.serializer.serialize(operation.sender, out);
-        out.writeInt(operation.senderClock);
     }
 
-    public static String opTypeFromByteArray(ByteBuf in) throws IOException {
+    public static String opTypeFromByteArray(ByteBuf in) {
         in.markReaderIndex();
         byte[] string = new byte[in.readInt()];
         in.readBytes(string);
@@ -70,7 +46,7 @@ public abstract class Operation {
         return new String(string);
     }
 
-    public static String crdtIdFromByteArray(ByteBuf in) throws IOException {
+    public static String crdtIdFromByteArray(ByteBuf in) {
         in.markReaderIndex();
         byte[] string = new byte[in.readInt()];
         in.readBytes(string);
@@ -80,7 +56,7 @@ public abstract class Operation {
         return new String(string);
     }
 
-    public static String crdtTypeFromByteArray(ByteBuf in) throws IOException {
+    public static String crdtTypeFromByteArray(ByteBuf in) {
         in.markReaderIndex();
         byte[] string = new byte[in.readInt()];
         in.readBytes(string);

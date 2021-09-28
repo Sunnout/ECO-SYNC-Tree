@@ -3,7 +3,6 @@ package protocols.replication;
 import crdts.interfaces.CounterCRDT;
 import crdts.operations.CounterOperation;
 import crdts.operations.Operation;
-import crdts.utils.VectorClock;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import protocols.replication.requests.DownstreamRequest;
@@ -52,7 +51,7 @@ public class OpCounterCRDT implements CounterCRDT, KernelCRDT {
 
     public synchronized void incrementBy(Host sender, int v) {
         this.c = this.c.add(BigInteger.valueOf(v));
-        Operation op = new CounterOperation(sender, 0, INCREMENT, crdtId, CRDT_TYPE, v);
+        Operation op = new CounterOperation(INCREMENT, crdtId, CRDT_TYPE, v);
         UUID id = UUID.randomUUID();
         logger.debug("Downstream incrementBy {} op for {} - {}", v, crdtId, id);
         kernel.downstream(new DownstreamRequest(id, sender, op), (short)0);
@@ -64,7 +63,7 @@ public class OpCounterCRDT implements CounterCRDT, KernelCRDT {
 
     public synchronized void decrementBy(Host sender, int v) {
         this.c = this.c.subtract(BigInteger.valueOf(v));
-        Operation op = new CounterOperation(sender, 0, DECREMENT, crdtId, CRDT_TYPE, v);
+        Operation op = new CounterOperation(DECREMENT, crdtId, CRDT_TYPE, v);
         UUID id = UUID.randomUUID();
         logger.debug("Downstream decrementBy {} op for {} - {}", v, crdtId, id);
         kernel.downstream(new DownstreamRequest(id, sender, op), (short)0);

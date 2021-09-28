@@ -46,6 +46,7 @@ public class PlumTree extends GenericProtocol {
     private final long reconnectTimeout;
     private final long treeMsgTimeout;
     private final long treeMsgStartTime;
+    private final boolean iAmTreeMsgSender;
     private final boolean startInLazy;
 
     private final Set<Host> partialView;
@@ -54,21 +55,18 @@ public class PlumTree extends GenericProtocol {
 
     private final Set<OutgoingSync> outgoingSyncs; // Hosts we have asked for vc
     private IncomingSync incomingSync; // Host that we sent our vc to
-    private final Queue<IncomingSync> pendingIncomingSyncs; // Queue of pending out and incoming syncs
+    private final Queue<IncomingSync> pendingIncomingSyncs; // Queue of pending incoming syncs
 
     private final Map<UUID, Queue<GossipMessage>> bufferedOps; // Buffer ops received between sending vc to kernel and sending sync ops (and send them after)
     private final Map<UUID, Queue<TreeMessage>> bufferedTreeMsgs; // Buffer tree msgs received between sending vc to kernel and sending sync ops (and send them after)
 
-    private final Map<UUID, Queue<Host>> missing; // Queue of hosts that have announced having a message ID
+    private final Map<UUID, Queue<Host>> missing; // Queue of hosts that have announced having a msg ID we do not have
     private final Set<UUID> received; // IDs of received gossip msgs
     private final Set<UUID> receivedTreeIDs; // IDs of received tree msgs
     private final Map<UUID, Long> onGoingTimers; // Timers for tree msgs reception
-    private final Queue<AddressedIHaveMessage> lazyQueue;
-    private final LazyQueuePolicy policy;
 
-    private final boolean iAmTreeMsgSender;
 
-    /*** Stats ***/
+    /***** Stats *****/
     public static int sentTree;
     public static int sentGossip;
     public static int sentIHave;
@@ -103,24 +101,24 @@ public class PlumTree extends GenericProtocol {
         this.reconnectTimeout = Long.parseLong(properties.getProperty("reconnect_timeout", "500"));
         this.treeMsgTimeout = Long.parseLong(properties.getProperty("tree_msg_timeout", "1000"));
         this.treeMsgStartTime = Long.parseLong(properties.getProperty("tree_msg_start", "60000"));
+        this.iAmTreeMsgSender = myself.equals(new Host(InetAddress.getByName("10.10.0.10"),6000));
         this.startInLazy = properties.getProperty("start_in_lazy", "false").equals("true");
 
         this.partialView = new HashSet<>();
         this.eager = new HashSet<>();
         this.lazy = new HashSet<>();
+
         this.outgoingSyncs = new HashSet<>();
         this.incomingSync = new IncomingSync(null, null);
         this.pendingIncomingSyncs = new LinkedList<>();
+
         this.bufferedOps = new HashMap<>();
         this.bufferedTreeMsgs = new HashMap<>();
+
         this.missing = new HashMap<>();
         this.received = new HashSet<>();
         this.receivedTreeIDs = new HashSet<>();
         this.onGoingTimers = new HashMap<>();
-        this.lazyQueue = new LinkedList<>();
-        this.policy = HashSet::new;
-
-        this.iAmTreeMsgSender = myself.equals(new Host(InetAddress.getByName("10.10.0.10"),6000));
 
         String cMetricsInterval = properties.getProperty("bcast_channel_metrics_interval", "10000"); // 10 seconds
 
@@ -716,10 +714,12 @@ public class PlumTree extends GenericProtocol {
     private void lazyPushTreeMessage(TreeMessage msg, Host from) {
         for (Host peer : lazy) {
             if (!peer.equals(from)) {
-                lazyQueue.add(new AddressedIHaveMessage(new IHaveMessage(msg.getMid()), peer));
+                IHaveMessage iHave = new IHaveMessage(msg.getMid());
+                logger.debug("Sent {} to {}", iHave, peer);
+                sendMessage(iHave, peer);
+                sentIHave++;
             }
         }
-        dispatch();
     }
 
     private void handleGossipMessage(GossipMessage msg, Host from) {
@@ -779,16 +779,6 @@ public class PlumTree extends GenericProtocol {
                 missing.computeIfAbsent(mid, v -> new LinkedList<>()).add(from);
             }
         }
-    }
-
-    private void dispatch() {
-        Set<AddressedIHaveMessage> announcements = policy.apply(lazyQueue);
-        for (AddressedIHaveMessage msg : announcements) {
-            logger.debug("Sent {} to {}", msg.msg, msg.to);
-            sendMessage(msg.msg, msg.to);
-            sentIHave++;
-        }
-        lazyQueue.removeAll(announcements);
     }
 
     private boolean removeFromPendingIncomingSyncs(Host host) {

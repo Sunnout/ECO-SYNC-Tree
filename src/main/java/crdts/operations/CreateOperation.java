@@ -1,7 +1,6 @@
 package crdts.operations;
 
 import io.netty.buffer.ByteBuf;
-import pt.unl.fct.di.novasys.network.data.Host;
 import serializers.MyOpSerializer;
 import serializers.MySerializer;
 
@@ -12,8 +11,8 @@ public class CreateOperation extends Operation {
 
     private final String[] dataTypes;
 
-    public CreateOperation(Host sender, int senderClock, String opType, String crdtId, String crdtType, String[] dataTypes) {
-        super(sender, senderClock, opType, crdtId, crdtType);
+    public CreateOperation(String opType, String crdtId, String crdtType, String[] dataTypes) {
+        super(opType, crdtId, crdtType);
         this.dataTypes = dataTypes;
     }
 
@@ -24,9 +23,7 @@ public class CreateOperation extends Operation {
     @Override
     public String toString() {
         return "CreateOperation{" +
-                "sender=" + sender +
-                ", senderClock=" + senderClock +
-                ", opType=" + opType +
+                "opType=" + opType +
                 ", crdtId=" + crdtId +
                 ", crdtType=" + crdtType +
                 '}';
@@ -45,7 +42,7 @@ public class CreateOperation extends Operation {
         }
 
         @Override
-        public CreateOperation deserialize(MySerializer[] serializers, ByteBuf in) throws IOException {
+        public CreateOperation deserialize(MySerializer[] serializers, ByteBuf in) {
             int size = in.readInt();
             byte[] opType = new byte[size];
             in.readBytes(opType);
@@ -55,8 +52,6 @@ public class CreateOperation extends Operation {
             size = in.readInt();
             byte[] crdtType = new byte[size];
             in.readBytes(crdtType);
-            Host sender = Host.serializer.deserialize(in);
-            int senderClock = in.readInt();
             size = in.readInt();
             String[] dataType = new String[size];
             for(int i = 0; i < size; i++) {
@@ -64,7 +59,7 @@ public class CreateOperation extends Operation {
                 in.readBytes(dataTypeBytes);
                 dataType[i] = new String(dataTypeBytes);
             }
-            return new CreateOperation(sender, senderClock, new String(opType), new String(crdtId), new String(crdtType), dataType);
+            return new CreateOperation(new String(opType), new String(crdtId), new String(crdtType), dataType);
         }
     };
 

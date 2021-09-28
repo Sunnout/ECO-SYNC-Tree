@@ -10,7 +10,6 @@ import protocols.broadcast.periodicpull.PeriodicPullDupesBroadcast;
 import protocols.broadcast.plumtree.PlumTree;
 import protocols.membership.hyparview.HyParView;
 import protocols.replication.ReplicationKernel;
-import protocols.replication.ReplicationKernelVCs;
 import pt.unl.fct.di.novasys.babel.core.Babel;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.network.data.Host;
@@ -81,14 +80,6 @@ public class Main {
                 crdtApp = new CRDTApp(props, myself, ReplicationKernel.PROTOCOL_ID, PeriodicPullBroadcast.PROTOCOL_ID);
                 replicationKernel = new ReplicationKernel(props, myself, PeriodicPullBroadcast.PROTOCOL_ID);
                 broadcast = new PeriodicPullBroadcast(props, myself);
-                membership = new HyParView(props, myself_membership);
-                registerAndStartProtocols(babel, crdtApp, replicationKernel, broadcast, membership, props);
-                break;
-
-            case "periodicpulldupes":
-                crdtApp = new CRDTApp(props, myself, ReplicationKernelVCs.PROTOCOL_ID, PeriodicPullDupesBroadcast.PROTOCOL_ID);
-                replicationKernel = new ReplicationKernelVCs(props, myself, PeriodicPullDupesBroadcast.PROTOCOL_ID);
-                broadcast = new PeriodicPullDupesBroadcast(props, myself);
                 membership = new HyParView(props, myself_membership);
                 registerAndStartProtocols(babel, crdtApp, replicationKernel, broadcast, membership, props);
                 break;

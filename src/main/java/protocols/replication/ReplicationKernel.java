@@ -577,7 +577,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         return map;
     }
 
-    private File initFile() throws IOException {
+    private File initFile() {
         File file = new File("/tmp/data/ops-" + myself);
         file.getParentFile().mkdirs();
         return file;

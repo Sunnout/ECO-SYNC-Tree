@@ -1,9 +1,7 @@
 package crdts.operations;
 
 import crdts.utils.TaggedElement;
-import crdts.utils.VectorClock;
 import io.netty.buffer.ByteBuf;
-import pt.unl.fct.di.novasys.network.data.Host;
 import serializers.MyOpSerializer;
 import serializers.MySerializer;
 
@@ -15,8 +13,8 @@ public class SetOperation extends Operation {
 
     private Set<TaggedElement> set;
 
-    public SetOperation(Host sender, int senderClock, String opType, String crdtId, String crdtType, Set<TaggedElement> set) {
-        super(sender, senderClock, opType, crdtId, crdtType);
+    public SetOperation(String opType, String crdtId, String crdtType, Set<TaggedElement> set) {
+        super(opType, crdtId, crdtType);
         this.set = set;
     }
 
@@ -27,9 +25,7 @@ public class SetOperation extends Operation {
     @Override
     public String toString() {
         return "SetOperation{" +
-                "sender=" + sender +
-                ", senderClock=" + senderClock +
-                ", opType=" + opType +
+                "opType=" + opType +
                 ", crdtId=" + crdtId +
                 ", crdtType=" + crdtType +
                 ", set=" + set +
@@ -58,13 +54,11 @@ public class SetOperation extends Operation {
             size = in.readInt();
             byte[] crdtType = new byte[size];
             in.readBytes(crdtType);
-            Host sender = Host.serializer.deserialize(in);
-            int senderClock = in.readInt();
             size = in.readInt();
             for(int i = 0; i < size; i++) {
                 set.add(TaggedElement.serializer.deserialize(serializers, in));
             }
-            return new SetOperation(sender, senderClock, new String(opType), new String(crdtId), new String(crdtType), set);
+            return new SetOperation(new String(opType), new String(crdtId), new String(crdtType), set);
         }
     };
 

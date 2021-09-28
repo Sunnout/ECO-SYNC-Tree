@@ -13,25 +13,32 @@ public class GossipMessage extends ProtoMessage {
 
     private final UUID mid;
     private final Host sender;
+    private final int senderClock;
     private final byte[] content;
 
     @Override
     public String toString() {
         return "GossipMessage{" +
-                "mid=" + mid + ", " +
-                "sender=" + sender +
+                "mid=" + mid +
+                ", sender=" + sender +
+                ", senderClock=" + senderClock +
                 '}';
     }
 
-    public GossipMessage(UUID mid, Host sender, byte[] content) {
+    public GossipMessage(UUID mid, Host sender, int senderClock, byte[] content) {
         super(MSG_ID);
         this.mid = mid;
         this.sender = sender;
+        this.senderClock = senderClock;
         this.content = content;
     }
 
 	public Host getSender() {
         return sender;
+    }
+
+    public int getSenderClock() {
+        return senderClock;
     }
 
     public UUID getMid() {
@@ -48,6 +55,7 @@ public class GossipMessage extends ProtoMessage {
             out.writeLong(plumtreeGossipMessage.mid.getMostSignificantBits());
             out.writeLong(plumtreeGossipMessage.mid.getLeastSignificantBits());
             Host.serializer.serialize(plumtreeGossipMessage.sender, out);
+            out.writeInt(plumtreeGossipMessage.senderClock);
             out.writeInt(plumtreeGossipMessage.content.length);
             if (plumtreeGossipMessage.content.length > 0) {
                 out.writeBytes(plumtreeGossipMessage.content);
@@ -60,12 +68,13 @@ public class GossipMessage extends ProtoMessage {
             long secondLong = in.readLong();
             UUID mid = new UUID(firstLong, secondLong);
             Host sender = Host.serializer.deserialize(in);
+            int senderClock = in.readInt();
             int size = in.readInt();
             byte[] content = new byte[size];
             if (size > 0)
                 in.readBytes(content);
 
-            return new GossipMessage(mid, sender, content);
+            return new GossipMessage(mid, sender, senderClock, content);
         }
     };
 }

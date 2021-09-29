@@ -3,9 +3,8 @@ package protocols.apps;
 import java.util.*;
 
 import crdts.interfaces.GenericCRDT;
-import protocols.broadcast.flood.FloodBroadcast;
-import protocols.broadcast.periodicpull.PeriodicPullBroadcast;
-import protocols.broadcast.periodicpull.PeriodicPullDupesBroadcast;
+//import protocols.broadcast.flood.FloodBroadcast;
+//import protocols.broadcast.periodicpull.PeriodicPullBroadcast;
 import protocols.broadcast.plumtree.PlumTree;
 import protocols.replication.*;
 import protocols.replication.OpCounterCRDT.CounterOpType;
@@ -277,10 +276,8 @@ public class CRDTApp extends GenericProtocol {
 
     private void printFinalValues(int run) {
         logger.warn("RESULTS:");
-        if(replicationKernelId == 600) {
-            logger.info("Final vector clock: {}", ReplicationKernel.vectorClock);
-        } else {
-            logger.info("Final vector clock: {}", ReplicationKernelVCs.vectorClock);
+        if(broadcastId == PlumTree.PROTOCOL_ID) {
+            logger.info("Final vector clock: {}", PlumTree.vectorClock);
         }
 
         if(run == 0) {
@@ -348,10 +345,6 @@ public class CRDTApp extends GenericProtocol {
             logger.info("Number of sent operations: {}", ReplicationKernel.sentOps);
             logger.info("Number of received operations: {}", ReplicationKernel.receivedOps);
             logger.warn("Number of executed operations: {}", ReplicationKernel.executedOps);
-        } else {
-            logger.info("Number of sent operations: {}", ReplicationKernelVCs.sentOps);
-            logger.info("Number of received operations: {}", ReplicationKernelVCs.receivedOps);
-            logger.warn("Number of executed operations: {}", ReplicationKernelVCs.executedOps);
         }
     }
 
@@ -379,46 +372,35 @@ public class CRDTApp extends GenericProtocol {
             logger.info("receivedDupesSyncGossip: {}", PlumTree.receivedDupesSyncGossip);
         }
 
-        //Flood
-        else if(broadcastId == FloodBroadcast.PROTOCOL_ID) {
-            logger.info("sentFlood: {}", FloodBroadcast.sentFlood);
-            logger.info("sentSendVC: {}", FloodBroadcast.sentSendVC);
-            logger.info("sentVC: {}", FloodBroadcast.sentVC);
-            logger.info("sentSyncOps: {}", FloodBroadcast.sentSyncOps);
-            logger.info("sentSyncFlood: {}", FloodBroadcast.sentSyncFlood);
+//        //Flood
+//        else if(broadcastId == FloodBroadcast.PROTOCOL_ID) {
+//            logger.info("sentFlood: {}", FloodBroadcast.sentFlood);
+//            logger.info("sentSendVC: {}", FloodBroadcast.sentSendVC);
+//            logger.info("sentVC: {}", FloodBroadcast.sentVC);
+//            logger.info("sentSyncOps: {}", FloodBroadcast.sentSyncOps);
+//            logger.info("sentSyncFlood: {}", FloodBroadcast.sentSyncFlood);
+//
+//            logger.info("receivedFlood: {}", FloodBroadcast.receivedFlood);
+//            logger.info("receivedDupesFlood: {}", FloodBroadcast.receivedDupesFlood);
+//            logger.info("receivedSendVC: {}", FloodBroadcast.receivedSendVC);
+//            logger.info("receivedVC: {}", FloodBroadcast.receivedVC);
+//            logger.info("receivedSyncOps: {}", FloodBroadcast.receivedSyncOps);
+//            logger.info("receivedSyncFlood: {}", FloodBroadcast.receivedSyncFlood);
+//            logger.info("receivedDupesSyncFlood: {}", FloodBroadcast.receivedDupesSyncFlood);
+//        }
+//
+//        //Periodic Pull
+//        else if(broadcastId == PeriodicPullBroadcast.PROTOCOL_ID) {
+//            logger.info("sentVC: {}", PeriodicPullBroadcast.sentVC);
+//            logger.info("sentSyncOps: {}", PeriodicPullBroadcast.sentSyncOps);
+//            logger.info("sentSyncPull: {}", PeriodicPullBroadcast.sentSyncPull);
+//
+//            logger.info("receivedVC: {}", PeriodicPullBroadcast.receivedVC);
+//            logger.info("receivedSyncOps: {}", PeriodicPullBroadcast.receivedSyncOps);
+//            logger.info("receivedSyncPull: {}", PeriodicPullBroadcast.receivedSyncPull);
+//            logger.info("receivedDupes: {}", PeriodicPullBroadcast.receivedDupes);
+//        }
 
-            logger.info("receivedFlood: {}", FloodBroadcast.receivedFlood);
-            logger.info("receivedDupesFlood: {}", FloodBroadcast.receivedDupesFlood);
-            logger.info("receivedSendVC: {}", FloodBroadcast.receivedSendVC);
-            logger.info("receivedVC: {}", FloodBroadcast.receivedVC);
-            logger.info("receivedSyncOps: {}", FloodBroadcast.receivedSyncOps);
-            logger.info("receivedSyncFlood: {}", FloodBroadcast.receivedSyncFlood);
-            logger.info("receivedDupesSyncFlood: {}", FloodBroadcast.receivedDupesSyncFlood);
-        }
-
-        //Periodic Pull
-        else if(broadcastId == PeriodicPullBroadcast.PROTOCOL_ID) {
-            logger.info("sentVC: {}", PeriodicPullBroadcast.sentVC);
-            logger.info("sentSyncOps: {}", PeriodicPullBroadcast.sentSyncOps);
-            logger.info("sentSyncPull: {}", PeriodicPullBroadcast.sentSyncPull);
-
-            logger.info("receivedVC: {}", PeriodicPullBroadcast.receivedVC);
-            logger.info("receivedSyncOps: {}", PeriodicPullBroadcast.receivedSyncOps);
-            logger.info("receivedSyncPull: {}", PeriodicPullBroadcast.receivedSyncPull);
-            logger.info("receivedDupes: {}", PeriodicPullBroadcast.receivedDupes);
-        }
-
-        //Periodic Pull Dupes
-        else if(broadcastId == PeriodicPullDupesBroadcast.PROTOCOL_ID) {
-            logger.info("sentVC: {}", PeriodicPullDupesBroadcast.sentVC);
-            logger.info("sentSyncOps: {}", PeriodicPullDupesBroadcast.sentSyncOps);
-            logger.info("sentSyncPull: {}", PeriodicPullDupesBroadcast.sentSyncPull);
-
-            logger.info("receivedVC: {}", PeriodicPullDupesBroadcast.receivedVC);
-            logger.info("receivedSyncOps: {}", PeriodicPullDupesBroadcast.receivedSyncOps);
-            logger.info("receivedSyncPull: {}", PeriodicPullDupesBroadcast.receivedSyncPull);
-            logger.info("receivedDupes: {}", PeriodicPullDupesBroadcast.receivedDupes);
-        }
     }
 
     private void getCRDT(String crdtType, String[] dataType, String crdtId) {

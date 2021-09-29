@@ -1,18 +1,21 @@
 package protocols.broadcast.plumtree.messages;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;
 import pt.unl.fct.di.novasys.network.ISerializer;
 import pt.unl.fct.di.novasys.network.data.Host;
 
+import java.io.DataInputStream;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.UUID;
 
 public class GossipMessage extends ProtoMessage {
     public static final short MSG_ID = 901;
 
     private final UUID mid;
-    private final Host sender;
+    private final Host originalSender;
     private final int senderClock;
     private final byte[] content;
 
@@ -20,21 +23,21 @@ public class GossipMessage extends ProtoMessage {
     public String toString() {
         return "GossipMessage{" +
                 "mid=" + mid +
-                ", sender=" + sender +
+                ", sender=" + originalSender +
                 ", senderClock=" + senderClock +
                 '}';
     }
 
-    public GossipMessage(UUID mid, Host sender, int senderClock, byte[] content) {
+    public GossipMessage(UUID mid, Host originalSender, int senderClock, byte[] content) {
         super(MSG_ID);
         this.mid = mid;
-        this.sender = sender;
+        this.originalSender = originalSender;
         this.senderClock = senderClock;
         this.content = content;
     }
 
-	public Host getSender() {
-        return sender;
+	public Host getOriginalSender() {
+        return originalSender;
     }
 
     public int getSenderClock() {
@@ -54,7 +57,7 @@ public class GossipMessage extends ProtoMessage {
         public void serialize(GossipMessage plumtreeGossipMessage, ByteBuf out) throws IOException {
             out.writeLong(plumtreeGossipMessage.mid.getMostSignificantBits());
             out.writeLong(plumtreeGossipMessage.mid.getLeastSignificantBits());
-            Host.serializer.serialize(plumtreeGossipMessage.sender, out);
+            Host.serializer.serialize(plumtreeGossipMessage.originalSender, out);
             out.writeInt(plumtreeGossipMessage.senderClock);
             out.writeInt(plumtreeGossipMessage.content.length);
             if (plumtreeGossipMessage.content.length > 0) {
@@ -77,4 +80,21 @@ public class GossipMessage extends ProtoMessage {
             return new GossipMessage(mid, sender, senderClock, content);
         }
     };
+
+    public static GossipMessage deserialize(DataInputStream dis) throws IOException {
+        long firstLong = dis.readLong();
+        long secondLong = dis.readLong();
+        UUID mid = new UUID(firstLong, secondLong);
+        byte[] addrBytes = new byte[4];
+        dis.read(addrBytes);
+        int port = dis.readShort() & '\uffff';
+        Host sender = new Host(InetAddress.getByAddress(addrBytes), port);
+        int senderClock = dis.readInt();
+        int size = dis.readInt();
+        byte[] content = new byte[size];
+        if (size > 0)
+            dis.read(content);
+
+        return new GossipMessage(mid, sender, senderClock, content);
+    }
 }

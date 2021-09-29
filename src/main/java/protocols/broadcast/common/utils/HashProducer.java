@@ -1,4 +1,4 @@
-package protocols.broadcast.utils;
+package protocols.broadcast.common.utils;
 
 import pt.unl.fct.di.novasys.network.data.Host;
 

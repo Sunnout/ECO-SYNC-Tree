@@ -4,9 +4,8 @@ import java.util.Properties;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import protocols.broadcast.flood.FloodBroadcast;
-import protocols.broadcast.periodicpull.PeriodicPullBroadcast;
-import protocols.broadcast.periodicpull.PeriodicPullDupesBroadcast;
+//import protocols.broadcast.flood.FloodBroadcast;
+//import protocols.broadcast.periodicpull.PeriodicPullBroadcast;
 import protocols.broadcast.plumtree.PlumTree;
 import protocols.membership.hyparview.HyParView;
 import protocols.replication.ReplicationKernel;
@@ -68,21 +67,21 @@ public class Main {
                 registerAndStartProtocols(babel, crdtApp, replicationKernel, broadcast, membership, props);
                 break;
 
-            case "flood":
-                crdtApp = new CRDTApp(props, myself, ReplicationKernel.PROTOCOL_ID, FloodBroadcast.PROTOCOL_ID);
-                replicationKernel = new ReplicationKernel(props, myself, FloodBroadcast.PROTOCOL_ID);
-                broadcast = new FloodBroadcast(props, myself);
-                membership = new HyParView(props, myself_membership);
-                registerAndStartProtocols(babel, crdtApp, replicationKernel, broadcast, membership, props);
-                break;
-
-            case "periodicpull":
-                crdtApp = new CRDTApp(props, myself, ReplicationKernel.PROTOCOL_ID, PeriodicPullBroadcast.PROTOCOL_ID);
-                replicationKernel = new ReplicationKernel(props, myself, PeriodicPullBroadcast.PROTOCOL_ID);
-                broadcast = new PeriodicPullBroadcast(props, myself);
-                membership = new HyParView(props, myself_membership);
-                registerAndStartProtocols(babel, crdtApp, replicationKernel, broadcast, membership, props);
-                break;
+//            case "flood":
+//                crdtApp = new CRDTApp(props, myself, ReplicationKernel.PROTOCOL_ID, FloodBroadcast.PROTOCOL_ID);
+//                replicationKernel = new ReplicationKernel(props, myself, FloodBroadcast.PROTOCOL_ID);
+//                broadcast = new FloodBroadcast(props, myself);
+//                membership = new HyParView(props, myself_membership);
+//                registerAndStartProtocols(babel, crdtApp, replicationKernel, broadcast, membership, props);
+//                break;
+//
+//            case "periodicpull":
+//                crdtApp = new CRDTApp(props, myself, ReplicationKernel.PROTOCOL_ID, PeriodicPullBroadcast.PROTOCOL_ID);
+//                replicationKernel = new ReplicationKernel(props, myself, PeriodicPullBroadcast.PROTOCOL_ID);
+//                broadcast = new PeriodicPullBroadcast(props, myself);
+//                membership = new HyParView(props, myself_membership);
+//                registerAndStartProtocols(babel, crdtApp, replicationKernel, broadcast, membership, props);
+//                break;
 
             default:
                 logger.error("There is no broadcast protocol with name {}", bcast_protocol);

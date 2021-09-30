@@ -1,6 +1,6 @@
 package protocols.broadcast.plumtree;
 
-import crdts.utils.VectorClock;
+import protocols.broadcast.common.utils.VectorClock;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import protocols.broadcast.common.utils.MyFileManager;
@@ -38,7 +38,7 @@ public class PlumTree extends GenericProtocol {
     private final Host myself;
     private final static int PORT_MAPPING = 1000;
 
-    private final long timeout1;
+    private final long iHaveTimeout;
     private final long reconnectTimeout;
     private final long treeMsgTimeout;
     private final long treeMsgStartTime;
@@ -94,7 +94,7 @@ public class PlumTree extends GenericProtocol {
         super(PROTOCOL_NAME, PROTOCOL_ID);
         this.myself = myself;
 
-        this.timeout1 = Long.parseLong(properties.getProperty("timeout1", "1000"));
+        this.iHaveTimeout = Long.parseLong(properties.getProperty("timeout1", "1000"));
         this.reconnectTimeout = Long.parseLong(properties.getProperty("reconnect_timeout", "500"));
         this.treeMsgTimeout = Long.parseLong(properties.getProperty("tree_msg_timeout", "1000"));
         this.treeMsgStartTime = Long.parseLong(properties.getProperty("tree_msg_start", "60000"));
@@ -194,11 +194,6 @@ public class PlumTree extends GenericProtocol {
         triggerNotification(new DeliverNotification(mid, myself, content, false));
         GossipMessage msg = new GossipMessage(mid, myself, ++seqNumber, content);
         logger.debug("Accepted my op {}-{}: {} to {}", myself, seqNumber, mid, eager);
-        try {
-            this.fileManager.writeOperationToFile(myself, seqNumber, msg);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
         handleGossipMessage(msg, myself, false);
     }
 
@@ -324,7 +319,7 @@ public class PlumTree extends GenericProtocol {
         logger.debug("Received {} from {}", msg, from);
 
         if(outgoingSyncs.contains(new OutgoingSync(from))) { // If sync was not cancelled
-            SyncOpsMessage syncOpsMessages = this.fileManager.readSyncOpsFromFile(msg.getMid(), msg.getVectorClock(), vectorClock);
+            SyncOpsMessage syncOpsMessages = this.fileManager.readSyncOpsFromFile(msg.getMid(), msg.getVectorClock(), new VectorClock(vectorClock.getClock()));
             sendMessage(syncOpsMessages, from);
             sentSyncOps++;
             sentSyncGossip += syncOpsMessages.getMsgs().size();
@@ -730,18 +725,23 @@ public class PlumTree extends GenericProtocol {
 
     private void handleGossipMessage(GossipMessage msg, Host from, boolean isFromSync) {
         vectorClock.incrementClock(msg.getOriginalSender());
+        try {
+            this.fileManager.writeOperationToFile(msg);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
 
         UUID mid = msg.getMid();
         received.add(mid);
         for (Map.Entry<Host, VectorClock> entry : eager.entrySet()) {
             Host peer = entry.getKey();
             if (!peer.equals(from)) {
-                VectorClock vc = entry.getValue();
-                if (!isFromSync || vc.getHostClock(msg.getOriginalSender()) < msg.getSenderClock()) {
+//                VectorClock vc = entry.getValue();
+//                if (!isFromSync || vc.getHostClock(msg.getOriginalSender()) < msg.getSenderClock()) {
                     sendMessage(msg, peer);
                     sentGossip++;
-                    logger.debug("Forward gossip {} received from {} to {}", msg.getMid(), from, peer);
-                }
+                    logger.debug("Forward gossip {} received from {} to {}", mid, from, peer);
+//                }
             }
         }
     }
@@ -753,7 +753,7 @@ public class PlumTree extends GenericProtocol {
                 startSynchronization(from, false, mid, "BEFORETIMEOUT-" + mid);
             } else {
                 if (!onGoingTimers.containsKey(mid)) {
-                    long tid = setupTimer(new IHaveTimeout(mid), timeout1);
+                    long tid = setupTimer(new IHaveTimeout(mid), iHaveTimeout);
                     onGoingTimers.put(mid, tid);
                 }
                 missing.computeIfAbsent(mid, v -> new LinkedList<>()).add(from);

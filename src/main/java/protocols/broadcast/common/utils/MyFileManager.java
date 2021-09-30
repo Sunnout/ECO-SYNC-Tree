@@ -1,6 +1,5 @@
 package protocols.broadcast.common.utils;
 
-import crdts.utils.VectorClock;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import org.apache.commons.lang3.tuple.Pair;
@@ -33,7 +32,9 @@ public class MyFileManager {
 
     }
 
-    public void writeOperationToFile(Host sender, int senderClock, GossipMessage msg) throws IOException {
+    public void writeOperationToFile(GossipMessage msg) throws IOException {
+        Host sender = msg.getOriginalSender();
+        int senderClock = msg.getSenderClock();
         ByteBuf buf = Unpooled.buffer();
         GossipMessage.serializer.serialize(msg, buf);
         byte[] serGossipMsg = new byte[buf.readableBytes()];
@@ -84,6 +85,9 @@ public class MyFileManager {
                 }
                 long endTime = System.currentTimeMillis();
                 logger.debug("READ FROM FILE in {} ms started {} of {}", endTime - startTime, min.getRight(), nExecuted);
+                logger.debug("How many sync ops: {}", gossipMessages.size());
+                logger.debug("My VC: {};", myClock);
+                logger.debug("Host VC: {};", neighbourClock);
             } catch (IOException e) {
                 logger.error("Error reading missing ops from file", e);
                 e.printStackTrace();

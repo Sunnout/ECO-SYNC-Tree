@@ -1,4 +1,4 @@
-package crdts.utils;
+package protocols.broadcast.common.utils;
 
 import io.netty.buffer.ByteBuf;
 import pt.unl.fct.di.novasys.network.data.Host;

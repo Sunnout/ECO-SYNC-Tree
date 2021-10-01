@@ -38,6 +38,7 @@ public class MyFileManager {
         ByteBuf buf = Unpooled.buffer();
         GossipMessage.serializer.serialize(msg, buf);
         byte[] serGossipMsg = new byte[buf.readableBytes()];
+        buf.readBytes(serGossipMsg);
         dos.write(serGossipMsg);
         dos.flush();
 
@@ -75,7 +76,9 @@ public class MyFileManager {
                     GossipMessage msg = GossipMessage.deserialize(dis);
                     Host h = msg.getOriginalSender();
                     int opClock = msg.getSenderClock();
+                    logger.debug("Read: {}", msg);
                     if (neighbourClock.getHostClock(h) < opClock) {
+                        logger.debug("Added");
                         ByteBuf buf = Unpooled.buffer();
                         GossipMessage.serializer.serialize(msg, buf);
                         byte[] serMsg = new byte[buf.readableBytes()];

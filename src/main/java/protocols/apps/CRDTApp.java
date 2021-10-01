@@ -6,6 +6,7 @@ import crdts.interfaces.GenericCRDT;
 //import protocols.broadcast.flood.FloodBroadcast;
 //import protocols.broadcast.periodicpull.PeriodicPullBroadcast;
 import protocols.broadcast.plumtree.PlumTree;
+import protocols.broadcast.plumtree.utils.PlumtreeStats;
 import protocols.replication.*;
 import protocols.replication.OpCounterCRDT.CounterOpType;
 import protocols.replication.LWWRegisterCRDT.RegisterOpType;
@@ -341,35 +342,35 @@ public class CRDTApp extends GenericProtocol {
             logger.info("Integer value of {}: {}", CRDT1, getRegisterValue(CRDT1));
         }
 
-        if(replicationKernelId == 600) {
-            logger.info("Number of sent operations: {}", ReplicationKernel.sentOps);
-            logger.info("Number of received operations: {}", ReplicationKernel.receivedOps);
-            logger.warn("Number of executed operations: {}", ReplicationKernel.executedOps);
+        if(broadcastId == PlumTree.PROTOCOL_ID) {
+            logger.info("Number of sent operations: {}", PlumtreeStats.sentOps);
+            logger.info("Number of received operations: {}", PlumtreeStats.receivedOps);
+            logger.warn("Number of executed operations: {}", PlumtreeStats.executedOps);
         }
     }
 
     private void printStats() {
         //Plumtree
         if(broadcastId == PlumTree.PROTOCOL_ID) {
-            logger.info("sentGossip: {}", PlumTree.sentGossip);
-            logger.info("sentIHave: {}", PlumTree.sentIHave);
-            logger.info("sentGraft: {}", PlumTree.sentGraft);
-            logger.info("sentPrune: {}", PlumTree.sentPrune);
-            logger.info("sentSendVC: {}", PlumTree.sentSendVC);
-            logger.info("sentVC: {}", PlumTree.sentVC);
-            logger.info("sentSyncOps: {}", PlumTree.sentSyncOps);
-            logger.info("sentSyncGossip: {}", PlumTree.sentSyncGossip);
+            logger.info("sentGossip: {}", PlumtreeStats.sentGossip);
+            logger.info("sentIHave: {}", PlumtreeStats.sentIHave);
+            logger.info("sentGraft: {}", PlumtreeStats.sentGraft);
+            logger.info("sentPrune: {}", PlumtreeStats.sentPrune);
+            logger.info("sentSendVC: {}", PlumtreeStats.sentSendVC);
+            logger.info("sentVC: {}", PlumtreeStats.sentVC);
+            logger.info("sentSyncOps: {}", PlumtreeStats.sentSyncOps);
+            logger.info("sentSyncGossip: {}", PlumtreeStats.sentSyncGossip);
 
-            logger.info("receivedGossip: {}", PlumTree.receivedGossip);
-            logger.info("receivedDupesGossip: {}", PlumTree.receivedDupesGossip);
-            logger.info("receivedIHave: {}", PlumTree.receivedIHave);
-            logger.info("receivedGraft: {}", PlumTree.receivedGraft);
-            logger.info("receivedPrune: {}", PlumTree.receivedPrune);
-            logger.info("receivedSendVC: {}", PlumTree.receivedSendVC);
-            logger.info("receivedVC: {}", PlumTree.receivedVC);
-            logger.info("receivedSyncOps: {}", PlumTree.receivedSyncOps);
-            logger.info("receivedSyncGossip: {}", PlumTree.receivedSyncGossip);
-            logger.info("receivedDupesSyncGossip: {}", PlumTree.receivedDupesSyncGossip);
+            logger.info("receivedGossip: {}", PlumtreeStats.receivedGossip);
+            logger.info("receivedDupesGossip: {}", PlumtreeStats.receivedDupesGossip);
+            logger.info("receivedIHave: {}", PlumtreeStats.receivedIHave);
+            logger.info("receivedGraft: {}", PlumtreeStats.receivedGraft);
+            logger.info("receivedPrune: {}", PlumtreeStats.receivedPrune);
+            logger.info("receivedSendVC: {}", PlumtreeStats.receivedSendVC);
+            logger.info("receivedVC: {}", PlumtreeStats.receivedVC);
+            logger.info("receivedSyncOps: {}", PlumtreeStats.receivedSyncOps);
+            logger.info("receivedSyncGossip: {}", PlumtreeStats.receivedSyncGossip);
+            logger.info("receivedDupesSyncGossip: {}", PlumtreeStats.receivedDupesSyncGossip);
         }
 
 //        //Flood

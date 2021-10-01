@@ -11,9 +11,6 @@ def parse_logs(start_name, n_processes, runs, protocol, probability, interval):
     msg_send_time = []
     msg_deliver_time = []
     msg_deliver_per_run = []
-    msg_gen_time = []
-    msg_exec_time = []
-    msg_exec_per_run = []
 
     #Average Bytes Received and Transmitted
     total_bytes_transmitted = 0
@@ -68,14 +65,10 @@ def parse_logs(start_name, n_processes, runs, protocol, probability, interval):
         msg_send_time.append({})
         msg_deliver_time.append({})
         msg_deliver_per_run.append({})
-        msg_gen_time.append({})
-        msg_exec_time.append({})
-        msg_exec_per_run.append({})
 
     for proc in range(n_processes):
         for run in range(n_runs):
             msg_deliver_per_run[run][proc] = set(())
-            msg_exec_per_run[run][proc] = set(())
 
     last_msg_received = {}
     for proc in range(n_processes):
@@ -124,25 +117,6 @@ def parse_logs(start_name, n_processes, runs, protocol, probability, interval):
 
                         elif msg_deliver_time[run][msg_id] < deliver_time_obj:
                             msg_deliver_time[run][msg_id] = deliver_time_obj
-
-                elif line[3] == "GENERATED":
-                    gen_time_obj = dt.datetime.strptime(line[1], '%d/%m/%Y-%H:%M:%S,%f').time()
-                    msg_gen_time[run][line[4]] = gen_time_obj
-
-                elif line[3] == "EXECUTED":
-                    exec_time_obj = dt.datetime.strptime(line[1], '%d/%m/%Y-%H:%M:%S,%f').time()
-                    msg_id = line[4]
-                    final_bytes_transmitted = 0
-                    final_bytes_received = 0
-
-                    if msg_id not in msg_exec_per_run[run][proc]:
-                        msg_exec_per_run[run][proc].add(msg_id)
-
-                        if not msg_exec_time[run].get(msg_id):
-                            msg_exec_time[run][msg_id] = exec_time_obj
-
-                        elif msg_exec_time[run][msg_id] < exec_time_obj:
-                            msg_exec_time[run][msg_id] = exec_time_obj
 
                 #BYTES COUNT
                 elif final_bytes_received == 0 and len(line) >= 6 and "BytesSent" in line[5]:
@@ -289,27 +263,6 @@ def parse_logs(start_name, n_processes, runs, protocol, probability, interval):
 
     avg_broadcast_latency = (total_time / total_messages) * 1000
 
-    #LATENCY REPLICATION LAYER
-    latency = []
-
-    for run in range(n_runs):
-        latency.append({})
-        for key in msg_gen_time[run]:
-            if msg_exec_time[run].get(key):
-                exec_date = dt.datetime.combine(dt.date.today(), msg_exec_time[run][key])
-                gen_date = dt.datetime.combine(dt.date.today(), msg_gen_time[run][key])
-                latency[run][key] = exec_date - gen_date
-
-    total_time = 0
-    total_messages = 0
-
-    for run in range(n_runs):
-        for key in latency[run]:
-            total_time += latency[run][key].total_seconds()
-        total_messages += len(latency[run])
-
-    avg_replication_latency = (total_time / total_messages) * 1000
-
     avg_bytes_received = total_bytes_received/ n_runs
     avg_bytes_transmitted = total_bytes_transmitted / n_runs
 
@@ -338,7 +291,8 @@ def parse_logs(start_name, n_processes, runs, protocol, probability, interval):
         avg_received_send_vc = received_send_vc / n_runs
         avg_received_sync_gossip = received_sync_gossip / n_runs
         avg_received_dupes_sync_gossip = received_dupes_sync_gossip / n_runs
-        return int(avg_broadcast_latency), int(avg_replication_latency), avg_bytes_received, avg_bytes_transmitted, avg_sent_vc, avg_sent_sync_ops, avg_received_vc, avg_received_sync_ops, avg_sent_gossip, avg_sent_graft, avg_sent_prune, avg_sent_i_have, avg_sent_send_vc, avg_sent_sync_gossip, avg_received_gossip, avg_received_dupes_gossip, avg_received_graft, avg_received_prune, avg_received_i_have, avg_received_send_vc, avg_received_sync_gossip, avg_received_dupes_sync_gossip
+        # 0 is because we are not computing replication latency and did not wanna change indexes of the rest
+        return int(avg_broadcast_latency), 0, avg_bytes_received, avg_bytes_transmitted, avg_sent_vc, avg_sent_sync_ops, avg_received_vc, avg_received_sync_ops, avg_sent_gossip, avg_sent_graft, avg_sent_prune, avg_sent_i_have, avg_sent_send_vc, avg_sent_sync_gossip, avg_received_gossip, avg_received_dupes_gossip, avg_received_graft, avg_received_prune, avg_received_i_have, avg_received_send_vc, avg_received_sync_gossip, avg_received_dupes_sync_gossip
 
     elif protocol == "flood":
         avg_sent_flood = sent_flood / n_runs
@@ -349,7 +303,8 @@ def parse_logs(start_name, n_processes, runs, protocol, probability, interval):
         avg_received_send_vc = received_send_vc / n_runs
         avg_received_sync_flood = received_sync_flood / n_runs
         avg_received_dupes_sync_flood = received_dupes_sync_flood / n_runs
-        return int(avg_broadcast_latency), int(avg_replication_latency), avg_bytes_received, avg_bytes_transmitted, \
+        # 0 is because we are not computing replication latency and did not wanna change indexes of the rest
+        return int(avg_broadcast_latency), 0, avg_bytes_received, avg_bytes_transmitted, \
                avg_sent_vc, avg_sent_sync_ops, avg_received_vc, avg_received_sync_ops, avg_sent_flood, avg_sent_send_vc, \
                avg_sent_sync_flood, avg_received_flood, avg_received_dupes_flood, avg_received_send_vc, avg_received_sync_flood, avg_received_dupes_sync_flood
 
@@ -357,7 +312,8 @@ def parse_logs(start_name, n_processes, runs, protocol, probability, interval):
         avg_sent_sync_pull = sent_sync_pull / n_runs
         avg_received_sync_pull = received_sync_pull / n_runs
         avg_received_dupes_pull = received_dupes_pull / n_runs
-        return int(avg_broadcast_latency), int(avg_replication_latency), avg_bytes_received, avg_bytes_transmitted, avg_sent_vc, avg_sent_sync_ops, avg_received_vc, avg_received_sync_ops, avg_sent_sync_pull, avg_received_sync_pull, avg_received_dupes_pull
+        # 0 is because we are not computing replication latency and did not wanna change indexes of the rest
+        return int(avg_broadcast_latency), 0, avg_bytes_received, avg_bytes_transmitted, avg_sent_vc, avg_sent_sync_ops, avg_received_vc, avg_received_sync_ops, avg_sent_sync_pull, avg_received_sync_pull, avg_received_dupes_pull
 
 def progressBar(current, total, barLength = 20):
     percent = float(current) * 100 / total

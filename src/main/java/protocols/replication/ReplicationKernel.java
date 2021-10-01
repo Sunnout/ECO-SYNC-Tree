@@ -47,25 +47,17 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     private static final String BOOLEAN = "boolean";
     private static final String BYTE = "byte";
 
-    private final Host myself;
-    private short broadcastId; //Broadcast protocol ID
+    private final short broadcastId; //Broadcast protocol ID
 
-    private Map<String, KernelCRDT> crdtsById; //Map that stores CRDTs by their ID
+    private final Map<String, KernelCRDT> crdtsById; //Map that stores CRDTs by their ID
 
     //Serializers
     public static Map<String, MyOpSerializer> opSerializers = initializeOperationSerializers(); //Static map of operation serializers for each crdt type
     public Map<String, List<MySerializer>> dataSerializers; //Map of data type serializers by crdt ID
 
-    /***** Stats *****/ //TODO: classe de stats
-    public static int sentOps;
-    public static int receivedOps;
-    public static long executedOps;
-
-
-    public ReplicationKernel(Properties properties, Host myself, short broadcastId) throws HandlerRegistrationException, IOException {
+    public ReplicationKernel(short broadcastId) throws HandlerRegistrationException {
         super(PROTOCOL_NAME, PROTOCOL_ID);
         this.broadcastId = broadcastId;
-        this.myself = myself;
 
         this.crdtsById = new ConcurrentHashMap<>();
 
@@ -105,7 +97,6 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
             } else {
                 handleCRDTCreation(crdtId, crdtType, dataTypes, sender, msgId);
             }
-
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -119,13 +110,9 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
      * @param sourceProto -
      */
     private void uponDownstream(DownstreamRequest request, short sourceProto) {
-        UUID msgId = request.getMsgId();
-        logger.info("GENERATED {}", msgId);
-        logger.info("EXECUTED {}", msgId);
-        Operation op = request.getOperation();
         try {
-            sendRequest(new BroadcastRequest(msgId, request.getSender(), serializeOperation(false, op)), broadcastId);
-            sentOps++;
+            sendRequest(new BroadcastRequest(request.getMsgId(), request.getSender(),
+                    serializeOperation(false, request.getOperation())), broadcastId);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -141,41 +128,45 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
      * @param sourceProto -
      */
     private void uponDeliver(DeliverNotification notification, short sourceProto) {
-        UUID msgId = notification.getMsgId();
-        byte[] serOp = notification.getMsg();
         try {
-            Operation op = deserializeOperation(serOp);
-            executeOperation(op, msgId);
-            executedOps++;
+            executeOperation(deserializeOperation(notification.getMsg()));
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
+
     /* --------------------------------- Interface Methods --------------------------------- */
 
+    /**
+     * CRDTs call this method in order to communicate to the kernel that there is a downstream operation
+     * @param request - request that contains the operation to propagate.
+     * @param sourceProto -
+     */
     public void downstream(DownstreamRequest request, short sourceProto) {
-        Operation op = request.getOperation();
-        sendRequest(new DownstreamRequest(request.getMsgId(), request.getSender(), op), PROTOCOL_ID);
+        sendRequest(new DownstreamRequest(request.getMsgId(), request.getSender(), request.getOperation()), PROTOCOL_ID);
     }
 
 
     /* --------------------------------- Procedures --------------------------------- */
 
-    private Operation deserializeOperation(byte[] msg) throws IOException {
-        ByteBuf buf = Unpooled.buffer().writeBytes(msg);
-        String crdtId = Operation.crdtIdFromByteArray(buf);
-        String crdtType = Operation.crdtTypeFromByteArray(buf);
-        String opType = Operation.opTypeFromByteArray(buf);
-        Operation op;
+    private void handleCRDTCreation(String crdtId, String crdtType, String[] dataTypes, Host sender, UUID msgId) throws IOException {
+        KernelCRDT crdt = createNewCrdt(crdtId, crdtType, dataTypes);
+        triggerNotification(new ReturnCRDTNotification(msgId, sender, crdt));
+        CreateOperation op = new CreateOperation(CREATE_CRDT, crdtId, crdtType, dataTypes);
+        sendRequest(new BroadcastRequest(msgId, sender, serializeOperation(true, op)), broadcastId);
+    }
 
-        if (opType.equals(CREATE_CRDT)) {
-            op = CreateOperation.serializer.deserialize(null, buf);
+    private void executeOperation(Operation op) throws IOException {
+        String crdtId = op.getCrdtId();
+
+        if (op instanceof CreateOperation) {
+            if (crdtsById.get(crdtId) == null) {
+                createNewCrdt(crdtId,  op.getCrdtType(), ((CreateOperation) op).getDataTypes());
+            }
         } else {
-            MySerializer[] serializers = dataSerializers.get(crdtId).toArray(new MySerializer[2]);
-            op = (Operation) opSerializers.get(crdtType).deserialize(serializers, buf);
+            crdtsById.get(crdtId).upstream(op);
         }
-        return op;
     }
 
     private byte[] serializeOperation(boolean isCreateOp, Operation op) throws IOException {
@@ -191,30 +182,20 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         return payload;
     }
 
-    private void executeOperation(Operation op, UUID msgId) throws IOException {
-        String crdtId = op.getCrdtId();
-        String crdtType = op.getCrdtType();
+    private Operation deserializeOperation(byte[] msg) throws IOException {
+        ByteBuf buf = Unpooled.buffer().writeBytes(msg);
+        String crdtId = Operation.crdtIdFromByteArray(buf);
+        String crdtType = Operation.crdtTypeFromByteArray(buf);
+        String opType = Operation.opTypeFromByteArray(buf);
+        Operation op;
 
-        if (op instanceof CreateOperation) {
-            if (crdtsById.get(crdtId) == null) {
-                createNewCrdt(crdtId, crdtType, ((CreateOperation) op).getDataTypes());
-            }
+        if (opType.equals(CREATE_CRDT)) {
+            op = CreateOperation.serializer.deserialize(null, buf);
         } else {
-            crdtsById.get(crdtId).upstream(op);
+            MySerializer[] serializers = dataSerializers.get(crdtId).toArray(new MySerializer[2]);
+            op = (Operation) opSerializers.get(crdtType).deserialize(serializers, buf);
         }
-        logger.info("EXECUTED {}", msgId);
-        executedOps++;
-        receivedOps++;
-    }
-
-    private void handleCRDTCreation(String crdtId, String crdtType, String[] dataTypes, Host sender, UUID msgId) throws IOException {
-        logger.info("GENERATED {}", msgId);
-        KernelCRDT crdt = createNewCrdt(crdtId, crdtType, dataTypes);
-        triggerNotification(new ReturnCRDTNotification(msgId, sender, crdt));
-        logger.info("EXECUTED {}", msgId);
-        CreateOperation op = new CreateOperation(CREATE_CRDT, crdtId, crdtType, dataTypes);
-        sendRequest(new BroadcastRequest(msgId, sender, serializeOperation(true, op)), broadcastId);
-        sentOps++;
+        return op;
     }
 
     /**

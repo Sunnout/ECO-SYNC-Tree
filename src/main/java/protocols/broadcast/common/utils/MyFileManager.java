@@ -16,16 +16,17 @@ public class MyFileManager {
 
     private static final Logger logger = LogManager.getLogger(MyFileManager.class);
 
-    private File file;
-    private DataOutputStream dos;
-    private Map<Host, NavigableMap<Integer, Pair<Long, Integer>>> index;
+    private final File file;
+    private final DataOutputStream dos;
+    private final Map<Host, NavigableMap<Integer, Pair<Long, Integer>>> index;
     private int nExecuted;
     private long nBytes;
-    private int indexSpacing;
+    private final int indexSpacing;
 
     public MyFileManager(Properties properties, Host myself) throws FileNotFoundException {
         this.file = new File("/tmp/data/ops-" + myself);
-        this.file.getParentFile().mkdirs();
+        if(!this.file.getParentFile().mkdirs())
+            logger.error("Directory for files was not created.");
         this.dos = new DataOutputStream(new FileOutputStream(this.file));
         this.index = new HashMap<>();
         this.indexSpacing = Integer.parseInt(properties.getProperty("index_spacing", "100"));

@@ -61,7 +61,7 @@ public class Main {
         switch(bcast_protocol) {
             case "plumtree":
                 crdtApp = new CRDTApp(props, myself, ReplicationKernel.PROTOCOL_ID, PlumTree.PROTOCOL_ID);
-                replicationKernel = new ReplicationKernel(props, myself, PlumTree.PROTOCOL_ID);
+                replicationKernel = new ReplicationKernel(PlumTree.PROTOCOL_ID);
                 broadcast = new PlumTree(props, myself);
                 membership = new HyParView(props, myself_membership);
                 registerAndStartProtocols(babel, crdtApp, replicationKernel, broadcast, membership, props);

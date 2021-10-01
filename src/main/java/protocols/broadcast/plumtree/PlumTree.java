@@ -218,6 +218,7 @@ public class PlumTree extends GenericProtocol {
             }
 
             if(print) {
+                //TODO: remover estes prints pq nao sao usados
                 sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager, lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
                 logger.info(sb);
             }
@@ -324,6 +325,14 @@ public class PlumTree extends GenericProtocol {
 
                 sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager, lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
                 logger.info(sb);
+
+                for (Iterator<Map.Entry<UUID, Queue<Host>>> iterator = missing.entrySet().iterator(); iterator.hasNext(); ) {
+                    Map.Entry<UUID, Queue<Host>> iHaves = iterator.next();
+                    if(iHaves.getValue().contains(from)) {
+                        cancelTimer(onGoingTimers.remove(iHaves.getKey()));
+                        iterator.remove();
+                    }
+                }
             }
         }
     }
@@ -422,6 +431,14 @@ public class PlumTree extends GenericProtocol {
         if (!receivedTreeIDs.contains(mid)) {
             Host msgSrc = missing.get(mid).poll();
             if (msgSrc != null) {
+                OutgoingSync os = new OutgoingSync(msgSrc);
+
+                if (partialView.contains(msgSrc) && !outgoingSyncs.contains(os) && !eager.containsKey(msgSrc)) {
+                    logger.debug("Sent GraftMessage for {} to {}", mid, msgSrc);
+                    sendMessage(new GraftMessage(mid), msgSrc);
+                    stats.incrementSentGraft();
+                }
+
                 logger.debug("Try sync with {} for timeout {}", msgSrc, mid);
                 startOutgoingSync(msgSrc, false, mid, "TIMEOUT-" + mid);
             }
@@ -623,12 +640,6 @@ public class PlumTree extends GenericProtocol {
     private void startOutgoingSync(Host neighbour, boolean neighUp, UUID msgId, String cause) {
         StringBuilder sb = new StringBuilder("VIS-STARTSYNC-" + cause + ": ");
         OutgoingSync os = new OutgoingSync(neighbour, neighUp, msgId, cause);
-
-        if (partialView.contains(neighbour) && !outgoingSyncs.contains(os) && !eager.containsKey(neighbour)) {
-            logger.debug("Sent GraftMessage for {} to {}", msgId, neighbour);
-            sendMessage(new GraftMessage(msgId), neighbour);
-            stats.incrementSentGraft();
-        }
 
         if (neighUp || (lazy.contains(neighbour) && !outgoingSyncs.contains(os))) {
             logger.debug("Added {} to outgoingSyncs", neighbour);

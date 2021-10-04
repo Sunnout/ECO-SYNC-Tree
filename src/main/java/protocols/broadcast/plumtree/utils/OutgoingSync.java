@@ -7,22 +7,16 @@ import java.util.UUID;
 public class OutgoingSync implements TreeSync {
 
     private Host host;
-    private boolean neighUp;
     private UUID msgId;
-    private String cause;
 
-    public OutgoingSync(Host host, boolean neighUp, UUID msgId, String cause) {
+    public OutgoingSync(Host host, UUID msgId) {
         this.host = host;
-        this.neighUp = neighUp;
         this.msgId = msgId;
-        this.cause = cause;
     }
 
     public OutgoingSync(Host host) {
         this.host = host;
-        this.neighUp = false;
         this.msgId = null;
-        this.cause = null;
     }
 
     @Override
@@ -30,16 +24,9 @@ public class OutgoingSync implements TreeSync {
         return this.host;
     }
 
-    public boolean isNeighUp() {
-        return neighUp;
-    }
 
     public UUID getMsgId() {
         return msgId;
-    }
-
-    public String getCause() {
-        return cause;
     }
 
     @Override
@@ -63,9 +50,7 @@ public class OutgoingSync implements TreeSync {
     public String toString() {
         return "OutgoingSync{" +
                 "host=" + host +
-                ", neighUp=" + neighUp +
                 ", msgId=" + msgId +
-                ", cause='" + cause + '\'' +
                 '}';
     }
 }

@@ -10,17 +10,14 @@ public class TestTreeSync {
     public static void main(String[] args) throws Exception {
         OutgoingSync os1 = new OutgoingSync(new Host(InetAddress.getByName("10.10.0.10"),6000));
         OutgoingSync os2 = new OutgoingSync(new Host(InetAddress.getByName("10.10.0.10"),6000));
-        OutgoingSync os3 = new OutgoingSync(new Host(InetAddress.getByName("10.10.0.10"),6000), false, null, null);
 
         System.out.println(os1.equals(os2));
-        System.out.println(os2.equals(os3));
 
         Set<OutgoingSync> set = new HashSet<>();
         set.add(os1);
         System.out.println(set.contains(os2));
         set.remove(os1);
         System.out.println(set.contains(os2));
-        set.add(os3);
         System.out.println(set.contains(os2));
     }
 }

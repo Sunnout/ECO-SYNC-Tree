@@ -43,7 +43,6 @@ public class PlumTree extends GenericProtocol {
     private final long treeMsgTimeout;
     private final long treeMsgStartTime;
     private final boolean iAmTreeMsgSender;
-    private final boolean startInLazy;
 
     private final Set<Host> partialView;
     private final Map<Host, VectorClock> eager;
@@ -77,7 +76,6 @@ public class PlumTree extends GenericProtocol {
         this.treeMsgTimeout = Long.parseLong(properties.getProperty("tree_msg_timeout", "1000"));
         this.treeMsgStartTime = Long.parseLong(properties.getProperty("tree_msg_start", "60000"));
         this.iAmTreeMsgSender = myself.equals(new Host(InetAddress.getByName("10.10.0.10"),6000));
-        this.startInLazy = properties.getProperty("start_in_lazy", "false").equals("true");
 
         this.partialView = new HashSet<>();
         this.eager = new HashMap<>();
@@ -218,8 +216,7 @@ public class PlumTree extends GenericProtocol {
             }
 
             if(print) {
-                //TODO: remover estes prints pq nao sao usados
-                sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager, lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
+                sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager.keySet(), lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
                 logger.info(sb);
             }
         }
@@ -277,7 +274,7 @@ public class PlumTree extends GenericProtocol {
                 sb.append(String.format("Removed %s from pendingIncomingSyncs; ", from));
             }
 
-            sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager, lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
+            sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager.keySet(), lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
             logger.info(sb);
         }
     }
@@ -285,7 +282,7 @@ public class PlumTree extends GenericProtocol {
     private void uponReceiveGraft(GraftMessage msg, Host from, short sourceProto, int channelId) {
         stats.incrementReceivedGraft();
         logger.debug("Received {} from {}", msg, from);
-        startOutgoingSync(from, false, UUID.randomUUID(), "GRAFT");
+        startOutgoingSync(from, UUID.randomUUID(), "GRAFT", false);
     }
 
     private void uponReceiveIHave(IHaveMessage msg, Host from, short sourceProto, int channelId) {
@@ -309,7 +306,7 @@ public class PlumTree extends GenericProtocol {
                 StringBuilder sb = new StringBuilder("VIS-ENDSYNC: ");
 
                 if (eager.put(from, msg.getVectorClock()) == null) {
-                    logger.debug("Added {} to eager {} : pendingIncomingSyncs {}", from, eager, pendingIncomingSyncs);
+                    logger.debug("Added {} to eager {} : pendingIncomingSyncs {}", from, eager.keySet(), pendingIncomingSyncs);
                     sb.append(String.format("Added %s to eager; ", from));
                 }
 
@@ -323,13 +320,14 @@ public class PlumTree extends GenericProtocol {
                     sb.append(String.format("Removed %s from lazy; ", from));
                 }
 
-                sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager, lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
+                sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager.keySet(), lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
                 logger.info(sb);
 
                 for (Iterator<Map.Entry<UUID, Queue<Host>>> iterator = missing.entrySet().iterator(); iterator.hasNext(); ) {
                     Map.Entry<UUID, Queue<Host>> iHaves = iterator.next();
                     if(iHaves.getValue().contains(from)) {
                         cancelTimer(onGoingTimers.remove(iHaves.getKey()));
+                        logger.debug("Cancelled timer for {}", iHaves.getKey());
                         iterator.remove();
                     }
                 }
@@ -359,7 +357,7 @@ public class PlumTree extends GenericProtocol {
             sb.append(String.format("Added %s to pendingIncomingSyncs; ", from));
         }
 
-        sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager, lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
+        sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager.keySet(), lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
         logger.info(sb);
 
     }
@@ -367,7 +365,6 @@ public class PlumTree extends GenericProtocol {
     private void uponReceiveSyncOps(SyncOpsMessage msg, Host from, short sourceProto, int channelId) {
         stats.incrementReceivedSyncOps();
         logger.debug("Received {} from {}", msg, from);
-        StringBuilder sb = new StringBuilder("VIS-SYNCOPS: ");
 
         for (byte[] serMsg : msg.getMsgs()) {
             stats.incrementReceivedSyncGossip();
@@ -385,7 +382,6 @@ public class PlumTree extends GenericProtocol {
                         logger.debug("[{}] Accepted op {}-{} : {} from {}, Clock {}", true,
                                 h, clock, mid, from, vectorClock.getHostClock(h));
                         triggerNotification(new DeliverNotification(mid, from, gossipMessage.getContent(), true));
-                        logger.debug("Propagating sync op {} to {}", mid, eager);
                         handleGossipMessage(gossipMessage, from, true);
                     } else if (vectorClock.getHostClock(h) < clock - 1) {
                         logger.error("[{}] Out-of-order op {}-{} : {} from {}, Clock {}", true,
@@ -403,10 +399,7 @@ public class PlumTree extends GenericProtocol {
                 e.printStackTrace();
             }
         }
-        sb.append(String.format("Removed %s from incomingSync; ", from));
-        sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager, lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
-        logger.info(sb);
-        logger.info("Sync {} ENDED", msg.getMid());
+        logger.info("Received sync ops. Sync {} ENDED", msg.getMid());
         tryNextIncomingSync();
     }
 
@@ -428,19 +421,14 @@ public class PlumTree extends GenericProtocol {
 
     private void uponIHaveTimeout(IHaveTimeout timeout, long timerId) {
         UUID mid = timeout.getMid();
-        if (!receivedTreeIDs.contains(mid)) {
-            Host msgSrc = missing.get(mid).poll();
-            if (msgSrc != null) {
-                OutgoingSync os = new OutgoingSync(msgSrc);
-
-                if (partialView.contains(msgSrc) && !outgoingSyncs.contains(os) && !eager.containsKey(msgSrc)) {
-                    logger.debug("Sent GraftMessage for {} to {}", mid, msgSrc);
-                    sendMessage(new GraftMessage(mid), msgSrc);
-                    stats.incrementSentGraft();
+        logger.debug("IHave timeout {}", mid);
+        if(onGoingTimers.containsKey(mid)) {
+            if (!receivedTreeIDs.contains(mid)) {
+                Host msgSrc = missing.get(mid).poll();
+                if (msgSrc != null) {
+                    logger.debug("Try sync with {} for timeout {}", msgSrc, mid);
+                    startOutgoingSync(msgSrc, mid, "TIMEOUT-" + mid, true);
                 }
-
-                logger.debug("Try sync with {} for timeout {}", msgSrc, mid);
-                startOutgoingSync(msgSrc, false, mid, "TIMEOUT-" + mid);
             }
         }
     }
@@ -518,7 +506,7 @@ public class PlumTree extends GenericProtocol {
         }
 
         if(print) {
-            sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager, lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
+            sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager.keySet(), lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
             logger.info(sb);
         }
 
@@ -567,7 +555,7 @@ public class PlumTree extends GenericProtocol {
         }
 
         if(print) {
-            sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager, lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
+            sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager.keySet(), lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
             logger.info(sb);
         }
 
@@ -592,17 +580,12 @@ public class PlumTree extends GenericProtocol {
         StringBuilder sb = new StringBuilder("VIS-CONNUP: ");
 
         if (partialView.contains(neighbour)) {
-            if (startInLazy) {
                 if (lazy.add(neighbour)) {
                     logger.debug("Added {} to lazy due to neigh up {}", neighbour, lazy);
                     sb.append(String.format("Added %s to lazy; ", neighbour));
-                    sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager, lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
+                    sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager.keySet(), lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
                     logger.info(sb);
                 }
-            } else {
-                logger.debug("Trying sync from neighbour {} up", neighbour);
-                startOutgoingSync(neighbour, true, UUID.randomUUID(), "NEIGHUP");
-            }
         }
     }
 
@@ -637,11 +620,17 @@ public class PlumTree extends GenericProtocol {
 
     /*--------------------------------- Procedures ---------------------------------------- */
 
-    private void startOutgoingSync(Host neighbour, boolean neighUp, UUID msgId, String cause) {
+    private void startOutgoingSync(Host neighbour, UUID msgId, String cause, boolean sendGraft) {
         StringBuilder sb = new StringBuilder("VIS-STARTSYNC-" + cause + ": ");
-        OutgoingSync os = new OutgoingSync(neighbour, neighUp, msgId, cause);
+        OutgoingSync os = new OutgoingSync(neighbour, msgId);
 
-        if (neighUp || (lazy.contains(neighbour) && !outgoingSyncs.contains(os))) {
+        if (lazy.contains(neighbour) && !outgoingSyncs.contains(os)) {
+            if (sendGraft) {
+                logger.debug("Sent GraftMessage for {} to {}", msgId, neighbour);
+                sendMessage(new GraftMessage(msgId), neighbour);
+                stats.incrementSentGraft();
+            }
+
             logger.debug("Added {} to outgoingSyncs", neighbour);
             outgoingSyncs.add(os);
             UUID mid = UUID.randomUUID();
@@ -651,7 +640,7 @@ public class PlumTree extends GenericProtocol {
             stats.incrementSentSendVC();
             logger.debug("Sent {} to {}", msg, neighbour);
             sb.append(String.format("Added %s to outgoingSyncs; ", neighbour));
-            sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager, lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
+            sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager.keySet(), lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
             logger.info(sb);
         }
     }
@@ -659,22 +648,24 @@ public class PlumTree extends GenericProtocol {
     private void tryNextIncomingSync() {
         StringBuilder sb = new StringBuilder("VIS-NEXTINCOMINGSYNC: ");
         IncomingSync nextIncomingSync = pendingIncomingSyncs.poll();
+        sb.append(String.format("Removed %s from incomingSync; ", incomingSync));
 
         if (nextIncomingSync != null) {
             Host currentPending = nextIncomingSync.getHost();
             UUID mid = nextIncomingSync.getMid();
             incomingSync = nextIncomingSync;
-            logger.debug("{} is my incomingSync try", currentPending);
             sb.append(String.format("Removed %s from pendingIncomingSyncs; ", currentPending));
             sb.append(String.format("Added %s to incomingSync; ", currentPending));
-            sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager, lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
-            logger.info(sb);
             VectorClockMessage vectorClockMessage = new VectorClockMessage(mid, myself, new VectorClock(vectorClock.getClock()));
             sendMessage(vectorClockMessage, currentPending, TCPChannel.CONNECTION_IN);
             stats.incrementSentVC();
+            sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager.keySet(), lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
+            logger.info(sb);
             logger.debug("Sent {} to {}", vectorClockMessage, currentPending);
         } else {
             incomingSync = new IncomingSync(null, null);
+            sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager.keySet(), lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
+            logger.info(sb);
         }
     }
 
@@ -685,6 +676,7 @@ public class PlumTree extends GenericProtocol {
         Long tid;
         if ((tid = onGoingTimers.remove(mid)) != null) {
             cancelTimer(tid);
+            missing.remove(mid);
         }
 
         for (Host peer : eager.keySet()) {
@@ -733,7 +725,7 @@ public class PlumTree extends GenericProtocol {
         if (!receivedTreeIDs.contains(mid)) {
             if (eager.isEmpty() && outgoingSyncs.isEmpty()) {
                 logger.debug("Try sync with {} before timeout {}", from, mid);
-                startOutgoingSync(from, false, mid, "BEFORETIMEOUT-" + mid);
+                startOutgoingSync(from, mid, "BEFORETIMEOUT-" + mid, true);
             } else {
                 if (!onGoingTimers.containsKey(mid)) {
                     long tid = setupTimer(new IHaveTimeout(mid), iHaveTimeout);

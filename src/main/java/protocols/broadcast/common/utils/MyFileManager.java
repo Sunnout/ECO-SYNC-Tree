@@ -77,9 +77,7 @@ public class MyFileManager {
                     GossipMessage msg = GossipMessage.deserialize(dis);
                     Host h = msg.getOriginalSender();
                     int opClock = msg.getSenderClock();
-                    logger.debug("Read: {}", msg);
                     if (neighbourClock.getHostClock(h) < opClock) {
-                        logger.debug("Added");
                         ByteBuf buf = Unpooled.buffer();
                         GossipMessage.serializer.serialize(msg, buf);
                         byte[] serMsg = new byte[buf.readableBytes()];
@@ -89,9 +87,6 @@ public class MyFileManager {
                 }
                 long endTime = System.currentTimeMillis();
                 logger.debug("READ FROM FILE in {} ms started {} of {}", endTime - startTime, min.getRight(), nExecuted);
-                logger.debug("How many sync ops: {}", gossipMessages.size());
-                logger.debug("My VC: {};", myClock);
-                logger.debug("Host VC: {};", neighbourClock);
             } catch (IOException e) {
                 logger.error("Error reading missing ops from file", e);
                 e.printStackTrace();

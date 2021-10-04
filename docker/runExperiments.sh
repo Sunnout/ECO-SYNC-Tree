@@ -142,8 +142,8 @@ for nNodes in "${nNodesList[@]}"; do
         done
 
         sleep_time=$((warmup + cooldown + 300 + 10 + 20 - 230))
-        echo Sleeping $sleep_time
-        sleep $sleep_time $(date)
+        echo Sleeping $sleep_time $(date)
+        sleep $sleep_time
       done #run
     done #probability
   done #protocol

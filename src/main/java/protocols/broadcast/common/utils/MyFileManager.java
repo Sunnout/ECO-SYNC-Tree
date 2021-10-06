@@ -26,7 +26,7 @@ public class MyFileManager {
     public MyFileManager(Properties properties, Host myself) throws FileNotFoundException {
         this.file = new File("/tmp/data/ops-" + myself);
         if(!this.file.getParentFile().mkdirs())
-            logger.error("Directory for files was not created.");
+            logger.warn("Directory for files already existed or was not created.");
         this.dos = new DataOutputStream(new FileOutputStream(this.file));
         this.index = new HashMap<>();
         this.indexSpacing = Integer.parseInt(properties.getProperty("index_spacing", "100"));

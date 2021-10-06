@@ -257,26 +257,27 @@ public class PlumTree extends GenericProtocol {
         if (eager.remove(from) != null) {
             logger.debug("Removed {} from eager due to prune {}", from, eager);
             sb.append(String.format("Removed %s from eager; ", from));
-
-            if (lazy.add(from)) {
-                logger.debug("Added {} to lazy due to prune {}", from, lazy);
-                sb.append(String.format("Added %s to lazy; ", from));
-            }
-
-            if (from.equals(incomingSync.getHost())) {
-                logger.debug("Removed {} from incomingSync due to prune", from);
-                sb.append(String.format("Removed %s from incomingSync; ", from));
-                tryNextIncomingSync();
-            }
-
-            if (removeFromPendingIncomingSyncs(from)) {
-                logger.debug("Removed {} from pendingIncomingSyncs due to prune {}", from, pendingIncomingSyncs);
-                sb.append(String.format("Removed %s from pendingIncomingSyncs; ", from));
-            }
-
-            sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager.keySet(), lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
-            logger.info(sb);
         }
+
+        if (lazy.add(from)) {
+            logger.debug("Added {} to lazy due to prune {}", from, lazy);
+            sb.append(String.format("Added %s to lazy; ", from));
+        }
+
+        if (from.equals(incomingSync.getHost())) {
+            logger.debug("Removed {} from incomingSync due to prune", from);
+            sb.append(String.format("Removed %s from incomingSync; ", from));
+            tryNextIncomingSync();
+        }
+
+        if (removeFromPendingIncomingSyncs(from)) {
+            logger.debug("Removed {} from pendingIncomingSyncs due to prune {}", from, pendingIncomingSyncs);
+            sb.append(String.format("Removed %s from pendingIncomingSyncs; ", from));
+        }
+
+        sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager.keySet(), lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
+        logger.info(sb);
+
     }
 
     private void uponReceiveGraft(GraftMessage msg, Host from, short sourceProto, int channelId) {
@@ -323,14 +324,16 @@ public class PlumTree extends GenericProtocol {
                 sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager.keySet(), lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
                 logger.info(sb);
 
+                sb = new StringBuilder("Cancelled timer for ");
                 for (Iterator<Map.Entry<UUID, Queue<Host>>> iterator = missing.entrySet().iterator(); iterator.hasNext(); ) {
                     Map.Entry<UUID, Queue<Host>> iHaves = iterator.next();
                     if(iHaves.getValue().contains(from)) {
                         cancelTimer(onGoingTimers.remove(iHaves.getKey()));
-                        logger.debug("Cancelled timer for {}", iHaves.getKey());
+                        sb.append(iHaves.getKey()).append(" ");
                         iterator.remove();
                     }
                 }
+                logger.debug(sb);
             }
         }
     }
@@ -636,7 +639,7 @@ public class PlumTree extends GenericProtocol {
             UUID mid = UUID.randomUUID();
             SendVectorClockMessage msg = new SendVectorClockMessage(mid);
             sendMessage(msg, neighbour);
-            logger.info("Sync {} STARTED", mid);
+            logger.debug("Sync {} STARTED", mid);
             stats.incrementSentSendVC();
             logger.debug("Sent {} to {}", msg, neighbour);
             sb.append(String.format("Added %s to outgoingSyncs; ", neighbour));
@@ -648,7 +651,8 @@ public class PlumTree extends GenericProtocol {
     private void tryNextIncomingSync() {
         StringBuilder sb = new StringBuilder("VIS-NEXTINCOMINGSYNC: ");
         IncomingSync nextIncomingSync = pendingIncomingSyncs.poll();
-        sb.append(String.format("Removed %s from incomingSync; ", incomingSync));
+        if(incomingSync.getHost() != null)
+            sb.append(String.format("Removed %s from incomingSync; ", incomingSync.getHost()));
 
         if (nextIncomingSync != null) {
             Host currentPending = nextIncomingSync.getHost();
@@ -679,22 +683,26 @@ public class PlumTree extends GenericProtocol {
             missing.remove(mid);
         }
 
+        StringBuilder sb = new StringBuilder(String.format("Forward tree %s received from %s to ", msg.getMid(), from));
         for (Host peer : eager.keySet()) {
             if (!peer.equals(from)) {
                 sendMessage(msg, peer);
                 stats.incrementSentTree();
-                logger.debug("Forward tree {} received from {} to {}", msg.getMid(), from, peer);
+                sb.append(peer).append(" ");
             }
         }
+        logger.debug(sb);
 
+        IHaveMessage iHave = new IHaveMessage(msg.getMid());
+        sb = new StringBuilder(String.format("Sent %s to ", iHave));
         for (Host peer : lazy) {
             if (!peer.equals(from)) {
-                IHaveMessage iHave = new IHaveMessage(msg.getMid());
-                logger.debug("Sent {} to {}", iHave, peer);
                 sendMessage(iHave, peer);
                 stats.incrementSentIHave();
+                sb.append(peer).append(" ");
             }
         }
+        logger.debug(sb);
     }
 
     private void handleGossipMessage(GossipMessage msg, Host from, boolean isFromSync) {

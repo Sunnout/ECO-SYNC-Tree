@@ -11,6 +11,7 @@ import protocols.broadcast.common.requests.BroadcastRequest;
 import protocols.broadcast.common.notifications.DeliverNotification;
 import protocols.broadcast.plumtree.messages.*;
 import protocols.broadcast.common.timers.ReconnectTimeout;
+import protocols.broadcast.plumtree.timers.CheckReceivedTreeMessagesTimeout;
 import protocols.broadcast.plumtree.timers.IHaveTimeout;
 import protocols.broadcast.plumtree.timers.SendTreeMessageTimeout;
 import protocols.broadcast.plumtree.utils.*;
@@ -24,7 +25,6 @@ import pt.unl.fct.di.novasys.channel.tcp.events.*;
 import pt.unl.fct.di.novasys.network.data.Host;
 
 import java.io.*;
-import java.net.InetAddress;
 import java.util.*;
 
 public class PlumTree extends GenericProtocol {
@@ -40,9 +40,13 @@ public class PlumTree extends GenericProtocol {
 
     private final long iHaveTimeout;
     private final long reconnectTimeout;
+
     private final long treeMsgTimeout;
     private final long treeMsgStartTime;
-    private final boolean iAmTreeMsgSender;
+    private final long checkTreeMsgsTimeout;
+
+    private long sendTreeMsgTimer;
+    private int treeMsgsFromSmallerHost;
 
     private final Set<Host> partialView;
     private final Map<Host, VectorClock> eager;
@@ -73,9 +77,10 @@ public class PlumTree extends GenericProtocol {
 
         this.iHaveTimeout = Long.parseLong(properties.getProperty("timeout1", "1000"));
         this.reconnectTimeout = Long.parseLong(properties.getProperty("reconnect_timeout", "500"));
-        this.treeMsgTimeout = Long.parseLong(properties.getProperty("tree_msg_timeout", "1000"));
-        this.treeMsgStartTime = Long.parseLong(properties.getProperty("tree_msg_start", "60000"));
-        this.iAmTreeMsgSender = myself.equals(new Host(InetAddress.getByName("10.10.0.10"),6000));
+
+        this.treeMsgTimeout = Long.parseLong(properties.getProperty("tree_msg_timeout", "100"));
+        this.treeMsgStartTime = Long.parseLong(properties.getProperty("tree_msg_start", "1000"));
+        this.checkTreeMsgsTimeout = Long.parseLong(properties.getProperty("check_tree_msgs_timeout", "5000"));
 
         this.partialView = new HashSet<>();
         this.eager = new HashMap<>();
@@ -114,6 +119,7 @@ public class PlumTree extends GenericProtocol {
 
         /*--------------------- Register Timer Handlers ----------------------------- */
         registerTimerHandler(SendTreeMessageTimeout.TIMER_ID, this::uponSendTreeMessageTimeout);
+        registerTimerHandler(CheckReceivedTreeMessagesTimeout.TIMER_ID, this::uponCheckReceivedTreeMessagesTimeout);
         registerTimerHandler(IHaveTimeout.TIMER_ID, this::uponIHaveTimeout);
         registerTimerHandler(ReconnectTimeout.TIMER_ID, this::uponReconnectTimeout);
 
@@ -157,7 +163,8 @@ public class PlumTree extends GenericProtocol {
 
     @Override
     public void init(Properties props) throws HandlerRegistrationException, IOException {
-        setupPeriodicTimer(new SendTreeMessageTimeout(), treeMsgStartTime, treeMsgTimeout);
+        this.sendTreeMsgTimer = setupPeriodicTimer(new SendTreeMessageTimeout(), treeMsgStartTime, treeMsgTimeout);
+        setupPeriodicTimer(new CheckReceivedTreeMessagesTimeout(), checkTreeMsgsTimeout, checkTreeMsgsTimeout);
     }
 
 
@@ -186,7 +193,6 @@ public class PlumTree extends GenericProtocol {
             handleTreeMessage(msg, from);
         } else {
             stats.incrementReceivedDupesTree();
-            logger.info("dupe tree from {}", from);
             logger.debug("{} was duplicated tree from {}", mid, from);
             StringBuilder sb = new StringBuilder("VIS-TREEDUPE: ");
             boolean print = false;
@@ -414,11 +420,17 @@ public class PlumTree extends GenericProtocol {
     /*--------------------------------- Timers ---------------------------------------- */
 
     private void uponSendTreeMessageTimeout(SendTreeMessageTimeout timeout, long timerId) {
-        if(iAmTreeMsgSender) {
-            UUID mid = UUID.randomUUID();
-            logger.debug("Generated tree msg {}", mid);
-            TreeMessage msg = new TreeMessage(mid, myself);
-            handleTreeMessage(msg, myself);
+        UUID mid = UUID.randomUUID();
+        logger.debug("Generated tree msg {}", mid);
+        TreeMessage msg = new TreeMessage(mid, myself);
+        handleTreeMessage(msg, myself);
+    }
+
+    private void uponCheckReceivedTreeMessagesTimeout(CheckReceivedTreeMessagesTimeout timeout, long timerId) {
+        if(treeMsgsFromSmallerHost == 0) {
+            sendTreeMsgTimer = setupPeriodicTimer(new SendTreeMessageTimeout(), 0, treeMsgTimeout);
+        } else {
+            treeMsgsFromSmallerHost = 0;
         }
     }
 
@@ -674,6 +686,13 @@ public class PlumTree extends GenericProtocol {
     }
 
     private void handleTreeMessage(TreeMessage msg, Host from) {
+        if(msg.getSender().compareTo(myself) <= 0) {
+            logger.debug("Received tree msg from equal or smaller host {}", msg.getSender());
+            treeMsgsFromSmallerHost++;
+            if(!msg.getSender().equals(myself))
+                cancelTimer(sendTreeMsgTimer);
+        }
+
         UUID mid = msg.getMid();
         receivedTreeIDs.add(mid);
 

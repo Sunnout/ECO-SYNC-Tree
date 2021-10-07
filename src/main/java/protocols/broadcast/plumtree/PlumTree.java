@@ -42,7 +42,6 @@ public class PlumTree extends GenericProtocol {
     private final long reconnectTimeout;
 
     private final long treeMsgTimeout;
-    private final long treeMsgStartTime;
     private final long checkTreeMsgsTimeout;
 
     private long sendTreeMsgTimer;
@@ -79,7 +78,6 @@ public class PlumTree extends GenericProtocol {
         this.reconnectTimeout = Long.parseLong(properties.getProperty("reconnect_timeout", "500"));
 
         this.treeMsgTimeout = Long.parseLong(properties.getProperty("tree_msg_timeout", "100"));
-        this.treeMsgStartTime = Long.parseLong(properties.getProperty("tree_msg_start", "1000"));
         this.checkTreeMsgsTimeout = Long.parseLong(properties.getProperty("check_tree_msgs_timeout", "5000"));
 
         this.partialView = new HashSet<>();
@@ -163,7 +161,6 @@ public class PlumTree extends GenericProtocol {
 
     @Override
     public void init(Properties props) throws HandlerRegistrationException, IOException {
-        this.sendTreeMsgTimer = setupPeriodicTimer(new SendTreeMessageTimeout(), treeMsgStartTime, treeMsgTimeout);
         setupPeriodicTimer(new CheckReceivedTreeMessagesTimeout(), checkTreeMsgsTimeout, checkTreeMsgsTimeout);
     }
 
@@ -180,7 +177,7 @@ public class PlumTree extends GenericProtocol {
         logger.info("RECEIVED {}", mid);
         GossipMessage msg = new GossipMessage(mid, myself, ++seqNumber, content);
         logger.debug("Accepted my op {}-{}: {} to {}", myself, seqNumber, mid, eager);
-        handleGossipMessage(msg, myself, false);
+        handleGossipMessage(msg, myself);
     }
 
     /*--------------------------------- Messages ---------------------------------------- */
@@ -241,7 +238,7 @@ public class PlumTree extends GenericProtocol {
                 logger.debug("[{}] Accepted op {}-{} : {} from {}, Clock {}", false,
                         h, clock, mid, from, vectorClock.getHostClock(h));
                 triggerNotification(new DeliverNotification(mid, from, msg.getContent(), false));
-                handleGossipMessage(msg, from, false);
+                handleGossipMessage(msg, from);
             } else if (vectorClock.getHostClock(h) < clock - 1) {
                 logger.error("[{}] Out-of-order op {}-{} : {} from {}, Clock {}", false,
                         h, clock, mid, from, vectorClock.getHostClock(h));
@@ -391,7 +388,7 @@ public class PlumTree extends GenericProtocol {
                         logger.debug("[{}] Accepted op {}-{} : {} from {}, Clock {}", true,
                                 h, clock, mid, from, vectorClock.getHostClock(h));
                         triggerNotification(new DeliverNotification(mid, from, gossipMessage.getContent(), true));
-                        handleGossipMessage(gossipMessage, from, true);
+                        handleGossipMessage(gossipMessage, from);
                     } else if (vectorClock.getHostClock(h) < clock - 1) {
                         logger.error("[{}] Out-of-order op {}-{} : {} from {}, Clock {}", true,
                                 h, clock, mid, from, vectorClock.getHostClock(h));
@@ -724,7 +721,7 @@ public class PlumTree extends GenericProtocol {
         logger.debug(sb);
     }
 
-    private void handleGossipMessage(GossipMessage msg, Host from, boolean isFromSync) {
+    private void handleGossipMessage(GossipMessage msg, Host from) {
         stats.incrementExecutedOps();
         vectorClock.incrementClock(msg.getOriginalSender());
         try {
@@ -739,7 +736,7 @@ public class PlumTree extends GenericProtocol {
             Host peer = entry.getKey();
             if (!peer.equals(from)) {
                 VectorClock vc = entry.getValue();
-                if (!isFromSync || vc.getHostClock(msg.getOriginalSender()) < msg.getSenderClock()) {
+                if (vc.getHostClock(msg.getOriginalSender()) < msg.getSenderClock()) {
                     sendMessage(msg, peer);
                     stats.incrementSentGossip();
                     logger.debug("Forward gossip {} received from {} to {}", mid, from, peer);

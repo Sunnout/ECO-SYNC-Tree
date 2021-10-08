@@ -125,12 +125,12 @@ for nNodes in "${nNodesList[@]}"; do
 
         sleep 230
 
-        node=$((118/perHost))
-        echo killing node_118
-        oarsh -n ${hosts[node]} "docker exec -d node_118 killall java"
-        sleep 0.5
+#        node=$((118/perHost))
+#        echo killing node_118
+#        oarsh -n ${hosts[node]} "docker exec -d node_118 killall java"
+#        sleep 0.5
 
-        for ((kill=1;kill<20;kill++)); do
+        for ((kill=1;kill<21;kill++)); do
           node=$((kill/perHost))
           echo killing node_$kill
           oarsh -n ${hosts[node]} "docker exec -d node_${kill} killall java"

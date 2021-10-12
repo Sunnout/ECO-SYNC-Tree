@@ -191,7 +191,7 @@ public class PlumTree extends GenericProtocol {
         } else {
             stats.incrementReceivedDupesTree();
             logger.debug("{} was duplicated tree from {}", mid, from);
-            StringBuilder sb = new StringBuilder("VIS-TREEDUPE: ");
+            StringBuilder sb = new StringBuilder(String.format("[PEER %s] VIS-TREEDUPE: ", from));
             boolean print = false;
 
             if(partialView.contains(from)) { //Because we can receive messages before neigh up
@@ -205,6 +205,19 @@ public class PlumTree extends GenericProtocol {
                     logger.debug("Removed {} from outgoingSyncs due to duplicate", from);
                     print = true;
                     sb.append(String.format("Removed %s from outgoingSyncs; ", from));
+                }
+
+                if (removeFromPendingIncomingSyncs(from)) {
+                    logger.debug("Removed {} from pendingIncomingSyncs due to duplicate {}", from, pendingIncomingSyncs);
+                    print = true;
+                    sb.append(String.format("Removed %s from pendingIncomingSyncs; ", from));
+                }
+
+                if (from.equals(incomingSync.getHost())) {
+                    logger.debug("Removed {} from incomingSync due to duplicate", from);
+                    print = true;
+                    sb.append(String.format("Removed %s from incomingSync; ", from));
+                    tryNextIncomingSync();
                 }
 
                 if (lazy.add(from)) {
@@ -255,16 +268,21 @@ public class PlumTree extends GenericProtocol {
     private void uponReceivePrune(PruneMessage msg, Host from, short sourceProto, int channelId) {
         stats.incrementReceivedPrune();
         logger.debug("Received {} from {}", msg, from);
-        StringBuilder sb = new StringBuilder("VIS-PRUNE: ");
+        StringBuilder sb = new StringBuilder(String.format("[PEER %s] VIS-PRUNE: ", from));
 
         if (eager.remove(from) != null) {
             logger.debug("Removed {} from eager due to prune {}", from, eager);
             sb.append(String.format("Removed %s from eager; ", from));
         }
 
-        if (lazy.add(from)) {
-            logger.debug("Added {} to lazy due to prune {}", from, lazy);
-            sb.append(String.format("Added %s to lazy; ", from));
+        if (outgoingSyncs.remove(new OutgoingSync(from))) {
+            logger.debug("Removed {} from outgoingSyncs due to prune", from);
+            sb.append(String.format("Removed %s from outgoingSyncs; ", from));
+        }
+
+        if (removeFromPendingIncomingSyncs(from)) {
+            logger.debug("Removed {} from pendingIncomingSyncs due to prune {}", from, pendingIncomingSyncs);
+            sb.append(String.format("Removed %s from pendingIncomingSyncs; ", from));
         }
 
         if (from.equals(incomingSync.getHost())) {
@@ -273,9 +291,9 @@ public class PlumTree extends GenericProtocol {
             tryNextIncomingSync();
         }
 
-        if (removeFromPendingIncomingSyncs(from)) {
-            logger.debug("Removed {} from pendingIncomingSyncs due to prune {}", from, pendingIncomingSyncs);
-            sb.append(String.format("Removed %s from pendingIncomingSyncs; ", from));
+        if (lazy.add(from)) {
+            logger.debug("Added {} to lazy due to prune {}", from, lazy);
+            sb.append(String.format("Added %s to lazy; ", from));
         }
 
         sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager.keySet(), lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
@@ -307,7 +325,7 @@ public class PlumTree extends GenericProtocol {
             logger.debug("Sent {} to {}", syncOpsMessages, from);
 
             if(partialView.contains(from)) {
-                StringBuilder sb = new StringBuilder("VIS-ENDSYNC: ");
+                StringBuilder sb = new StringBuilder(String.format("[PEER %s] VIS-ENDSYNC: ", from));
 
                 if (eager.put(from, msg.getVectorClock()) == null) {
                     logger.debug("Added {} to eager {} : pendingIncomingSyncs {}", from, eager.keySet(), pendingIncomingSyncs);
@@ -344,7 +362,7 @@ public class PlumTree extends GenericProtocol {
     private void uponReceiveSendVectorClock(SendVectorClockMessage msg, Host from, short sourceProto, int channelId) {
         stats.incrementReceivedSendVC();
         logger.debug("Received {} from {}", msg, from);
-        StringBuilder sb = new StringBuilder("VIS-SENDVC: ");
+        StringBuilder sb = new StringBuilder(String.format("[PEER %s] VIS-SENDVC: ", from));
 
         UUID mid = msg.getMid();
         Host currentPending = incomingSync.getHost();
@@ -475,7 +493,7 @@ public class PlumTree extends GenericProtocol {
         Host tmp = notification.getNeighbour();
         Host neighbour = new Host(tmp.getAddress(), tmp.getPort() + PORT_MAPPING);
 
-        StringBuilder sb = new StringBuilder("VIS-NEIGHDOWN: ");
+        StringBuilder sb = new StringBuilder(String.format("[PEER %s] VIS-NEIGHDOWN: ", neighbour));
         boolean print = false;
 
         if (partialView.remove(neighbour)) {
@@ -532,7 +550,7 @@ public class PlumTree extends GenericProtocol {
         Host host = event.getNode();
         logger.trace("Host {} is down, cause: {}", host, event.getCause());
 
-        StringBuilder sb = new StringBuilder("VIS-CONNDOWN: ");
+        StringBuilder sb = new StringBuilder(String.format("[PEER %s] VIS-CONNDOWN: ", host));
         boolean print = false;
 
         if (eager.remove(host) != null) {
@@ -589,7 +607,7 @@ public class PlumTree extends GenericProtocol {
         Host neighbour = event.getNode();
         logger.trace("Host (out) {} is up", neighbour);
 
-        StringBuilder sb = new StringBuilder("VIS-CONNUP: ");
+        StringBuilder sb = new StringBuilder(String.format("[PEER %s] VIS-CONNUP: ", neighbour));
 
         if (partialView.contains(neighbour)) {
                 if (lazy.add(neighbour)) {
@@ -609,20 +627,20 @@ public class PlumTree extends GenericProtocol {
         Host host = event.getNode();
         logger.trace("Connection from host {} is down, cause: {}", host, event.getCause());
 
-        StringBuilder sb = new StringBuilder("VIS-INCONNDOWN: ");
+        StringBuilder sb = new StringBuilder(String.format("[PEER %s] VIS-INCONNDOWN: ", host));
         boolean print = false;
+
+        if (removeFromPendingIncomingSyncs(host)) {
+            logger.debug("Removed {} from pendingIncomingSyncs due to in connection down {}", host, pendingIncomingSyncs);
+            print = true;
+            sb.append(String.format("Removed %s from pendingIncomingSyncs; ", host));
+        }
 
         if (host.equals(incomingSync.getHost())) {
             logger.debug("Removed {} from incomingSync due to in connection down", host);
             print = true;
             sb.append(String.format("Removed %s from incomingSync; ", host));
             tryNextIncomingSync();
-        }
-
-        if (removeFromPendingIncomingSyncs(host)) {
-            logger.debug("Removed {} from pendingIncomingSyncs due to in connection down {}", host, pendingIncomingSyncs);
-            print = true;
-            sb.append(String.format("Removed %s from pendingIncomingSyncs; ", host));
         }
 
         if(print)
@@ -633,7 +651,7 @@ public class PlumTree extends GenericProtocol {
     /*--------------------------------- Procedures ---------------------------------------- */
 
     private void startOutgoingSync(Host neighbour, UUID msgId, String cause, boolean sendGraft) {
-        StringBuilder sb = new StringBuilder("VIS-STARTSYNC-" + cause + ": ");
+        StringBuilder sb = new StringBuilder(String.format("[PEER %s] VIS-STARTSYNC-", neighbour) + cause + ": ");
         OutgoingSync os = new OutgoingSync(neighbour, msgId);
 
         if (lazy.contains(neighbour) && !outgoingSyncs.contains(os)) {
@@ -658,8 +676,8 @@ public class PlumTree extends GenericProtocol {
     }
 
     private void tryNextIncomingSync() {
-        StringBuilder sb = new StringBuilder("VIS-NEXTINCOMINGSYNC: ");
         IncomingSync nextIncomingSync = pendingIncomingSyncs.poll();
+        StringBuilder sb = new StringBuilder(String.format("[PEER %s] VIS-NEXTINCOMINGSYNC: ", incomingSync.getHost()));
         if(incomingSync.getHost() != null)
             sb.append(String.format("Removed %s from incomingSync; ", incomingSync.getHost()));
 
@@ -674,7 +692,7 @@ public class PlumTree extends GenericProtocol {
             stats.incrementSentVC();
             sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager.keySet(), lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
             logger.info(sb);
-            logger.debug("Sent {} to {}", vectorClockMessage, currentPending);
+            logger.debug("[PEER {}] Sent {} to {}", currentPending, vectorClockMessage, currentPending);
         } else {
             incomingSync = new IncomingSync(null, null);
             sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager.keySet(), lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));

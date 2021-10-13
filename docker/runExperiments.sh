@@ -4,6 +4,11 @@ POSITIONAL=()
 while [[ $# -gt 0 ]]; do
   key="$1"
   case $key in
+  --expname)
+    expname="$2"
+    shift # past argument
+    shift # past value
+    ;;
   --nruns)
     nruns="$2"
     shift # past argument
@@ -38,6 +43,10 @@ done
 
 set -- "${POSITIONAL[@]}" # restore positional parameters
 
+if [[ -z "${expname}" ]]; then
+  echo "expname not set"
+  exit
+fi
 if [[ -z "${nruns}" ]]; then
   echo "nruns not set"
   exit
@@ -59,6 +68,7 @@ if [[ -z "${probs}" ]]; then
   exit
 fi
 
+IFS=', ' read -r -a expName <<<"$expname"
 IFS=', ' read -r -a nRunsList <<<"$nruns"
 IFS=', ' read -r -a nNodesList <<<"$nnodes"
 IFS=', ' read -r -a nInitNodesList <<<"$ninitnodes"
@@ -160,6 +170,6 @@ for nNodes in "${nNodesList[@]}"; do
   pos=pos+1
 done #nNodes
 for n in $(oarprint host); do
-    oarsh -n $n "$HOME/PlumtreeOpLogs/docker/compressLogs.sh $n $nNodesList $nRunsList $protocolList $probabilityList"
+    oarsh -n $n "$HOME/PlumtreeOpLogs/docker/compressLogs.sh $expName $n"
   done
 exit

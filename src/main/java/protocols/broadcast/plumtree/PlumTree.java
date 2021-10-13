@@ -132,6 +132,7 @@ public class PlumTree extends GenericProtocol {
         registerMessageSerializer(channelId, TreeMessage.MSG_ID, TreeMessage.serializer);
         registerMessageSerializer(channelId, GossipMessage.MSG_ID, GossipMessage.serializer);
         registerMessageSerializer(channelId, PruneMessage.MSG_ID, PruneMessage.serializer);
+        registerMessageSerializer(channelId, ReversePruneMessage.MSG_ID, ReversePruneMessage.serializer);
         registerMessageSerializer(channelId, GraftMessage.MSG_ID, GraftMessage.serializer);
         registerMessageSerializer(channelId, IHaveMessage.MSG_ID, IHaveMessage.serializer);
 
@@ -143,6 +144,7 @@ public class PlumTree extends GenericProtocol {
         registerMessageHandler(channelId, TreeMessage.MSG_ID, this::uponReceiveTreeMessage, this::onMessageFailed);
         registerMessageHandler(channelId, GossipMessage.MSG_ID, this::uponReceiveGossip, this::onMessageFailed);
         registerMessageHandler(channelId, PruneMessage.MSG_ID, this::uponReceivePrune, this::onMessageFailed);
+        registerMessageHandler(channelId, ReversePruneMessage.MSG_ID, this::uponReceiveReversePrune, this::onMessageFailed);
         registerMessageHandler(channelId, GraftMessage.MSG_ID, this::uponReceiveGraft, this::onMessageFailed);
         registerMessageHandler(channelId, IHaveMessage.MSG_ID, this::uponReceiveIHave, this::onMessageFailed);
 
@@ -207,19 +209,6 @@ public class PlumTree extends GenericProtocol {
                     sb.append(String.format("Removed %s from outgoingSyncs; ", from));
                 }
 
-                if (removeFromPendingIncomingSyncs(from)) {
-                    logger.debug("Removed {} from pendingIncomingSyncs due to duplicate {}", from, pendingIncomingSyncs);
-                    print = true;
-                    sb.append(String.format("Removed %s from pendingIncomingSyncs; ", from));
-                }
-
-                if (from.equals(incomingSync.getHost())) {
-                    logger.debug("Removed {} from incomingSync due to duplicate", from);
-                    print = true;
-                    sb.append(String.format("Removed %s from incomingSync; ", from));
-                    tryNextIncomingSync();
-                }
-
                 if (lazy.add(from)) {
                     logger.debug("Added {} to lazy due to duplicate {}", from, lazy);
                     print = true;
@@ -269,36 +258,65 @@ public class PlumTree extends GenericProtocol {
         stats.incrementReceivedPrune();
         logger.debug("Received {} from {}", msg, from);
         StringBuilder sb = new StringBuilder(String.format("[PEER %s] VIS-PRUNE: ", from));
+        boolean print = false;
 
         if (eager.remove(from) != null) {
             logger.debug("Removed {} from eager due to prune {}", from, eager);
+            print = true;
             sb.append(String.format("Removed %s from eager; ", from));
-        }
 
-        if (outgoingSyncs.remove(new OutgoingSync(from))) {
-            logger.debug("Removed {} from outgoingSyncs due to prune", from);
-            sb.append(String.format("Removed %s from outgoingSyncs; ", from));
+            if (outgoingSyncs.remove(new OutgoingSync(from))) {
+                logger.debug("Removed {} from outgoingSyncs due to prune", from);
+                sb.append(String.format("Removed %s from outgoingSyncs; ", from));
+
+                logger.debug("Sent ReversePruneMessage to {}", from);
+                sendMessage(new ReversePruneMessage(), from);
+                stats.incrementSentReversePrune();
+            }
+
+            if (lazy.add(from)) {
+                logger.debug("Added {} to lazy due to prune {}", from, lazy);
+                sb.append(String.format("Added %s to lazy; ", from));
+            }
         }
 
         if (removeFromPendingIncomingSyncs(from)) {
             logger.debug("Removed {} from pendingIncomingSyncs due to prune {}", from, pendingIncomingSyncs);
+            print = true;
             sb.append(String.format("Removed %s from pendingIncomingSyncs; ", from));
         }
 
         if (from.equals(incomingSync.getHost())) {
             logger.debug("Removed {} from incomingSync due to prune", from);
+            print = true;
             sb.append(String.format("Removed %s from incomingSync; ", from));
             tryNextIncomingSync();
         }
 
-        if (lazy.add(from)) {
-            logger.debug("Added {} to lazy due to prune {}", from, lazy);
-            sb.append(String.format("Added %s to lazy; ", from));
+        if(print) {
+            sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager.keySet(), lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
+            logger.info(sb);
+        }
+    }
+
+    private void uponReceiveReversePrune(ReversePruneMessage msg, Host from, short sourceProto, int channelId) {
+        stats.incrementReceivedReversePrune();
+        logger.debug("Received {} from {}", msg, from);
+        StringBuilder sb = new StringBuilder(String.format("[PEER %s] VIS-REVERSEPRUNE: ", from));
+
+        if (removeFromPendingIncomingSyncs(from)) {
+            logger.debug("Removed {} from pendingIncomingSyncs due to reverse prune {}", from, pendingIncomingSyncs);
+            sb.append(String.format("Removed %s from pendingIncomingSyncs; ", from));
+        }
+
+        if (from.equals(incomingSync.getHost())) {
+            logger.debug("Removed {} from incomingSync due to reverse prune", from);
+            sb.append(String.format("Removed %s from incomingSync; ", from));
+            tryNextIncomingSync();
         }
 
         sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager.keySet(), lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
         logger.info(sb);
-
     }
 
     private void uponReceiveGraft(GraftMessage msg, Host from, short sourceProto, int channelId) {

@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.UUID;
 
 public class SyncOpsMessage extends ProtoMessage {
-    public static final short MSG_ID = 907;
+    public static final short MSG_ID = 908;
 
     private final UUID mid;
     private final List<byte[]> msgs;

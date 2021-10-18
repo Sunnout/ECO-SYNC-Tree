@@ -36,6 +36,12 @@ public class OpCounterCRDT implements CounterCRDT, KernelCRDT {
         this.c = BigInteger.ZERO;
     }
 
+    public OpCounterCRDT(CRDTCommunicationInterface kernel, String crdtId, int value) {
+        this.kernel = kernel;
+        this.crdtId = crdtId;
+        this.c = BigInteger.valueOf(value);
+    }
+
     @Override
     public String getCrdtId() {
         return this.crdtId;

@@ -35,6 +35,13 @@ public class LWWRegisterCRDT implements RegisterCRDT, KernelCRDT {
         this.value = null;
     }
 
+    public LWWRegisterCRDT(CRDTCommunicationInterface kernel, String crdtId, Instant ts, SerializableType value) {
+        this.kernel = kernel;
+        this.crdtId = crdtId;
+        this.ts = ts;
+        this.value = value;
+    }
+
     @Override
     public String getCrdtId() {
         return this.crdtId;

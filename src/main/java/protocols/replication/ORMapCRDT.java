@@ -41,6 +41,13 @@ public class ORMapCRDT implements MapCRDT, KernelCRDT {
         this.map = new ConcurrentHashMap<>();
     }
 
+    public ORMapCRDT(CRDTCommunicationInterface kernel, String crdtId, Map<SerializableType, Set<TaggedElement>> map) {
+        this.kernel = kernel;
+        this.crdtId = crdtId;
+        this.map = new ConcurrentHashMap<>();
+        this.map.putAll(map);
+    }
+
     @Override
     public String getCrdtId() {
         return this.crdtId;

@@ -36,6 +36,13 @@ public class ORSetCRDT implements SetCRDT, KernelCRDT {
         this.set = new HashSet<>();
     }
 
+    public ORSetCRDT(CRDTCommunicationInterface kernel, String crdtId, Set<TaggedElement> set) {
+        this.kernel = kernel;
+        this.crdtId = crdtId;
+        this.set = new HashSet<>();
+        this.set.addAll(set);
+    }
+
     @Override
     public String getCrdtId() {
         return this.crdtId;

@@ -1,5 +1,6 @@
 package protocols.replication;
 
+import crdts.interfaces.CounterCRDT;
 import crdts.operations.*;
 import datatypes.*;
 import exceptions.NoSuchCrdtType;
@@ -15,6 +16,7 @@ import protocols.replication.requests.*;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.network.data.Host;
+import serializers.MyCRDTSerializer;
 import serializers.MyOpSerializer;
 import serializers.MySerializer;
 
@@ -52,6 +54,8 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     private final Map<String, KernelCRDT> crdtsById; //Map that stores CRDTs by their ID
 
     //Serializers
+    //TODO: serializers de CRDTS
+    public static Map<String, MyOpSerializer> crdtSerializers = initializeCRDTSerializers(); //Static map of CRDT serializers for each crdt type
     public static Map<String, MyOpSerializer> opSerializers = initializeOperationSerializers(); //Static map of operation serializers for each crdt type
     public Map<String, List<MySerializer>> dataSerializers; //Map of data type serializers by crdt ID
 
@@ -345,6 +349,20 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         map.put(LWW_REGISTER, RegisterOperation.serializer);
         map.put(OR_SET, SetOperation.serializer);
         map.put(OR_MAP, MapOperation.serializer);
+        return map;
+    }
+
+    /**
+     * Creates a map with the CRDT serializers for each crdt type.
+     *
+     * @return the created map.
+     */
+    private static Map<String, MyCRDTSerializer> initializeCRDTSerializers() {
+        Map<String, MyCRDTSerializer> map = new HashMap<>();
+        map.put(COUNTER, CounterCRDT.serializer);
+        map.put(LWW_REGISTER, LWWRegisterCRDT.serializer);
+        map.put(OR_SET, ORSetCRDT.serializer);
+        map.put(OR_MAP, ORMapCRDT.serializer);
         return map;
     }
 }

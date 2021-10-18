@@ -3,11 +3,16 @@ package protocols.replication;
 import crdts.interfaces.CounterCRDT;
 import crdts.operations.CounterOperation;
 import crdts.operations.Operation;
+import io.netty.buffer.ByteBuf;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import protocols.replication.requests.DownstreamRequest;
 import pt.unl.fct.di.novasys.network.data.Host;
+import serializers.MyCRDTSerializer;
+import serializers.MyOpSerializer;
+import serializers.MySerializer;
 
+import java.io.IOException;
 import java.math.BigInteger;
 import java.util.UUID;
 
@@ -84,4 +89,22 @@ public class OpCounterCRDT implements CounterCRDT, KernelCRDT {
         else if(opType.equals(DECREMENT))
             this.c = this.c.subtract(BigInteger.valueOf(value));
     }
+
+    public static MyCRDTSerializer<CounterCRDT> serializer = new MyCRDTSerializer<CounterCRDT>() {
+        @Override
+        public void serialize(CounterCRDT counterCRDT, MySerializer[] serializers, ByteBuf out) {
+            out.writeInt(counterCRDT.getCrdtId().getBytes().length);
+            out.writeBytes(counterCRDT.getCrdtId().getBytes());
+            out.writeInt(counterCRDT.value());
+        }
+
+        @Override
+        public CounterCRDT deserialize(CRDTCommunicationInterface kernel, MySerializer[] serializers, ByteBuf in) {
+            int size = in.readInt();
+            byte[] crdtId = new byte[size];
+            in.readBytes(crdtId);
+            int value = in.readInt();
+            return new OpCounterCRDT(kernel, new String(crdtId), value);
+        }
+    };
 }

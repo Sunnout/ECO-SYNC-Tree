@@ -51,10 +51,6 @@ public class LWWRegisterCRDT implements RegisterCRDT, KernelCRDT {
         return this.crdtId;
     }
 
-    private Instant getInstant() {
-        return this.ts;
-    }
-
     public synchronized SerializableType value() {
         return this.value;
     }
@@ -100,5 +96,9 @@ public class LWWRegisterCRDT implements RegisterCRDT, KernelCRDT {
             return new LWWRegisterCRDT(kernel, new String(crdtId), Instant.ofEpochSecond(epoch, nano), value);
         }
     };
+
+    private Instant getInstant() {
+        return this.ts;
+    }
 
 }

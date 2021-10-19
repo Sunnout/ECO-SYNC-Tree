@@ -5,11 +5,15 @@ import crdts.operations.MapOperation;
 import crdts.operations.Operation;
 import crdts.utils.TaggedElement;
 import datatypes.SerializableType;
+import io.netty.buffer.ByteBuf;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import protocols.replication.requests.DownstreamRequest;
 import pt.unl.fct.di.novasys.network.data.Host;
+import serializers.MyCRDTSerializer;
+import serializers.MySerializer;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -133,8 +137,57 @@ public class ORMapCRDT implements MapCRDT, KernelCRDT {
         }
     }
 
+
+
+    public static MyCRDTSerializer<MapCRDT> serializer = new MyCRDTSerializer<MapCRDT>() {
+        @Override
+        public void serialize(MapCRDT mapCRDT, MySerializer[] serializers, ByteBuf out) throws IOException {
+            out.writeInt(mapCRDT.getCrdtId().getBytes().length);
+            out.writeBytes(mapCRDT.getCrdtId().getBytes());
+            Map<SerializableType, Set<TaggedElement>> map = ((ORMapCRDT)mapCRDT).getMap();
+            out.writeInt(map.size());
+            for (Map.Entry<SerializableType, Set<TaggedElement>> entry : map.entrySet()) {
+                serializers[0].serialize(entry.getKey(), out);
+                Set<TaggedElement> set = entry.getValue();
+                out.writeInt(set.size());
+                for (TaggedElement e : set) {
+                    TaggedElement.serializer.serialize(e, getValueSerializer(serializers), out);
+                }
+            }
+        }
+
+        @Override
+        public MapCRDT deserialize(CRDTCommunicationInterface kernel, MySerializer[] serializers, ByteBuf in) throws IOException {
+            int size = in.readInt();
+            byte[] crdtId = new byte[size];
+            in.readBytes(crdtId);
+            size = in.readInt();
+            Map<SerializableType, Set<TaggedElement>> map = new HashMap<>();
+            for(int i = 0; i < size; i++) {
+                SerializableType key = (SerializableType) serializers[0].deserialize(in);
+                int setSize = in.readInt();
+                Set<TaggedElement> set = new HashSet<>();
+                for (int j = 0; j < setSize; j++) {
+                    set.add(TaggedElement.serializer.deserialize(serializers, in));
+                }
+                map.put(key, set);
+            }
+            return new ORMapCRDT(kernel, new String(crdtId), map);
+        }
+    };
+
+    private static MySerializer[] getValueSerializer(MySerializer[] serializers) {
+        MySerializer[] array = new MySerializer[1];
+        array[0] = serializers[1];
+        return array;
+    }
+
     private Set<TaggedElement> checkForNullSet(Set<TaggedElement> set) {
         return set == null ? new HashSet<>() : set;
+    }
+
+    private Map<SerializableType, Set<TaggedElement>> getMap() {
+        return this.map;
     }
 
 }

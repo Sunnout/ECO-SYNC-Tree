@@ -52,10 +52,6 @@ public class ORSetCRDT implements SetCRDT, KernelCRDT {
         return this.crdtId;
     }
 
-    private Set<TaggedElement> getTaggedElementSet() {
-        return this.set;
-    }
-
     public synchronized boolean lookup(SerializableType elem) {
         for (TaggedElement taggedElement : this.set) {
             if (taggedElement.getValue().equals(elem))
@@ -133,5 +129,9 @@ public class ORSetCRDT implements SetCRDT, KernelCRDT {
             return new ORSetCRDT(kernel, new String(crdtId), set);
         }
     };
+
+    private Set<TaggedElement> getTaggedElementSet() {
+        return this.set;
+    }
 
 }

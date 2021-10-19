@@ -227,7 +227,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     }
 
     private void deserializeAndInstallState() {
-
+        //TODO
     }
 
     /**

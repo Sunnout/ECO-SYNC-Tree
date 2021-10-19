@@ -168,7 +168,7 @@ public class ORMapCRDT implements MapCRDT, KernelCRDT {
                 int setSize = in.readInt();
                 Set<TaggedElement> set = new HashSet<>();
                 for (int j = 0; j < setSize; j++) {
-                    set.add(TaggedElement.serializer.deserialize(serializers, in));
+                    set.add(TaggedElement.serializer.deserialize(getValueSerializer(serializers), in));
                 }
                 map.put(key, set);
             }

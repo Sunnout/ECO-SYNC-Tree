@@ -4,11 +4,15 @@ import crdts.interfaces.RegisterCRDT;
 import crdts.operations.Operation;
 import crdts.operations.RegisterOperation;
 import datatypes.SerializableType;
+import io.netty.buffer.ByteBuf;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import protocols.replication.requests.DownstreamRequest;
 import pt.unl.fct.di.novasys.network.data.Host;
+import serializers.MyCRDTSerializer;
+import serializers.MySerializer;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -47,6 +51,10 @@ public class LWWRegisterCRDT implements RegisterCRDT, KernelCRDT {
         return this.crdtId;
     }
 
+    public Instant getInstant() {
+        return this.ts;
+    }
+
     public synchronized SerializableType value() {
         return this.value;
     }
@@ -70,5 +78,27 @@ public class LWWRegisterCRDT implements RegisterCRDT, KernelCRDT {
             this.value = value;
         }
     }
+
+    public static MyCRDTSerializer<RegisterCRDT> serializer = new MyCRDTSerializer<RegisterCRDT>() {
+        @Override
+        public void serialize(RegisterCRDT registerCRDT, MySerializer[] serializers, ByteBuf out) throws IOException {
+            out.writeInt(registerCRDT.getCrdtId().getBytes().length);
+            out.writeBytes(registerCRDT.getCrdtId().getBytes());
+            out.writeLong(((LWWRegisterCRDT)registerCRDT).getInstant().getEpochSecond());
+            out.writeInt(((LWWRegisterCRDT)registerCRDT).getInstant().getNano());
+            serializers[0].serialize(registerCRDT.value(), out);
+        }
+
+        @Override
+        public RegisterCRDT deserialize(CRDTCommunicationInterface kernel, MySerializer[] serializers, ByteBuf in) throws IOException {
+            int size = in.readInt();
+            byte[] crdtId = new byte[size];
+            in.readBytes(crdtId);
+            long epoch = in.readLong();
+            int nano = in.readInt();
+            SerializableType value = (SerializableType) serializers[0].deserialize(in);
+            return new LWWRegisterCRDT(kernel, new String(crdtId), Instant.ofEpochSecond(epoch, nano), value);
+        }
+    };
 
 }

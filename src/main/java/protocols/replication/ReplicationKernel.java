@@ -1,6 +1,5 @@
 package protocols.replication;
 
-import crdts.interfaces.CounterCRDT;
 import crdts.operations.*;
 import datatypes.*;
 import exceptions.NoSuchCrdtType;
@@ -21,6 +20,7 @@ import serializers.MyOpSerializer;
 import serializers.MySerializer;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -52,10 +52,11 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     private final short broadcastId; //Broadcast protocol ID
 
     private final Map<String, KernelCRDT> crdtsById; //Map that stores CRDTs by their ID
+    private final Map<String, String> crdtTypesById; //Map that stores CRDT Types by their ID
+    private final Map<String, List<String>> dataTypesById; //Map that stores CRDT data types by their ID
 
     //Serializers
-    //TODO: serializers de CRDTS
-    public static Map<String, MyOpSerializer> crdtSerializers = initializeCRDTSerializers(); //Static map of CRDT serializers for each crdt type
+    public static Map<String, MyCRDTSerializer> crdtSerializers = initializeCRDTSerializers(); //Static map of CRDT serializers for each crdt type
     public static Map<String, MyOpSerializer> opSerializers = initializeOperationSerializers(); //Static map of operation serializers for each crdt type
     public Map<String, List<MySerializer>> dataSerializers; //Map of data type serializers by crdt ID
 
@@ -64,6 +65,8 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         this.broadcastId = broadcastId;
 
         this.crdtsById = new ConcurrentHashMap<>();
+        this.crdtTypesById = new HashMap<>();
+        this.dataTypesById = new HashMap<>();
 
         this.dataSerializers = new HashMap<>();
 
@@ -202,6 +205,31 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         return op;
     }
 
+    private byte[] serializeCurrentState() throws IOException {
+        ByteBuf buf = Unpooled.buffer();
+        buf.writeInt(crdtsById.size()); //number of crdts
+        for(Map.Entry<String, KernelCRDT> entry : crdtsById.entrySet()) {
+            String crdtId = entry.getKey();
+            String crdtType = crdtTypesById.get(crdtId);
+            List<String> dataTypes = dataTypesById.get(crdtId);
+            buf.writeInt(crdtType.length());
+            buf.writeBytes(crdtType.getBytes()); //crdtType (counter, register, etc)
+            for (String dataType: dataTypes) { //dataTypes
+                buf.writeInt(dataType.length());
+                buf.writeBytes(dataType.getBytes());
+            }
+            MySerializer[] serializers = dataSerializers.get(crdtId).toArray(new MySerializer[2]);
+            crdtSerializers.get(crdtType).serialize(entry.getValue(), serializers, buf); // crdt itself
+        }
+        byte[] payload = new byte[buf.readableBytes()];
+        buf.readBytes(payload);
+        return payload;
+    }
+
+    private void deserializeAndInstallState() {
+
+    }
+
     /**
      * Maps each CRDT to its own dataType serializer. If the CRDT is a map
      * two serializers must be added (the first for the key, the second for
@@ -213,35 +241,46 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
      */
     private void registerDataSerializer(String crdtId, String crdtType, String[] dataTypes) {
         List<MySerializer> serializerList = new ArrayList<>(2);
+        List<String> dataTypeList = new ArrayList<>(2);
+
         switch (dataTypes[0]) {
             case INTEGER:
                 serializerList.add(0, IntegerType.serializer);
+                dataTypeList.add(0, INTEGER);
                 break;
             case SHORT:
                 serializerList.add(0, ShortType.serializer);
+                dataTypeList.add(0, SHORT);
                 break;
             case LONG:
                 serializerList.add(0, LongType.serializer);
+                dataTypeList.add(0, LONG);
                 break;
             case FLOAT:
                 serializerList.add(0, FloatType.serializer);
+                dataTypeList.add(0, FLOAT);
                 break;
             case DOUBLE:
                 serializerList.add(0, DoubleType.serializer);
+                dataTypeList.add(0, DOUBLE);
                 break;
             case STRING:
                 serializerList.add(0, StringType.serializer);
+                dataTypeList.add(0, STRING);
                 break;
             case BOOLEAN:
                 serializerList.add(0, BooleanType.serializer);
+                dataTypeList.add(0, BOOLEAN);
                 break;
             case BYTE:
                 serializerList.add(0, ByteType.serializer);
+                dataTypeList.add(0, BYTE);
                 break;
             default:
                 throw new NoSuchDataType(dataTypes[0]);
         }
         dataSerializers.put(crdtId, serializerList);
+        dataTypesById.put(crdtId, dataTypeList);
         if (crdtType.equals(OR_MAP))
             addExtraDataSerializerForMap(crdtId, dataTypes);
     }
@@ -256,27 +295,35 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         switch (dataTypes[1]) {
             case INTEGER:
                 dataSerializers.get(crdtId).add(1, IntegerType.serializer);
+                dataTypesById.get(crdtId).add(1, INTEGER);
                 break;
             case SHORT:
                 dataSerializers.get(crdtId).add(1, ShortType.serializer);
+                dataTypesById.get(crdtId).add(1, SHORT);
                 break;
             case LONG:
                 dataSerializers.get(crdtId).add(1, LongType.serializer);
+                dataTypesById.get(crdtId).add(1, LONG);
                 break;
             case FLOAT:
                 dataSerializers.get(crdtId).add(1, FloatType.serializer);
+                dataTypesById.get(crdtId).add(1, FLOAT);
                 break;
             case DOUBLE:
                 dataSerializers.get(crdtId).add(1, DoubleType.serializer);
+                dataTypesById.get(crdtId).add(1, DOUBLE);
                 break;
             case STRING:
                 dataSerializers.get(crdtId).add(1, StringType.serializer);
+                dataTypesById.get(crdtId).add(1, STRING);
                 break;
             case BOOLEAN:
                 dataSerializers.get(crdtId).add(1, BooleanType.serializer);
+                dataTypesById.get(crdtId).add(1, BOOLEAN);
                 break;
             case BYTE:
                 dataSerializers.get(crdtId).add(1, ByteType.serializer);
+                dataTypesById.get(crdtId).add(1, BYTE);
                 break;
             default:
                 throw new NoSuchDataType(dataTypes[1]);
@@ -320,15 +367,19 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         switch (crdtType) {
             case COUNTER:
                 crdt = new OpCounterCRDT(this, crdtId);
+                crdtTypesById.put(crdtId, COUNTER);
                 break;
             case LWW_REGISTER:
                 crdt = new LWWRegisterCRDT(this, crdtId);
+                crdtTypesById.put(crdtId, LWW_REGISTER);
                 break;
             case OR_SET:
                 crdt = new ORSetCRDT(this, crdtId);
+                crdtTypesById.put(crdtId, OR_SET);
                 break;
             case OR_MAP:
                 crdt = new ORMapCRDT(this, crdtId);
+                crdtTypesById.put(crdtId, OR_MAP);
                 break;
             default:
                 throw new NoSuchCrdtType(crdtType);
@@ -359,7 +410,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
      */
     private static Map<String, MyCRDTSerializer> initializeCRDTSerializers() {
         Map<String, MyCRDTSerializer> map = new HashMap<>();
-        map.put(COUNTER, CounterCRDT.serializer);
+        map.put(COUNTER, OpCounterCRDT.serializer);
         map.put(LWW_REGISTER, LWWRegisterCRDT.serializer);
         map.put(OR_SET, ORSetCRDT.serializer);
         map.put(OR_MAP, ORMapCRDT.serializer);

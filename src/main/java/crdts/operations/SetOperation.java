@@ -44,7 +44,7 @@ public class SetOperation extends Operation {
 
         @Override
         public SetOperation deserialize(MySerializer[] serializers, ByteBuf in) throws IOException {
-            Set set = new HashSet<>();
+            Set<TaggedElement> set = new HashSet<>();
             int size = in.readInt();
             byte[] opType = new byte[size];
             in.readBytes(opType);

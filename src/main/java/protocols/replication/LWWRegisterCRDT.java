@@ -51,7 +51,7 @@ public class LWWRegisterCRDT implements RegisterCRDT, KernelCRDT {
         return this.crdtId;
     }
 
-    public Instant getInstant() {
+    private Instant getInstant() {
         return this.ts;
     }
 

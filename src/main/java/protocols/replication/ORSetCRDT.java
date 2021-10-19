@@ -5,11 +5,15 @@ import crdts.operations.Operation;
 import crdts.operations.SetOperation;
 import crdts.utils.TaggedElement;
 import datatypes.SerializableType;
+import io.netty.buffer.ByteBuf;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import protocols.replication.requests.DownstreamRequest;
 import pt.unl.fct.di.novasys.network.data.Host;
+import serializers.MyCRDTSerializer;
+import serializers.MySerializer;
 
+import java.io.IOException;
 import java.util.*;
 
 
@@ -46,6 +50,10 @@ public class ORSetCRDT implements SetCRDT, KernelCRDT {
     @Override
     public String getCrdtId() {
         return this.crdtId;
+    }
+
+    private Set<TaggedElement> getTaggedElementSet() {
+        return this.set;
     }
 
     public synchronized boolean lookup(SerializableType elem) {
@@ -99,5 +107,31 @@ public class ORSetCRDT implements SetCRDT, KernelCRDT {
             this.set.removeAll(newSet);
         }
     }
+
+    public static MyCRDTSerializer<SetCRDT> serializer = new MyCRDTSerializer<SetCRDT>() {
+        @Override
+        public void serialize(SetCRDT setCRDT, MySerializer[] serializers, ByteBuf out) throws IOException {
+            out.writeInt(setCRDT.getCrdtId().getBytes().length);
+            out.writeBytes(setCRDT.getCrdtId().getBytes());
+            Set<TaggedElement> set = ((ORSetCRDT)setCRDT).getTaggedElementSet();
+            out.writeInt(set.size());
+            for (TaggedElement e : set) {
+                TaggedElement.serializer.serialize(e, serializers, out);
+            }
+        }
+
+        @Override
+        public SetCRDT deserialize(CRDTCommunicationInterface kernel, MySerializer[] serializers, ByteBuf in) throws IOException {
+            int size = in.readInt();
+            byte[] crdtId = new byte[size];
+            in.readBytes(crdtId);
+            size = in.readInt();
+            Set<TaggedElement> set = new HashSet<>();
+            for(int i = 0; i < size; i++) {
+                set.add(TaggedElement.serializer.deserialize(serializers, in));
+            }
+            return new ORSetCRDT(kernel, new String(crdtId), set);
+        }
+    };
 
 }

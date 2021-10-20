@@ -78,7 +78,7 @@ public class LWWRegisterCRDT implements RegisterCRDT, KernelCRDT {
     }
 
     @Override
-    public void installState(KernelCRDT newCRDT) {
+    public synchronized void installState(KernelCRDT newCRDT) {
         LWWRegisterCRDT newRegister = (LWWRegisterCRDT) newCRDT;
         this.value = newRegister.value();
         this.ts = newRegister.getInstant();

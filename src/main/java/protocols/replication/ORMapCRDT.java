@@ -138,7 +138,7 @@ public class ORMapCRDT implements MapCRDT, KernelCRDT {
     }
 
     @Override
-    public void installState(KernelCRDT newCRDT) {
+    public synchronized void installState(KernelCRDT newCRDT) {
         Map<SerializableType, Set<TaggedElement>> newMap = ((ORMapCRDT) newCRDT).getMap();
         this.map.clear();
         this.map.putAll(newMap);

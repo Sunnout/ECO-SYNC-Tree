@@ -105,7 +105,7 @@ public class ORSetCRDT implements SetCRDT, KernelCRDT {
     }
 
     @Override
-    public void installState(KernelCRDT newCRDT) {
+    public synchronized void installState(KernelCRDT newCRDT) {
         Set<TaggedElement> newSet = ((ORSetCRDT) newCRDT).getTaggedElementSet();
         this.set.clear();
         this.set.addAll(newSet);

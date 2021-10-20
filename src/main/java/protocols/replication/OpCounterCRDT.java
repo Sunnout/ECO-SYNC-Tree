@@ -91,7 +91,7 @@ public class OpCounterCRDT implements CounterCRDT, KernelCRDT {
     }
 
     @Override
-    public void installState(KernelCRDT newCRDT) {
+    public synchronized void installState(KernelCRDT newCRDT) {
         this.c = BigInteger.valueOf(((OpCounterCRDT) newCRDT).value());
     }
 

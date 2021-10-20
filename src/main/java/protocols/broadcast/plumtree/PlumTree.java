@@ -44,6 +44,8 @@ public class PlumTree extends GenericProtocol {
     private final long treeMsgTimeout;
     private final long checkTreeMsgsTimeout;
 
+    private final long garbageCollectionTimeout;
+
     private long sendTreeMsgTimer;
     private int treeMsgsFromSmallerHost;
 
@@ -74,11 +76,13 @@ public class PlumTree extends GenericProtocol {
         super(PROTOCOL_NAME, PROTOCOL_ID);
         this.myself = myself;
 
-        this.iHaveTimeout = Long.parseLong(properties.getProperty("timeout1", "1000"));
+        this.iHaveTimeout = Long.parseLong(properties.getProperty("i_have_timeout", "1000"));
         this.reconnectTimeout = Long.parseLong(properties.getProperty("reconnect_timeout", "500"));
 
         this.treeMsgTimeout = Long.parseLong(properties.getProperty("tree_msg_timeout", "100"));
         this.checkTreeMsgsTimeout = Long.parseLong(properties.getProperty("check_tree_msgs_timeout", "5000"));
+
+        this.garbageCollectionTimeout = Long.parseLong(properties.getProperty("garbage_collection_timeout", "1")) * 60;
 
         this.partialView = new HashSet<>();
         this.eager = new HashMap<>();
@@ -175,7 +179,6 @@ public class PlumTree extends GenericProtocol {
         UUID mid = request.getMsgId();
         byte[] content = request.getMsg();
         logger.info("SENT {}", mid);
-        triggerNotification(new DeliverNotification(mid, myself, content, false));
         logger.info("RECEIVED {}", mid);
         GossipMessage msg = new GossipMessage(mid, myself, ++seqNumber, content);
         logger.debug("Accepted my op {}-{}: {} to {}", myself, seqNumber, mid, eager);

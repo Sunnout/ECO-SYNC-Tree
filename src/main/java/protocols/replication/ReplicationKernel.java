@@ -206,6 +206,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     }
 
     private byte[] serializeCurrentState() throws IOException {
+
         ByteBuf buf = Unpooled.buffer();
         buf.writeInt(crdtsById.size()); //number of crdts
         for(Map.Entry<String, KernelCRDT> entry : crdtsById.entrySet()) {

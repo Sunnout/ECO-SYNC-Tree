@@ -212,6 +212,8 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
             String crdtId = entry.getKey();
             String crdtType = crdtTypesById.get(crdtId);
             List<String> dataTypes = dataTypesById.get(crdtId);
+            buf.writeInt(crdtId.length());
+            buf.writeBytes(crdtId.getBytes());
             buf.writeInt(crdtType.length());
             buf.writeBytes(crdtType.getBytes()); //crdtType (counter, register, etc)
             for (String dataType: dataTypes) { //dataTypes
@@ -226,8 +228,37 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         return payload;
     }
 
-    private void deserializeAndInstallState() {
-        //TODO
+    private void deserializeAndInstallState(byte[] state) throws IOException {
+        ByteBuf buf = Unpooled.buffer().writeBytes(state);
+        int nCRDTs = buf.readInt();
+        for(int i = 0; i < nCRDTs; i++) {
+            int size = buf.readInt();
+            byte[] crdtIdArray = new byte[size];
+            buf.readBytes(crdtIdArray);
+            String crdtId = new String(crdtIdArray);
+            size = buf.readInt();
+            byte[] crdtTypeArray = new byte[size];
+            buf.readBytes(crdtTypeArray);
+            String crdtType = new String(crdtTypeArray);
+            String[] dataTypes = new String[2];
+            size = buf.readInt();
+            byte[] dataTypeArray = new byte[size];
+            buf.readBytes(dataTypeArray);
+            dataTypes[0] = new String(dataTypeArray);
+            if(crdtType.equals(OR_MAP)) {
+                size = buf.readInt();
+                dataTypeArray = new byte[size];
+                buf.readBytes(dataTypeArray);
+                dataTypes[1] = new String(dataTypeArray);
+            }
+            KernelCRDT crdt = crdtsById.get(crdtId);
+            if(crdt == null)
+                crdt = createNewCrdt(crdtId, crdtType, dataTypes);
+
+            MySerializer[] serializers = dataSerializers.get(crdtId).toArray(new MySerializer[2]);
+            KernelCRDT newCRDT = (KernelCRDT) crdtSerializers.get(crdtType).deserialize(this, serializers, buf);
+            crdt.installState(newCRDT);
+        }
     }
 
     /**

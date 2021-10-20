@@ -104,6 +104,13 @@ public class ORSetCRDT implements SetCRDT, KernelCRDT {
         }
     }
 
+    @Override
+    public void installState(KernelCRDT newCRDT) {
+        Set<TaggedElement> newSet = ((ORSetCRDT) newCRDT).getTaggedElementSet();
+        this.set.clear();
+        this.set.addAll(newSet);
+    }
+
     public static MyCRDTSerializer<SetCRDT> serializer = new MyCRDTSerializer<SetCRDT>() {
         @Override
         public void serialize(SetCRDT setCRDT, MySerializer[] serializers, ByteBuf out) throws IOException {

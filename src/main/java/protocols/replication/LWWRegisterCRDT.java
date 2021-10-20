@@ -3,6 +3,7 @@ package protocols.replication;
 import crdts.interfaces.RegisterCRDT;
 import crdts.operations.Operation;
 import crdts.operations.RegisterOperation;
+import crdts.utils.TaggedElement;
 import datatypes.SerializableType;
 import io.netty.buffer.ByteBuf;
 import org.apache.logging.log4j.LogManager;
@@ -14,6 +15,7 @@ import serializers.MySerializer;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Set;
 import java.util.UUID;
 
 public class LWWRegisterCRDT implements RegisterCRDT, KernelCRDT {
@@ -73,6 +75,13 @@ public class LWWRegisterCRDT implements RegisterCRDT, KernelCRDT {
             this.ts = timestamp;
             this.value = value;
         }
+    }
+
+    @Override
+    public void installState(KernelCRDT newCRDT) {
+        LWWRegisterCRDT newRegister = (LWWRegisterCRDT) newCRDT;
+        this.value = newRegister.value();
+        this.ts = newRegister.getInstant();
     }
 
     public static MyCRDTSerializer<RegisterCRDT> serializer = new MyCRDTSerializer<RegisterCRDT>() {

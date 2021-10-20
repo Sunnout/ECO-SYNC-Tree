@@ -6,5 +6,7 @@ import crdts.operations.Operation;
 interface KernelCRDT extends GenericCRDT {
 
     void upstream(Operation op);
+
+    void installState(KernelCRDT newCRDT);
     
 }

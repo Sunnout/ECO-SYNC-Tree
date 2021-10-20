@@ -90,6 +90,11 @@ public class OpCounterCRDT implements CounterCRDT, KernelCRDT {
             this.c = this.c.subtract(BigInteger.valueOf(value));
     }
 
+    @Override
+    public void installState(KernelCRDT newCRDT) {
+        this.c = BigInteger.valueOf(((OpCounterCRDT) newCRDT).value());
+    }
+
     public static MyCRDTSerializer<CounterCRDT> serializer = new MyCRDTSerializer<CounterCRDT>() {
         @Override
         public void serialize(CounterCRDT counterCRDT, MySerializer[] serializers, ByteBuf out) {

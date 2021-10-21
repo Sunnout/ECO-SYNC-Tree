@@ -7,7 +7,7 @@ import java.util.UUID;
 
 public class BroadcastRequest extends ProtoRequest {
 
-    public static final short REQUEST_ID = 202;
+    public static final short REQUEST_ID = 203;
 
     private final Host sender;
     private final UUID msgId;

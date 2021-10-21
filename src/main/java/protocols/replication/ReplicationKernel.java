@@ -8,8 +8,11 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import protocols.broadcast.common.notifications.InstallStateNotification;
+import protocols.broadcast.common.notifications.SendStateNotification;
 import protocols.broadcast.common.requests.BroadcastRequest;
 import protocols.broadcast.common.notifications.DeliverNotification;
+import protocols.broadcast.common.requests.StateRequest;
 import protocols.replication.notifications.*;
 import protocols.replication.requests.*;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
@@ -79,6 +82,9 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
 
         /* --------------------- Register Notification Handlers --------------------- */
         subscribeNotification(DeliverNotification.NOTIFICATION_ID, this::uponDeliverNotification);
+        subscribeNotification(SendStateNotification.NOTIFICATION_ID, this::uponSendStateNotification);
+        subscribeNotification(InstallStateNotification.NOTIFICATION_ID, this::uponInstallStateNotification);
+
     }
 
     @Override
@@ -254,6 +260,22 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
             } else {
                 crdtsById.get(crdtId).upstream(op);
             }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void uponSendStateNotification(SendStateNotification notification, short sourceProto) {
+        try {
+            sendRequest(new StateRequest(notification.getMsgId(), serializeCurrentState()), broadcastId);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void uponInstallStateNotification(InstallStateNotification notification, short sourceProto) {
+        try {
+            deserializeAndInstallState(notification.getState());
         } catch (IOException e) {
             e.printStackTrace();
         }

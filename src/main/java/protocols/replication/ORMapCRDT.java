@@ -26,14 +26,18 @@ public class ORMapCRDT implements MapCRDT, KernelCRDT {
 
     private static final Logger logger = LogManager.getLogger(ORMapCRDT.class);
 
+    private static final String CRDT_TYPE = "or_map";
+    private static final String MAP_PUT = "map_put";
+    private static final String MAP_DELETE = "map_del";
+
+    static {
+        ReplicationKernel.crdtSerializers.put(CRDT_TYPE, ORMapCRDT.serializer);
+    }
+
     public enum MapOpType{
         PUT,
         DELETE
     }
-
-    private static final String CRDT_TYPE = "or_map";
-    private static final String MAP_PUT = "map_put";
-    private static final String MAP_DELETE = "map_del";
 
     private final CRDTCommunicationInterface kernel;
     private final String crdtId;

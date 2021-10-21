@@ -55,7 +55,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     private final Map<String, List<String>> dataTypesById; //Map that stores CRDT data types by their ID
 
     //Serializers
-    public static Map<String, MyCRDTSerializer> crdtSerializers = initializeCRDTSerializers(); //Static map of CRDT serializers for each crdt type
+    public static Map<String, MyCRDTSerializer> crdtSerializers = new HashMap<>(); //Static map of CRDT serializers for each crdt type
     public static Map<String, MyOpSerializer> opSerializers = initializeOperationSerializers(); //Static map of operation serializers for each crdt type
     public Map<String, List<MySerializer>> dataSerializers; //Map of data type serializers by crdt ID
 
@@ -243,12 +243,6 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
 
     /* --------------------------------- Notifications --------------------------------- */
 
-    /**
-     * Processes operations received from other replication kernels.
-     *
-     * @param notification -
-     * @param sourceProto -
-     */
     private void uponDeliverNotification(DeliverNotification notification, short sourceProto) {
         try {
             Operation op = deserializeOperation(notification.getMsg());
@@ -536,20 +530,6 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         map.put(LWW_REGISTER, RegisterOperation.serializer);
         map.put(OR_SET, SetOperation.serializer);
         map.put(OR_MAP, MapOperation.serializer);
-        return map;
-    }
-
-    /**
-     * Creates a map with the CRDT serializers for each crdt type.
-     *
-     * @return the created map.
-     */
-    private static Map<String, MyCRDTSerializer> initializeCRDTSerializers() {
-        Map<String, MyCRDTSerializer> map = new HashMap<>();
-        map.put(COUNTER, OpCounterCRDT.serializer);
-        map.put(LWW_REGISTER, LWWRegisterCRDT.serializer);
-        map.put(OR_SET, ORSetCRDT.serializer);
-        map.put(OR_MAP, ORMapCRDT.serializer);
         return map;
     }
 

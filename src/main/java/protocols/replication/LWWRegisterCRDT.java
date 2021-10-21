@@ -3,7 +3,6 @@ package protocols.replication;
 import crdts.interfaces.RegisterCRDT;
 import crdts.operations.Operation;
 import crdts.operations.RegisterOperation;
-import crdts.utils.TaggedElement;
 import datatypes.SerializableType;
 import io.netty.buffer.ByteBuf;
 import org.apache.logging.log4j.LogManager;
@@ -15,19 +14,22 @@ import serializers.MySerializer;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.Set;
 import java.util.UUID;
 
 public class LWWRegisterCRDT implements RegisterCRDT, KernelCRDT {
 
     private static final Logger logger = LogManager.getLogger(LWWRegisterCRDT.class);
 
+    private static final String CRDT_TYPE = "lww_register";
+    private static final String ASSIGN = "assign";
+
+    static {
+        ReplicationKernel.crdtSerializers.put(CRDT_TYPE, LWWRegisterCRDT.serializer);
+    }
+
     public enum RegisterOpType{
         ASSIGN
     }
-
-    private static final String CRDT_TYPE = "lww_register";
-    private static final String ASSIGN = "assign";
 
     private final CRDTCommunicationInterface kernel;
     private final String crdtId;

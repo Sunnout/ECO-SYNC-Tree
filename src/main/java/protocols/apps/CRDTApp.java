@@ -110,7 +110,7 @@ public class CRDTApp extends GenericProtocol {
     public void init(Properties props) {
         //Wait before creating crdts
         logger.info("Waiting...");
-        setupTimer(new CreateCRDTsTimer(), createTime * TO_MILLIS);
+        setupTimer(new CreateCRDTsTimer(), (long) createTime * TO_MILLIS);
     }
 
 
@@ -156,10 +156,10 @@ public class CRDTApp extends GenericProtocol {
 
     private void uponCreateCRDTsTimer(CreateCRDTsTimer timer, long timerId) {
         logger.info("Creating crdts...");
-        getCRDTs(RUN);
+        getCRDTs();
         logger.warn("Starting operations...");
         ops1Timer = setupPeriodicTimer(new ExecuteOps1Timer(), 0, ops1Interval);
-        setupTimer(new StopTimer(), runTime * TO_MILLIS);
+        setupTimer(new StopTimer(), (long) runTime * TO_MILLIS);
     }
 
     private void uponExecuteOps1Timer(ExecuteOps1Timer incTimer, long timerId) {
@@ -170,13 +170,13 @@ public class CRDTApp extends GenericProtocol {
         logger.warn("Stopping broadcasts");
         //Stop executing operations
         this.cancelTimer(ops1Timer);
-        setupTimer(new PrintValuesTimer(), cooldownTime * TO_MILLIS);
+        setupTimer(new PrintValuesTimer(), (long) cooldownTime * TO_MILLIS);
     }
 
     private void uponPrintValuesTimer(PrintValuesTimer printValuesTimer, long timerId) {
-        printFinalValues(RUN);
+        printFinalValues();
         printStats();
-        setupTimer(new ExitTimer(), exitTime * TO_MILLIS);
+        setupTimer(new ExitTimer(), (long) exitTime * TO_MILLIS);
     }
 
     private void uponExitTimer(ExitTimer exitTimer, long timerId) {
@@ -187,16 +187,16 @@ public class CRDTApp extends GenericProtocol {
 
     /* --------------------------------- Auxiliary Methods --------------------------------- */
 
-    private void getCRDTs(int run) {
-        if(run == 0) {
+    private void getCRDTs() {
+        if(CRDTApp.RUN == 0) {
             getCRDT(COUNTER, new String[]{"int"}, CRDT0);
-        } else if(run == 1) {
+        } else if(CRDTApp.RUN == 1) {
             getCRDT(LWW_REGISTER, new String[]{"int"}, CRDT1);
-        } else if(run == 2) {
+        } else if(CRDTApp.RUN == 2) {
             getCRDT(OR_SET, new String[]{"int"}, CRDT2);
-        } else if(run == 3) {
+        } else if(CRDTApp.RUN == 3) {
             getCRDT(OR_MAP, new String[]{"byte", "int"}, CRDT3);
-        } else if(run == 4) {
+        } else if(CRDTApp.RUN == 4) {
             getCRDT(LWW_REGISTER, new String[]{"int"}, CRDT1);
             getCRDT(LWW_REGISTER, new String[]{"long"}, CRDT2);
             getCRDT(LWW_REGISTER, new String[]{"short"}, CRDT3);
@@ -205,7 +205,7 @@ public class CRDTApp extends GenericProtocol {
             getCRDT(LWW_REGISTER, new String[]{"string"}, CRDT6);
             getCRDT(LWW_REGISTER, new String[]{"boolean"}, CRDT7);
             getCRDT(LWW_REGISTER, new String[]{"byte"}, CRDT8);
-        } else if(run == 5) {
+        } else if(CRDTApp.RUN == 5) {
             getCRDT(OR_SET, new String[]{"int"}, CRDT1);
             getCRDT(OR_SET, new String[]{"long"}, CRDT2);
             getCRDT(OR_SET, new String[]{"short"}, CRDT3);
@@ -214,7 +214,7 @@ public class CRDTApp extends GenericProtocol {
             getCRDT(OR_SET, new String[]{"string"}, CRDT6);
             getCRDT(OR_SET, new String[]{"boolean"}, CRDT7);
             getCRDT(OR_SET, new String[]{"byte"}, CRDT8);
-        } else if(run == 6) {
+        } else if(CRDTApp.RUN == 6) {
             getCRDT(OR_MAP, new String[]{"byte", "int"}, CRDT1);
             getCRDT(OR_MAP, new String[]{"byte", "short"}, CRDT2);
             getCRDT(OR_MAP, new String[]{"byte", "long"}, CRDT3);
@@ -223,12 +223,12 @@ public class CRDTApp extends GenericProtocol {
             getCRDT(OR_MAP, new String[]{"byte", "boolean"}, CRDT6);
             getCRDT(OR_MAP, new String[]{"byte", "string"}, CRDT7);
             getCRDT(OR_MAP, new String[]{"byte", "byte"}, CRDT8);
-        } else if(run == 7) {
+        } else if(CRDTApp.RUN == 7) {
             getCRDT(COUNTER, new String[]{"int"}, CRDT0);
             getCRDT(LWW_REGISTER, new String[]{"int"}, CRDT1);
             getCRDT(OR_SET, new String[]{"int"}, CRDT2);
             getCRDT(OR_MAP, new String[]{"byte", "int"}, CRDT3);
-        } else if(run == 8) {
+        } else if(CRDTApp.RUN == 8) {
             getCRDT(COUNTER, new String[]{"int"}, CRDT0);
             getCRDT(LWW_REGISTER, new String[]{"int"}, CRDT1);
         }
@@ -241,25 +241,25 @@ public class CRDTApp extends GenericProtocol {
         }
     }
 
-    private void printFinalValues(int run) {
+    private void printFinalValues() {
         logger.warn("RESULTS:");
         if(broadcastId == PlumTree.PROTOCOL_ID) {
             logger.info("Final vector clock: {}", PlumTree.vectorClock);
         }
 
-        if(run == 0) {
+        if(CRDTApp.RUN == 0) {
             logger.info("Integer value of {}: {}", CRDT0, getCounterValue(CRDT0));
-        } else if(run == 1) {
+        } else if(CRDTApp.RUN == 1) {
             logger.info("Integer value of {}: {}", CRDT1, getRegisterValue(CRDT1));
-        } else if(run == 2) {
+        } else if(CRDTApp.RUN == 2) {
             logger.info("Value of {}: {}", CRDT2, getSetValue(CRDT2));
-        } else if(run == 3) {
+        } else if(CRDTApp.RUN == 3) {
             Set<SerializableType> keys = getMapKeys(CRDT3);
             for(SerializableType key : keys) {
                 logger.info("{} key {} : {}", CRDT3, key, getMapping(CRDT3, key));
             }
             logger.info("Values of {}: {}", CRDT3, getMapValues(CRDT3));
-        } else if(run == 4) {
+        } else if(CRDTApp.RUN == 4) {
             logger.info("Integer value of {}: {}", CRDT1, getRegisterValue(CRDT1));
             logger.info("Long value of {}: {}", CRDT2, getRegisterValue(CRDT2));
             logger.info("Short value of {}: {}", CRDT3, getRegisterValue(CRDT3));
@@ -268,7 +268,7 @@ public class CRDTApp extends GenericProtocol {
             logger.info("String value of {}: {}", CRDT6, getRegisterValue(CRDT6));
             logger.info("Boolean value of {}: {}", CRDT7, getRegisterValue(CRDT7));
             logger.info("Byte value of {}: {}", CRDT8, getRegisterValue(CRDT8));
-        } else if(run == 5) {
+        } else if(CRDTApp.RUN == 5) {
             logger.info("Value of {}: {}", CRDT1, getSetValue(CRDT1));
             logger.info("Value of {}: {}", CRDT2, getSetValue(CRDT2));
             logger.info("Value of {}: {}", CRDT3, getSetValue(CRDT3));
@@ -277,7 +277,7 @@ public class CRDTApp extends GenericProtocol {
             logger.info("Value of {}: {}", CRDT6, getSetValue(CRDT6));
             logger.info("Value of {}: {}", CRDT7, getSetValue(CRDT7));
             logger.info("Value of {}: {}", CRDT8, getSetValue(CRDT8));
-        } else if(run == 6) {
+        } else if(CRDTApp.RUN == 6) {
             logger.info("Keys of {}: {}", CRDT1, getMapKeys(CRDT1));
             logger.info("Values of {}: {}", CRDT1, getMapValues(CRDT1));
             logger.info("Keys of {}: {}", CRDT2, getMapKeys(CRDT2));
@@ -294,7 +294,7 @@ public class CRDTApp extends GenericProtocol {
             logger.info("Values of {}: {}", CRDT7, getMapValues(CRDT7));
             logger.info("Keys of {}: {}", CRDT8, getMapKeys(CRDT8));
             logger.info("Values of {}: {}", CRDT8, getMapValues(CRDT8));
-        } else if(run == 7) {
+        } else if(CRDTApp.RUN == 7) {
             logger.info("Integer value of {}: {}", CRDT0, getCounterValue(CRDT0));
             logger.info("Integer value of {}: {}", CRDT1, getRegisterValue(CRDT1));
             logger.info("Value of {}: {}", CRDT2, getSetValue(CRDT2));
@@ -303,7 +303,7 @@ public class CRDTApp extends GenericProtocol {
                 logger.info("{} key {} : {}", CRDT3, key, getMapping(CRDT3, key));
             }
             logger.info("Values of {}: {}", CRDT3, getMapValues(CRDT3));
-        } else if(run == 8) {
+        } else if(CRDTApp.RUN == 8) {
             logger.info("Integer value of {}: {}", CRDT0, getCounterValue(CRDT0));
             logger.info("Integer value of {}: {}", CRDT1, getRegisterValue(CRDT1));
         }

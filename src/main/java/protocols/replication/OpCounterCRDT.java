@@ -9,10 +9,8 @@ import org.apache.logging.log4j.Logger;
 import protocols.replication.requests.DownstreamRequest;
 import pt.unl.fct.di.novasys.network.data.Host;
 import serializers.MyCRDTSerializer;
-import serializers.MyOpSerializer;
 import serializers.MySerializer;
 
-import java.io.IOException;
 import java.math.BigInteger;
 import java.util.UUID;
 
@@ -20,16 +18,20 @@ public class OpCounterCRDT implements CounterCRDT, KernelCRDT {
 
     private static final Logger logger = LogManager.getLogger(OpCounterCRDT.class);
 
+    private static final String CRDT_TYPE = "counter";
+    private static final String INCREMENT = "inc";
+    private static final String DECREMENT = "dec";
+
+    static {
+        ReplicationKernel.crdtSerializers.put(CRDT_TYPE, OpCounterCRDT.serializer);
+    }
+
     public enum CounterOpType{
         INCREMENT,
         DECREMENT,
         INCREMENT_BY,
         DECREMENT_BY
     }
-
-    private static final String CRDT_TYPE = "counter";
-    private static final String INCREMENT = "inc";
-    private static final String DECREMENT = "dec";
 
     private final CRDTCommunicationInterface kernel;
     private final String crdtId;

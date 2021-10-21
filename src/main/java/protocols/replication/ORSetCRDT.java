@@ -52,7 +52,7 @@ public class ORSetCRDT implements SetCRDT, KernelCRDT {
         return this.crdtId;
     }
 
-    public synchronized boolean lookup(SerializableType elem) {
+    public boolean lookup(SerializableType elem) {
         for (TaggedElement taggedElement : this.set) {
             if (taggedElement.getValue().equals(elem))
                 return true;
@@ -60,13 +60,13 @@ public class ORSetCRDT implements SetCRDT, KernelCRDT {
         return false;
     }
 
-    public synchronized Set<SerializableType> elements() {
+    public Set<SerializableType> elements() {
         Set<SerializableType> elemSet = new HashSet<>();
         this.set.forEach(e -> elemSet.add(e.getValue()));
         return elemSet;
     }
 
-    public synchronized void add(Host sender, SerializableType elem) {
+    public void add(Host sender, SerializableType elem) {
         TaggedElement e = new TaggedElement(elem, UUID.randomUUID());
         Set<TaggedElement> toAdd = new HashSet<>();
         this.set.add(e);
@@ -77,7 +77,7 @@ public class ORSetCRDT implements SetCRDT, KernelCRDT {
         kernel.downstream(new DownstreamRequest(id, sender, op), (short)0);
     }
 
-    public synchronized void remove(Host sender, SerializableType elem) {
+    public void remove(Host sender, SerializableType elem) {
         Set<TaggedElement> toRemove = new HashSet<>();
         Iterator<TaggedElement> it = this.set.iterator();
 
@@ -94,7 +94,7 @@ public class ORSetCRDT implements SetCRDT, KernelCRDT {
         kernel.downstream(new DownstreamRequest(UUID.randomUUID(), sender, op), (short)0);
     }
 
-    public synchronized void upstream(Operation op) {
+    public void upstream(Operation op) {
         Set<TaggedElement> newSet = ((SetOperation)op).getSet();
         if (op.getOpType().equals(SET_ADD)) {
             this.set.addAll(newSet);
@@ -105,7 +105,7 @@ public class ORSetCRDT implements SetCRDT, KernelCRDT {
     }
 
     @Override
-    public synchronized void installState(KernelCRDT newCRDT) {
+    public void installState(KernelCRDT newCRDT) {
         Set<TaggedElement> newSet = ((ORSetCRDT) newCRDT).getTaggedElementSet();
         this.set.clear();
         this.set.addAll(newSet);

@@ -57,7 +57,7 @@ public class ORMapCRDT implements MapCRDT, KernelCRDT {
         return this.crdtId;
     }
 
-    public synchronized Set<SerializableType> get(SerializableType key) {
+    public Set<SerializableType> get(SerializableType key) {
         if(key == null)
             return null;
 
@@ -72,7 +72,7 @@ public class ORMapCRDT implements MapCRDT, KernelCRDT {
         }
     }
 
-    public synchronized boolean contains(SerializableType key) {
+    public boolean contains(SerializableType key) {
         if(key == null)
             return false;
 
@@ -81,7 +81,7 @@ public class ORMapCRDT implements MapCRDT, KernelCRDT {
         return values != null && !values.isEmpty();
     }
 
-    public synchronized Set<SerializableType> keys() {
+    public Set<SerializableType> keys() {
         Set<SerializableType> keySet = new HashSet<>();
         // If the value is an empty set, the key is not returned
         this.map.forEach((key, value) -> {
@@ -91,7 +91,7 @@ public class ORMapCRDT implements MapCRDT, KernelCRDT {
         return keySet;
     }
 
-    public synchronized List<SerializableType> values() {
+    public List<SerializableType> values() {
         Collection<Set<TaggedElement>> sets = this.map.values();
         List<SerializableType> values = new LinkedList<>();
         sets.forEach(s ->
@@ -100,7 +100,7 @@ public class ORMapCRDT implements MapCRDT, KernelCRDT {
         return values;
     }
 
-    public synchronized void put(Host sender, SerializableType key, SerializableType value) {
+    public void put(Host sender, SerializableType key, SerializableType value) {
         TaggedElement elem = new TaggedElement(value, UUID.randomUUID());
         Set<TaggedElement> toRemove = this.map.get(key);
         toRemove = checkForNullSet(toRemove);
@@ -113,7 +113,7 @@ public class ORMapCRDT implements MapCRDT, KernelCRDT {
         kernel.downstream(new DownstreamRequest(id, sender, op), (short)0);
     }
 
-    public synchronized void delete(Host sender, SerializableType key) {
+    public void delete(Host sender, SerializableType key) {
         Set<TaggedElement> toRemove = this.map.remove(key);
         toRemove = checkForNullSet(toRemove);
         Operation op = new MapOperation(MAP_DELETE, crdtId, CRDT_TYPE, key, null, toRemove);
@@ -122,7 +122,7 @@ public class ORMapCRDT implements MapCRDT, KernelCRDT {
         kernel.downstream(new DownstreamRequest(id, sender, op), (short)0);
     }
 
-    public synchronized void upstream(Operation op) {
+    public void upstream(Operation op) {
         Set<TaggedElement> toRemove = ((MapOperation)op).getSet();
         SerializableType key = ((MapOperation)op).getKey();
         Set<TaggedElement> currentSet = this.map.remove(key);
@@ -138,7 +138,7 @@ public class ORMapCRDT implements MapCRDT, KernelCRDT {
     }
 
     @Override
-    public synchronized void installState(KernelCRDT newCRDT) {
+    public void installState(KernelCRDT newCRDT) {
         Map<SerializableType, Set<TaggedElement>> newMap = ((ORMapCRDT) newCRDT).getMap();
         this.map.clear();
         this.map.putAll(newMap);

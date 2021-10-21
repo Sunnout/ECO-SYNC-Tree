@@ -2,12 +2,11 @@ package protocols.apps;
 
 import java.util.*;
 
-import crdts.interfaces.GenericCRDT;
+import crdts.interfaces.*;
 //import protocols.broadcast.flood.FloodBroadcast;
 //import protocols.broadcast.periodicpull.PeriodicPullBroadcast;
 import protocols.broadcast.plumtree.PlumTree;
 import protocols.broadcast.plumtree.utils.PlumtreeStats;
-import protocols.replication.*;
 import protocols.replication.OpCounterCRDT.CounterOpType;
 import protocols.replication.LWWRegisterCRDT.RegisterOpType;
 import protocols.replication.ORSetCRDT.SetOpType;
@@ -66,18 +65,16 @@ public class CRDTApp extends GenericProtocol {
 
     private final float prob;
 
-
     //Interval between each increment
     private final int ops1Interval;
 
     //Increment(By), decrement(By) and value periodic timers
     private long ops1Timer;
-    private long ops2Timer;
 
     //Map of crdtId to GenericCRDT
-    private Map<String, GenericCRDT> myCRDTs;
+    private final Map<String, GenericCRDT> myCRDTs;
 
-    private Random rand;
+    private final Random rand;
 
     public CRDTApp(Properties properties, Host self, short replicationKernelId, short broadcastId) throws HandlerRegistrationException {
         super(PROTO_NAME, PROTO_ID);
@@ -124,6 +121,22 @@ public class CRDTApp extends GenericProtocol {
         sendRequest(new GetCRDTRequest(UUID.randomUUID(), self, crdtType, dataType, crdtId), replicationKernelId);
     }
 
+    private void executeCounterOperation(String crdtId, CounterOpType opType, int value) {
+        sendRequest(new CounterOperationRequest(self, crdtId, opType, value), replicationKernelId);
+    }
+
+    private void executeRegisterOperation(String crdtId, RegisterOpType opType, SerializableType value) {
+        sendRequest(new RegisterOperationRequest(self, crdtId, opType, value), replicationKernelId);
+    }
+
+    private void executeSetOperation(String crdtId, SetOpType opType, SerializableType value) {
+        sendRequest(new SetOperationRequest(self, crdtId, opType, value), replicationKernelId);
+    }
+
+    private void executeMapOperation(String crdtId, MapOpType opType, SerializableType key, SerializableType value) {
+        sendRequest(new MapOperationRequest(self, crdtId, opType, key, value), replicationKernelId);
+    }
+
 
     /* --------------------------------- Notifications --------------------------------- */
 
@@ -157,7 +170,6 @@ public class CRDTApp extends GenericProtocol {
         logger.warn("Stopping broadcasts");
         //Stop executing operations
         this.cancelTimer(ops1Timer);
-        this.cancelTimer(ops2Timer);
         setupTimer(new PrintValuesTimer(), cooldownTime * TO_MILLIS);
     }
 
@@ -224,7 +236,7 @@ public class CRDTApp extends GenericProtocol {
 
     private void executeWithProbability(double prob) {
         if(Math.random() <= prob) {
-            executeCounterOperation(CRDT0, CounterOpType.INCREMENT);
+            executeCounterOperation(CRDT0, CounterOpType.INCREMENT, 1);
             executeRegisterOperation(CRDT1, RegisterOpType.ASSIGN, new IntegerType(rand.nextInt(20)));
         }
     }
@@ -358,9 +370,36 @@ public class CRDTApp extends GenericProtocol {
 
     }
 
+    private int getCounterValue(String crdtId) {
+        return ((CounterCRDT) myCRDTs.get(crdtId)).value();
+    }
+
+    private Object getRegisterValue(String crdtId) {
+        return ((RegisterCRDT) myCRDTs.get(crdtId)).value();
+    }
+
+    private Object getSetValue(String crdtId) {
+        return ((SetCRDT) myCRDTs.get(crdtId)).elements();
+    }
+
+    private Set<SerializableType> getMapKeys(String crdtId) {
+        return ((MapCRDT) myCRDTs.get(crdtId)).keys();
+    }
+
+    private List<SerializableType> getMapValues(String crdtId) {
+        return ((MapCRDT) myCRDTs.get(crdtId)).values();
+    }
+
+    private Set<SerializableType> getMapping(String crdtId, SerializableType key) {
+        return ((MapCRDT) myCRDTs.get(crdtId)).get(key);
+    }
+
+
+    /* --------------------------------- Unused Methods --------------------------------- */
+
     private void executeOp1(int run) {
         if(run == 0) {
-            executeCounterOperation(CRDT0, CounterOpType.INCREMENT);
+            executeCounterOperation(CRDT0, CounterOpType.INCREMENT, 1);
         } else if(run == 1) {
             executeRegisterOperation(CRDT1, RegisterOpType.ASSIGN, new IntegerType(rand.nextInt(10)));
         } else if(run == 2) {
@@ -395,7 +434,7 @@ public class CRDTApp extends GenericProtocol {
             executeMapOperation(CRDT7, MapOpType.PUT, new ByteType((byte)1), new StringType("Olá, bom dia"));
             executeMapOperation(CRDT8, MapOpType.PUT, new ByteType((byte)1), new ByteType((byte)0));
         } else if(run == 7) {
-            executeCounterOperation(CRDT0, CounterOpType.INCREMENT);
+            executeCounterOperation(CRDT0, CounterOpType.INCREMENT, 1);
             executeRegisterOperation(CRDT1, RegisterOpType.ASSIGN, new IntegerType(rand.nextInt(10)));
             executeSetOperation(CRDT2, SetOpType.ADD, new IntegerType(rand.nextInt(10)));
             executeMapOperation(CRDT3, MapOpType.PUT, new ByteType((byte)rand.nextInt(2)), new IntegerType(rand.nextInt(10)));
@@ -404,7 +443,7 @@ public class CRDTApp extends GenericProtocol {
 
     private void executeOp2(int run) {
         if(run == 0) {
-            executeCounterOperation(CRDT0, CounterOpType.DECREMENT);
+            executeCounterOperation(CRDT0, CounterOpType.DECREMENT, 1);
         } else if(run == 1) {
             executeRegisterOperation(CRDT1, RegisterOpType.ASSIGN, new IntegerType(rand.nextInt(10)));
         } else if(run == 2) {
@@ -439,231 +478,10 @@ public class CRDTApp extends GenericProtocol {
             executeMapOperation(CRDT7, MapOpType.DELETE, new ByteType((byte)1), null);
             executeMapOperation(CRDT8, MapOpType.DELETE, new ByteType((byte)1), null);
         } else if(run == 7) {
-            executeCounterOperation(CRDT0, CounterOpType.DECREMENT);
+            executeCounterOperation(CRDT0, CounterOpType.DECREMENT, 1);
             executeRegisterOperation(CRDT1, RegisterOpType.ASSIGN, new IntegerType(rand.nextInt(10)));
             executeSetOperation(CRDT2, SetOpType.REMOVE, new IntegerType(rand.nextInt(10)));
             executeMapOperation(CRDT3, MapOpType.DELETE, new ByteType((byte)rand.nextInt(2)), null);
         }
     }
-
-    //request para cada tipo de crdt
-    //p.e. op type e o valor e id crdt
-
-
-
-
-
-
-
-    private void executeCounterOperation(String crdtId, CounterOpType opType) {
-        GenericCRDT crdt = myCRDTs.get(crdtId);
-        if(crdt != null) {
-            if(crdt instanceof OpCounterCRDT) {
-                switch(opType) {
-                    case INCREMENT:
-                        ((OpCounterCRDT) crdt).increment(self);
-                        break;
-                    case DECREMENT:
-                        ((OpCounterCRDT) crdt).decrement(self);
-                        break;
-                    default:
-                        //No other ops
-                        break;
-                }
-
-            } else {
-                //CRDT with crdtId is not a counterCRDT
-            }
-        } else {
-            //No CRDT with crdtId
-        }
-    }
-
-    private void executeCounterOperation(String crdtId, CounterOpType opType, int value) {
-        GenericCRDT crdt = myCRDTs.get(crdtId);
-
-        if(crdt != null) {
-            if(crdt instanceof OpCounterCRDT) {
-                switch(opType) {
-                    case INCREMENT_BY:
-                        ((OpCounterCRDT) crdt).incrementBy(self, value);
-                        break;
-                    case DECREMENT_BY:
-                        ((OpCounterCRDT) crdt).decrementBy(self, value);
-                        break;
-                    default:
-                        //No other ops
-                        break;
-                }
-
-            } else {
-                //CRDT with crdtId is not a counterCRDT
-            }
-        } else {
-            //No CRDT with crdtId
-        }
-    }
-
-    private void executeRegisterOperation(String crdtId, RegisterOpType opType, SerializableType value) {
-        GenericCRDT crdt = myCRDTs.get(crdtId);
-
-        if(crdt != null) {
-            if(crdt instanceof LWWRegisterCRDT) {
-                switch(opType) {
-                    case ASSIGN:
-                        ((LWWRegisterCRDT) crdt).assign(self, value);
-                        break;
-                    default:
-                        //No other ops
-                        break;
-                }
-
-            } else {
-                //CRDT with crdtId is not a counterCRDT
-            }
-        } else {
-            //No CRDT with crdtId
-        }
-    }
-
-    private void executeSetOperation(String crdtId, SetOpType opType, SerializableType value) {
-        GenericCRDT crdt = myCRDTs.get(crdtId);
-
-        if(crdt != null) {
-            if(crdt instanceof ORSetCRDT) {
-                switch(opType) {
-                    case ADD:
-                        ((ORSetCRDT) crdt).add(self, value);
-                        break;
-                    case REMOVE:
-                        ((ORSetCRDT) crdt).remove(self, value);
-                        break;
-                    default:
-                        //No other ops
-                        break;
-                }
-
-            } else {
-                //CRDT with crdtId is not a orsetsCRDT
-            }
-        } else {
-            //No CRDT with crdtId
-        }
-    }
-
-    private void executeMapOperation(String crdtId, MapOpType opType, SerializableType key, SerializableType value) {
-        GenericCRDT crdt = myCRDTs.get(crdtId);
-
-        if(crdt != null) {
-            if(crdt instanceof ORMapCRDT) {
-                switch(opType) {
-                    case PUT:
-                        ((ORMapCRDT) crdt).put(self, key, value);
-                        break;
-                    case DELETE:
-                        ((ORMapCRDT) crdt).delete(self, key);
-                        break;
-                    default:
-                        //No other ops
-                        break;
-                }
-
-            } else {
-                //CRDT with crdtId is not a orsetsCRDT
-            }
-        } else {
-            //No CRDT with crdtId
-        }
-    }
-
-    private int getCounterValue(String crdtId) {
-        GenericCRDT crdt = myCRDTs.get(crdtId);
-        if(crdt != null) {
-            if(crdt instanceof OpCounterCRDT) {
-                return ((OpCounterCRDT) crdt).value();
-            } else {
-                return 0;
-                //CRDT with crdtId is not a counterCRDT
-            }
-        } else {
-            return 0;
-            //No CRDT with crdtId
-        }
-    }
-
-    private Object getRegisterValue(String crdtId) {
-        GenericCRDT crdt = myCRDTs.get(crdtId);
-        if(crdt != null) {
-            if(crdt instanceof LWWRegisterCRDT) {
-                return ((LWWRegisterCRDT) crdt).value();
-            } else {
-                return null;
-                //CRDT with crdtId is not a counterCRDT
-            }
-        } else {
-            return null;
-            //No CRDT with crdtId
-        }
-    }
-
-    private Object getSetValue(String crdtId) {
-        GenericCRDT crdt = myCRDTs.get(crdtId);
-        if(crdt != null) {
-            if(crdt instanceof ORSetCRDT) {
-                return ((ORSetCRDT) crdt).elements();
-            } else {
-                return null;
-                //CRDT with crdtId is not a orsetCRDT
-            }
-        } else {
-            return null;
-            //No CRDT with crdtId
-        }
-    }
-
-    private Set<SerializableType> getMapKeys(String crdtId) {
-        GenericCRDT crdt = myCRDTs.get(crdtId);
-        if(crdt != null) {
-            if(crdt instanceof ORMapCRDT) {
-                return ((ORMapCRDT) crdt).keys();
-            } else {
-                return null;
-                //CRDT with crdtId is not a ormapCRDT
-            }
-        } else {
-            return null;
-            //No CRDT with crdtId
-        }
-    }
-
-    private List<SerializableType> getMapValues(String crdtId) {
-        GenericCRDT crdt = myCRDTs.get(crdtId);
-        if(crdt != null) {
-            if(crdt instanceof ORMapCRDT) {
-                return ((ORMapCRDT) crdt).values();
-            } else {
-                return null;
-                //CRDT with crdtId is not a ormapCRDT
-            }
-        } else {
-            return null;
-            //No CRDT with crdtId
-        }
-    }
-
-    private Set<SerializableType> getMapping(String crdtId, SerializableType key) {
-        GenericCRDT crdt = myCRDTs.get(crdtId);
-        if(crdt != null) {
-            if(crdt instanceof ORMapCRDT) {
-                return ((ORMapCRDT) crdt).get(key);
-            } else {
-                return null;
-                //CRDT with crdtId is not a ormapCRDT
-            }
-        } else {
-            return null;
-            //No CRDT with crdtId
-        }
-    }
-
 }

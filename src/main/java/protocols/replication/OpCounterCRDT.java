@@ -52,15 +52,15 @@ public class OpCounterCRDT implements CounterCRDT, KernelCRDT {
         return this.crdtId;
     }
 
-    public synchronized int value() {
+    public int value() {
         return this.c.intValue();
     }
 
-    public synchronized void increment(Host sender) {
+    public void increment(Host sender) {
         this.incrementBy(sender, 1);
     }
 
-    public synchronized void incrementBy(Host sender, int v) {
+    public void incrementBy(Host sender, int v) {
         this.c = this.c.add(BigInteger.valueOf(v));
         Operation op = new CounterOperation(INCREMENT, crdtId, CRDT_TYPE, v);
         UUID id = UUID.randomUUID();
@@ -68,11 +68,11 @@ public class OpCounterCRDT implements CounterCRDT, KernelCRDT {
         kernel.downstream(new DownstreamRequest(id, sender, op), (short)0);
     }
 
-    public synchronized void decrement(Host sender) {
+    public void decrement(Host sender) {
         this.decrementBy(sender, 1);
     }
 
-    public synchronized void decrementBy(Host sender, int v) {
+    public void decrementBy(Host sender, int v) {
         this.c = this.c.subtract(BigInteger.valueOf(v));
         Operation op = new CounterOperation(DECREMENT, crdtId, CRDT_TYPE, v);
         UUID id = UUID.randomUUID();
@@ -80,7 +80,7 @@ public class OpCounterCRDT implements CounterCRDT, KernelCRDT {
         kernel.downstream(new DownstreamRequest(id, sender, op), (short)0);
     }
 
-    public synchronized void upstream(Operation op) {
+    public void upstream(Operation op) {
         String opType = op.getOpType();
         int value = ((CounterOperation)op).getValue();
 

@@ -28,7 +28,7 @@ public class VectorClock {
 
     public void incrementClock(Host host) {
         Integer value = this.clock.get(host);
-        if(value == null)
+        if (value == null)
             this.clock.put(host, 1);
         else
             this.clock.put(host, ++value);
@@ -38,8 +38,22 @@ public class VectorClock {
         return this.clock.getOrDefault(host,0);
     }
 
+    public void setHostClock(Host host, int value) {
+        this.clock.put(host, value);
+    }
+
     public Set<Host> getHosts() {
         return this.clock.keySet();
+    }
+
+    public boolean isEmptyExceptFor(Host host) {
+        for (Map.Entry<Host, Integer> e : this.clock.entrySet()) {
+            Host clockHost = e.getKey();
+            Integer clockValue = e.getValue();
+            if(!clockHost.equals(host) && (clockValue != null || clockValue != 0))
+                return false;
+        }
+        return true;
     }
 
     public static MySerializer<VectorClock> serializer = new MySerializer<VectorClock>() {

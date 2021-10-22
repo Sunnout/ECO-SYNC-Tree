@@ -37,6 +37,7 @@ public class MyFileManager {
         Host sender = msg.getOriginalSender();
         int senderClock = msg.getSenderClock();
         ByteBuf buf = Unpooled.buffer();
+        buf.writeLong(System.currentTimeMillis());
         GossipMessage.serializer.serialize(msg, buf);
         byte[] serGossipMsg = new byte[buf.readableBytes()];
         buf.readBytes(serGossipMsg);
@@ -47,7 +48,7 @@ public class MyFileManager {
             index.computeIfAbsent(sender, k -> treeMapWithDefaultEntry()).put(senderClock, Pair.of(nBytes, nExecuted));
         }
         nExecuted++;
-        nBytes += serGossipMsg.length;
+        nBytes += 8 + serGossipMsg.length;
     }
     public SyncOpsMessage readSyncOpsFromFile(UUID mid, VectorClock neighbourClock, VectorClock myClock) {
         long startTime = System.currentTimeMillis();
@@ -74,6 +75,7 @@ public class MyFileManager {
                 }
 
                 for (int i = min.getRight(); i < nExecuted; i++) {
+                    dis.readLong();
                     GossipMessage msg = GossipMessage.deserialize(dis);
                     Host h = msg.getOriginalSender();
                     int opClock = msg.getSenderClock();

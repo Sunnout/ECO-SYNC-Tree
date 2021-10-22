@@ -1,5 +1,9 @@
 package protocols.broadcast.plumtree;
 
+import org.apache.commons.lang3.tuple.Pair;
+import protocols.broadcast.common.notifications.SendStateNotification;
+import protocols.broadcast.common.requests.StateRequest;
+import protocols.broadcast.common.utils.StateAndVC;
 import protocols.broadcast.common.utils.VectorClock;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -12,6 +16,7 @@ import protocols.broadcast.common.notifications.DeliverNotification;
 import protocols.broadcast.plumtree.messages.*;
 import protocols.broadcast.common.timers.ReconnectTimeout;
 import protocols.broadcast.plumtree.timers.CheckReceivedTreeMessagesTimeout;
+import protocols.broadcast.plumtree.timers.GarbageCollectionTimeout;
 import protocols.broadcast.plumtree.timers.IHaveTimeout;
 import protocols.broadcast.plumtree.timers.SendTreeMessageTimeout;
 import protocols.broadcast.plumtree.utils.*;
@@ -45,6 +50,7 @@ public class PlumTree extends GenericProtocol {
     private final long checkTreeMsgsTimeout;
 
     private final long garbageCollectionTimeout;
+    private StateAndVC stateAndVC; // Current state and corresponding VC
 
     private long sendTreeMsgTimer;
     private int treeMsgsFromSmallerHost;
@@ -83,6 +89,7 @@ public class PlumTree extends GenericProtocol {
         this.checkTreeMsgsTimeout = Long.parseLong(properties.getProperty("check_tree_msgs_timeout", "5000"));
 
         this.garbageCollectionTimeout = Long.parseLong(properties.getProperty("garbage_collection_timeout", "1")) * 60;
+        this.stateAndVC = new StateAndVC(null, new VectorClock(myself));
 
         this.partialView = new HashSet<>();
         this.eager = new HashMap<>();
@@ -124,9 +131,11 @@ public class PlumTree extends GenericProtocol {
         registerTimerHandler(CheckReceivedTreeMessagesTimeout.TIMER_ID, this::uponCheckReceivedTreeMessagesTimeout);
         registerTimerHandler(IHaveTimeout.TIMER_ID, this::uponIHaveTimeout);
         registerTimerHandler(ReconnectTimeout.TIMER_ID, this::uponReconnectTimeout);
+        registerTimerHandler(GarbageCollectionTimeout.TIMER_ID, this::uponGarbageCollectionTimeout);
 
         /*--------------------- Register Request Handlers ----------------------------- */
-        registerRequestHandler(BroadcastRequest.REQUEST_ID, this::uponBroadcast);
+        registerRequestHandler(BroadcastRequest.REQUEST_ID, this::uponBroadcastRequest);
+        registerRequestHandler(StateRequest.REQUEST_ID, this::uponStateRequest);
 
         /*--------------------- Register Notification Handlers ----------------------------- */
         subscribeNotification(NeighbourUp.NOTIFICATION_ID, this::uponNeighbourUp);
@@ -145,16 +154,16 @@ public class PlumTree extends GenericProtocol {
         registerMessageSerializer(channelId, SyncOpsMessage.MSG_ID, SyncOpsMessage.serializer);
 
         /*---------------------- Register Message Handlers -------------------------- */
-        registerMessageHandler(channelId, TreeMessage.MSG_ID, this::uponReceiveTreeMessage, this::onMessageFailed);
-        registerMessageHandler(channelId, GossipMessage.MSG_ID, this::uponReceiveGossip, this::onMessageFailed);
-        registerMessageHandler(channelId, PruneMessage.MSG_ID, this::uponReceivePrune, this::onMessageFailed);
-        registerMessageHandler(channelId, ReversePruneMessage.MSG_ID, this::uponReceiveReversePrune, this::onMessageFailed);
-        registerMessageHandler(channelId, GraftMessage.MSG_ID, this::uponReceiveGraft, this::onMessageFailed);
-        registerMessageHandler(channelId, IHaveMessage.MSG_ID, this::uponReceiveIHave, this::onMessageFailed);
+        registerMessageHandler(channelId, TreeMessage.MSG_ID, this::uponReceiveTreeMsg, this::onMessageFailed);
+        registerMessageHandler(channelId, GossipMessage.MSG_ID, this::uponReceiveGossipMsg, this::onMessageFailed);
+        registerMessageHandler(channelId, PruneMessage.MSG_ID, this::uponReceivePruneMsg, this::onMessageFailed);
+        registerMessageHandler(channelId, ReversePruneMessage.MSG_ID, this::uponReceiveReversePruneMsg, this::onMessageFailed);
+        registerMessageHandler(channelId, GraftMessage.MSG_ID, this::uponReceiveGraftMsg, this::onMessageFailed);
+        registerMessageHandler(channelId, IHaveMessage.MSG_ID, this::uponReceiveIHaveMsg, this::onMessageFailed);
 
-        registerMessageHandler(channelId, SendVectorClockMessage.MSG_ID, this::uponReceiveSendVectorClock, this::onMessageFailed);
-        registerMessageHandler(channelId, VectorClockMessage.MSG_ID, this::uponReceiveVectorClock, this::onMessageFailed);
-        registerMessageHandler(channelId, SyncOpsMessage.MSG_ID, this::uponReceiveSyncOps, this::onMessageFailed);
+        registerMessageHandler(channelId, SendVectorClockMessage.MSG_ID, this::uponReceiveSendVectorClockMsg, this::onMessageFailed);
+        registerMessageHandler(channelId, VectorClockMessage.MSG_ID, this::uponReceiveVectorClockMsg, this::onMessageFailed);
+        registerMessageHandler(channelId, SyncOpsMessage.MSG_ID, this::uponReceiveSyncOpsMsg, this::onMessageFailed);
 
         /*-------------------- Register Channel Event ------------------------------- */
         registerChannelEventHandler(channelId, OutConnectionDown.EVENT_ID, this::uponOutConnectionDown);
@@ -168,12 +177,13 @@ public class PlumTree extends GenericProtocol {
     @Override
     public void init(Properties props) throws HandlerRegistrationException, IOException {
         setupPeriodicTimer(new CheckReceivedTreeMessagesTimeout(), checkTreeMsgsTimeout, checkTreeMsgsTimeout);
+        setupPeriodicTimer(new GarbageCollectionTimeout(), garbageCollectionTimeout, garbageCollectionTimeout);
     }
 
 
     /*--------------------------------- Requests ---------------------------------------- */
 
-    private void uponBroadcast(BroadcastRequest request, short sourceProto) {
+    private void uponBroadcastRequest(BroadcastRequest request, short sourceProto) {
         stats.incrementSentOps();
         stats.incrementReceivedGossip();
         UUID mid = request.getMsgId();
@@ -185,9 +195,18 @@ public class PlumTree extends GenericProtocol {
         handleGossipMessage(msg, myself);
     }
 
+    private void uponStateRequest(StateRequest request, short sourceProto) {
+        this.stateAndVC.setState(request.getState());
+        VectorClock newVC = this.stateAndVC.getVc();
+        newVC.setHostClock(myself, seqNumber);
+        this.stateAndVC.setVC(newVC);
+        garbageCollectOldOperations();
+    }
+
+
     /*--------------------------------- Messages ---------------------------------------- */
 
-    private void uponReceiveTreeMessage(TreeMessage msg, Host from, short sourceProto, int channelId) {
+    private void uponReceiveTreeMsg(TreeMessage msg, Host from, short sourceProto, int channelId) {
         stats.incrementReceivedTree();
         UUID mid = msg.getMid();
         logger.debug("Received tree {} from {}", mid, from);
@@ -230,7 +249,7 @@ public class PlumTree extends GenericProtocol {
         }
     }
 
-    private void uponReceiveGossip(GossipMessage msg, Host from, short sourceProto, int channelId) {
+    private void uponReceiveGossipMsg(GossipMessage msg, Host from, short sourceProto, int channelId) {
         stats.incrementReceivedGossip();
         UUID mid = msg.getMid();
         logger.debug("Received gossip {} from {}", mid, from);
@@ -257,7 +276,7 @@ public class PlumTree extends GenericProtocol {
         }
     }
 
-    private void uponReceivePrune(PruneMessage msg, Host from, short sourceProto, int channelId) {
+    private void uponReceivePruneMsg(PruneMessage msg, Host from, short sourceProto, int channelId) {
         stats.incrementReceivedPrune();
         logger.debug("Received {} from {}", msg, from);
         StringBuilder sb = new StringBuilder(String.format("[PEER %s] VIS-PRUNE: ", from));
@@ -302,7 +321,7 @@ public class PlumTree extends GenericProtocol {
         }
     }
 
-    private void uponReceiveReversePrune(ReversePruneMessage msg, Host from, short sourceProto, int channelId) {
+    private void uponReceiveReversePruneMsg(ReversePruneMessage msg, Host from, short sourceProto, int channelId) {
         stats.incrementReceivedReversePrune();
         logger.debug("Received {} from {}", msg, from);
         StringBuilder sb = new StringBuilder(String.format("[PEER %s] VIS-REVERSEPRUNE: ", from));
@@ -322,24 +341,32 @@ public class PlumTree extends GenericProtocol {
         logger.info(sb);
     }
 
-    private void uponReceiveGraft(GraftMessage msg, Host from, short sourceProto, int channelId) {
+    private void uponReceiveGraftMsg(GraftMessage msg, Host from, short sourceProto, int channelId) {
         stats.incrementReceivedGraft();
         logger.debug("Received {} from {}", msg, from);
         startOutgoingSync(from, UUID.randomUUID(), "GRAFT", false);
     }
 
-    private void uponReceiveIHave(IHaveMessage msg, Host from, short sourceProto, int channelId) {
+    private void uponReceiveIHaveMsg(IHaveMessage msg, Host from, short sourceProto, int channelId) {
         stats.incrementReceivedIHave();
         logger.debug("Received {} from {}", msg, from);
         handleAnnouncement(msg.getMid(), from);
     }
 
-    private void uponReceiveVectorClock(VectorClockMessage msg, Host from, short sourceProto, int channelId) {
+    private void uponReceiveVectorClockMsg(VectorClockMessage msg, Host from, short sourceProto, int channelId) {
         stats.incrementReceivedVC();
         logger.debug("Received {} from {}", msg, from);
 
         if(outgoingSyncs.contains(new OutgoingSync(from))) { // If sync was not cancelled
-            SyncOpsMessage syncOpsMessages = this.fileManager.readSyncOpsFromFile(msg.getMid(), msg.getVectorClock(), new VectorClock(vectorClock.getClock()));
+
+            VectorClock msgVC = msg.getVectorClock();
+            VectorClock syncOpsVC = msgVC;
+            if(msgVC.isEmptyExceptFor(from)) {
+                //TODO: send state + vc
+                syncOpsVC = this.stateAndVC.getVc();
+            }
+
+            SyncOpsMessage syncOpsMessages = this.fileManager.readSyncOpsFromFile(msg.getMid(), syncOpsVC, new VectorClock(vectorClock.getClock()));
             sendMessage(syncOpsMessages, from);
             stats.incrementSentSyncOps();
             stats.incrementSentSyncGossipBy(syncOpsMessages.getMsgs().size());
@@ -348,7 +375,7 @@ public class PlumTree extends GenericProtocol {
             if(partialView.contains(from)) {
                 StringBuilder sb = new StringBuilder(String.format("[PEER %s] VIS-ENDSYNC: ", from));
 
-                if (eager.put(from, msg.getVectorClock()) == null) {
+                if (eager.put(from, syncOpsVC) == null) {
                     logger.debug("Added {} to eager {} : pendingIncomingSyncs {}", from, eager.keySet(), pendingIncomingSyncs);
                     sb.append(String.format("Added %s to eager; ", from));
                 }
@@ -380,7 +407,7 @@ public class PlumTree extends GenericProtocol {
         }
     }
 
-    private void uponReceiveSendVectorClock(SendVectorClockMessage msg, Host from, short sourceProto, int channelId) {
+    private void uponReceiveSendVectorClockMsg(SendVectorClockMessage msg, Host from, short sourceProto, int channelId) {
         stats.incrementReceivedSendVC();
         logger.debug("Received {} from {}", msg, from);
         StringBuilder sb = new StringBuilder(String.format("[PEER %s] VIS-SENDVC: ", from));
@@ -407,7 +434,7 @@ public class PlumTree extends GenericProtocol {
 
     }
 
-    private void uponReceiveSyncOps(SyncOpsMessage msg, Host from, short sourceProto, int channelId) {
+    private void uponReceiveSyncOpsMsg(SyncOpsMessage msg, Host from, short sourceProto, int channelId) {
         stats.incrementReceivedSyncOps();
         logger.debug("Received {} from {}", msg, from);
 
@@ -482,6 +509,11 @@ public class PlumTree extends GenericProtocol {
                 }
             }
         }
+    }
+
+    private void uponGarbageCollectionTimeout(GarbageCollectionTimeout timeout, long timerId) {
+        this.stateAndVC.setVC(new VectorClock(vectorClock.getClock()));
+        triggerNotification(new SendStateNotification(UUID.randomUUID()));
     }
 
     private void uponReconnectTimeout(ReconnectTimeout timeout, long timerId) {
@@ -809,6 +841,10 @@ public class PlumTree extends GenericProtocol {
             }
         }
         return removed;
+    }
+
+    private void garbageCollectOldOperations() {
+        //TODO: garbage collect op irrelevantes em relação a stateVC
     }
 
     /*--------------------------------- Channel Metrics ---------------------------------*/

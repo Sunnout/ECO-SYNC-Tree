@@ -55,11 +55,11 @@ public class LWWRegisterCRDT implements RegisterCRDT, KernelCRDT {
         return this.crdtId;
     }
 
-    public SerializableType value() {
+    public synchronized SerializableType value() {
         return this.value;
     }
 
-    public void assign(Host sender, SerializableType value) {
+    public synchronized void assign(Host sender, SerializableType value) {
         this.ts = Instant.now();
         this.value = value;
         Operation op = new RegisterOperation(ASSIGN, crdtId, CRDT_TYPE, value, this.ts);
@@ -68,7 +68,7 @@ public class LWWRegisterCRDT implements RegisterCRDT, KernelCRDT {
         kernel.downstream(new DownstreamRequest(id, sender, op), (short)0);
     }
 
-    public void upstream(Operation op) {
+    public synchronized void upstream(Operation op) {
         RegisterOperation regOp = ((RegisterOperation)op);
         SerializableType value = regOp.getValue();
         Instant timestamp = regOp.getTimestamp();
@@ -80,7 +80,7 @@ public class LWWRegisterCRDT implements RegisterCRDT, KernelCRDT {
     }
 
     @Override
-    public void installState(KernelCRDT newCRDT) {
+    public synchronized void installState(KernelCRDT newCRDT) {
         LWWRegisterCRDT newRegister = (LWWRegisterCRDT) newCRDT;
         this.value = newRegister.value();
         this.ts = newRegister.getInstant();

@@ -5,7 +5,7 @@ import io.netty.buffer.Unpooled;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import protocols.broadcast.common.messages.SyncOpsMessage;
+import protocols.broadcast.common.messages.SynchronizationMessage;
 import protocols.broadcast.plumtree.messages.GossipMessage;
 import pt.unl.fct.di.novasys.network.data.Host;
 
@@ -48,9 +48,10 @@ public class MyFileManager {
             index.computeIfAbsent(sender, k -> treeMapWithDefaultEntry()).put(senderClock, Pair.of(nBytes, nExecuted));
         }
         nExecuted++;
-        nBytes += 8 + serGossipMsg.length;
+        nBytes += serGossipMsg.length;
     }
-    public SyncOpsMessage readSyncOpsFromFile(UUID mid, VectorClock neighbourClock, VectorClock myClock) {
+
+    public SynchronizationMessage readSyncOpsFromFile(UUID mid, VectorClock neighbourClock, VectorClock myClock, StateAndVC stateAndVC) {
         long startTime = System.currentTimeMillis();
         Pair<Long, Integer> min = null;
 
@@ -96,7 +97,33 @@ public class MyFileManager {
         } else {
             logger.debug("DID NOT OPEN FILE");
         }
-        return new SyncOpsMessage(mid, gossipMessages);
+        return new SynchronizationMessage(mid, stateAndVC, gossipMessages);
+    }
+
+    public List<GossipMessage> getMyLateOperations(Host myself, VectorClock myVC, int mySeqNumber) {
+        List<GossipMessage> gossipMessages = new LinkedList<>();
+        int myLateSeqNumber = myVC.getHostClock(myself);
+        if(myLateSeqNumber < mySeqNumber) {
+            try (FileInputStream fis = new FileInputStream(this.file);
+                 BufferedInputStream bis = new BufferedInputStream(fis);
+                 DataInputStream dis = new DataInputStream(bis)) {
+
+                for (int i = 0; i < nExecuted && myLateSeqNumber < mySeqNumber; i++) {
+                    dis.readLong();
+                    GossipMessage msg = GossipMessage.deserialize(dis);
+                    Host h = msg.getOriginalSender();
+                    int opClock = msg.getSenderClock();
+                    if (h.equals(myself) && opClock > myLateSeqNumber) {
+                        gossipMessages.add(msg);
+                        myLateSeqNumber++;
+                    }
+                }
+            } catch (IOException e) {
+                logger.error("Error reading my late ops from file", e);
+                e.printStackTrace();
+            }
+        }
+        return gossipMessages;
     }
 
     private NavigableMap<Integer, Pair<Long, Integer>> treeMapWithDefaultEntry() {

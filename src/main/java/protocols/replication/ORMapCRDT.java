@@ -30,10 +30,6 @@ public class ORMapCRDT implements MapCRDT, KernelCRDT {
     private static final String MAP_PUT = "map_put";
     private static final String MAP_DELETE = "map_del";
 
-    static {
-        ReplicationKernel.crdtSerializers.put(CRDT_TYPE, ORMapCRDT.serializer);
-    }
-
     public enum MapOpType{
         PUT,
         DELETE

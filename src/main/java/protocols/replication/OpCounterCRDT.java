@@ -22,10 +22,6 @@ public class OpCounterCRDT implements CounterCRDT, KernelCRDT {
     private static final String INCREMENT = "inc";
     private static final String DECREMENT = "dec";
 
-    static {
-        ReplicationKernel.crdtSerializers.put(CRDT_TYPE, OpCounterCRDT.serializer);
-    }
-
     public enum CounterOpType{
         INCREMENT,
         DECREMENT,

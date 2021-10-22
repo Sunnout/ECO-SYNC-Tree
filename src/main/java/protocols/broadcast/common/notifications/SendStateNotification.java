@@ -5,7 +5,7 @@ import pt.unl.fct.di.novasys.babel.generic.ProtoNotification;
 import java.util.UUID;
 
 public class SendStateNotification extends ProtoNotification {
-    public static final short NOTIFICATION_ID = 202;
+    public static final short NOTIFICATION_ID = 203;
 
     private final UUID msgId;
 

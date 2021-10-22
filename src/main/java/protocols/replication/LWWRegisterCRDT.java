@@ -23,10 +23,6 @@ public class LWWRegisterCRDT implements RegisterCRDT, KernelCRDT {
     private static final String CRDT_TYPE = "lww_register";
     private static final String ASSIGN = "assign";
 
-    static {
-        ReplicationKernel.crdtSerializers.put(CRDT_TYPE, LWWRegisterCRDT.serializer);
-    }
-
     public enum RegisterOpType{
         ASSIGN
     }

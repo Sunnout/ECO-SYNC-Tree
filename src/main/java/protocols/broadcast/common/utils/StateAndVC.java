@@ -36,7 +36,7 @@ public class StateAndVC {
         @Override
         public void serialize(StateAndVC vc, ByteBuf out) throws IOException {
             out.writeInt(vc.state.length);
-            out.readBytes(vc.state);
+            out.writeBytes(vc.state);
             VectorClock.serializer.serialize(vc.vc, out);
         }
 

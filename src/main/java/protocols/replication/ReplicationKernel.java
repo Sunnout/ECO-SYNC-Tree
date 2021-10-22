@@ -58,7 +58,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     private final Map<String, List<String>> dataTypesById; //Map that stores CRDT data types by their ID
 
     //Serializers
-    public static Map<String, MyCRDTSerializer> crdtSerializers = new HashMap<>(); //Static map of CRDT serializers for each crdt type
+    public static Map<String, MyCRDTSerializer> crdtSerializers = initializeCDRTSerializers(); //Static map of CRDT serializers for each crdt type
     public static Map<String, MyOpSerializer> opSerializers = initializeOperationSerializers(); //Static map of operation serializers for each crdt type
     public Map<String, List<MySerializer>> dataSerializers; //Map of data type serializers by crdt ID
 
@@ -332,6 +332,8 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         for(Map.Entry<String, KernelCRDT> entry : crdtsById.entrySet()) {
             String crdtId = entry.getKey();
             String crdtType = crdtTypesById.get(crdtId);
+            if(crdtType == null)
+                logger.error("crdtType was null");
             List<String> dataTypes = dataTypesById.get(crdtId);
             buf.writeInt(crdtId.length());
             buf.writeBytes(crdtId.getBytes());
@@ -342,6 +344,8 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
                 buf.writeBytes(dataType.getBytes());
             }
             MySerializer[] serializers = dataSerializers.get(crdtId).toArray(new MySerializer[2]);
+            if(!crdtSerializers.containsKey(crdtType))
+                logger.error("crdt serializer did not have crdtType {}", crdtType);
             crdtSerializers.get(crdtType).serialize(entry.getValue(), serializers, buf); // crdt itself
         }
         byte[] payload = new byte[buf.readableBytes()];
@@ -554,5 +558,15 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         map.put(OR_MAP, MapOperation.serializer);
         return map;
     }
+
+    private static Map<String, MyCRDTSerializer> initializeCDRTSerializers() {
+        Map<String, MyCRDTSerializer> map = new HashMap<>();
+        map.put(COUNTER, OpCounterCRDT.serializer);
+        map.put(LWW_REGISTER, LWWRegisterCRDT.serializer);
+        map.put(OR_SET, ORSetCRDT.serializer);
+        map.put(OR_MAP, ORMapCRDT.serializer);
+        return map;
+    }
+
 
 }

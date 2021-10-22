@@ -25,10 +25,6 @@ public class ORSetCRDT implements SetCRDT, KernelCRDT {
     private static final String SET_ADD = "set_add";
     private static final String SET_REMOVE = "set_rem";
 
-    static {
-        ReplicationKernel.crdtSerializers.put(CRDT_TYPE, ORSetCRDT.serializer);
-    }
-
     public enum SetOpType{
         ADD,
         REMOVE

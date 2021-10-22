@@ -1,6 +1,6 @@
 package protocols.broadcast.plumtree;
 
-import org.apache.commons.lang3.tuple.Pair;
+import protocols.broadcast.common.notifications.InstallStateNotification;
 import protocols.broadcast.common.notifications.SendStateNotification;
 import protocols.broadcast.common.requests.StateRequest;
 import protocols.broadcast.common.utils.StateAndVC;
@@ -9,7 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import protocols.broadcast.common.utils.MyFileManager;
 import protocols.broadcast.common.messages.SendVectorClockMessage;
-import protocols.broadcast.common.messages.SyncOpsMessage;
+import protocols.broadcast.common.messages.SynchronizationMessage;
 import protocols.broadcast.common.messages.VectorClockMessage;
 import protocols.broadcast.common.requests.BroadcastRequest;
 import protocols.broadcast.common.notifications.DeliverNotification;
@@ -88,7 +88,7 @@ public class PlumTree extends GenericProtocol {
         this.treeMsgTimeout = Long.parseLong(properties.getProperty("tree_msg_timeout", "100"));
         this.checkTreeMsgsTimeout = Long.parseLong(properties.getProperty("check_tree_msgs_timeout", "5000"));
 
-        this.garbageCollectionTimeout = Long.parseLong(properties.getProperty("garbage_collection_timeout", "1")) * 60;
+        this.garbageCollectionTimeout = Long.parseLong(properties.getProperty("garbage_collection_timeout", "1")) * 60000;
         this.stateAndVC = new StateAndVC(null, new VectorClock(myself));
 
         this.partialView = new HashSet<>();
@@ -151,7 +151,7 @@ public class PlumTree extends GenericProtocol {
 
         registerMessageSerializer(channelId, SendVectorClockMessage.MSG_ID, SendVectorClockMessage.serializer);
         registerMessageSerializer(channelId, VectorClockMessage.MSG_ID, VectorClockMessage.serializer);
-        registerMessageSerializer(channelId, SyncOpsMessage.MSG_ID, SyncOpsMessage.serializer);
+        registerMessageSerializer(channelId, SynchronizationMessage.MSG_ID, SynchronizationMessage.serializer);
 
         /*---------------------- Register Message Handlers -------------------------- */
         registerMessageHandler(channelId, TreeMessage.MSG_ID, this::uponReceiveTreeMsg, this::onMessageFailed);
@@ -163,7 +163,7 @@ public class PlumTree extends GenericProtocol {
 
         registerMessageHandler(channelId, SendVectorClockMessage.MSG_ID, this::uponReceiveSendVectorClockMsg, this::onMessageFailed);
         registerMessageHandler(channelId, VectorClockMessage.MSG_ID, this::uponReceiveVectorClockMsg, this::onMessageFailed);
-        registerMessageHandler(channelId, SyncOpsMessage.MSG_ID, this::uponReceiveSyncOpsMsg, this::onMessageFailed);
+        registerMessageHandler(channelId, SynchronizationMessage.MSG_ID, this::uponReceiveSynchronizationMsg, this::onMessageFailed);
 
         /*-------------------- Register Channel Event ------------------------------- */
         registerChannelEventHandler(channelId, OutConnectionDown.EVENT_ID, this::uponOutConnectionDown);
@@ -196,6 +196,7 @@ public class PlumTree extends GenericProtocol {
     }
 
     private void uponStateRequest(StateRequest request, short sourceProto) {
+        logger.debug("Received {}", request);
         this.stateAndVC.setState(request.getState());
         VectorClock newVC = this.stateAndVC.getVc();
         newVC.setHostClock(myself, seqNumber);
@@ -360,22 +361,24 @@ public class PlumTree extends GenericProtocol {
         if(outgoingSyncs.contains(new OutgoingSync(from))) { // If sync was not cancelled
 
             VectorClock msgVC = msg.getVectorClock();
-            VectorClock syncOpsVC = msgVC;
-            if(msgVC.isEmptyExceptFor(from)) {
-                //TODO: send state + vc
-                syncOpsVC = this.stateAndVC.getVc();
+            StateAndVC stateAndVC = null;
+            byte[] currState = this.stateAndVC.getState();
+            logger.debug("Current state {}", currState);
+            if(currState != null && msgVC.isEmptyExceptFor(from)) {
+                stateAndVC = this.stateAndVC;
+                logger.debug("Sending state {}", stateAndVC);
             }
 
-            SyncOpsMessage syncOpsMessages = this.fileManager.readSyncOpsFromFile(msg.getMid(), syncOpsVC, new VectorClock(vectorClock.getClock()));
-            sendMessage(syncOpsMessages, from);
+            SynchronizationMessage synchronizationMsg = this.fileManager.readSyncOpsFromFile(msg.getMid(), msgVC, new VectorClock(vectorClock.getClock()), stateAndVC);
+            sendMessage(synchronizationMsg, from);
             stats.incrementSentSyncOps();
-            stats.incrementSentSyncGossipBy(syncOpsMessages.getMsgs().size());
-            logger.debug("Sent {} to {}", syncOpsMessages, from);
+            stats.incrementSentSyncGossipBy(synchronizationMsg.getMsgs().size());
+            logger.debug("Sent {} to {}", synchronizationMsg, from);
 
             if(partialView.contains(from)) {
                 StringBuilder sb = new StringBuilder(String.format("[PEER %s] VIS-ENDSYNC: ", from));
 
-                if (eager.put(from, syncOpsVC) == null) {
+                if (eager.put(from, msgVC) == null) {
                     logger.debug("Added {} to eager {} : pendingIncomingSyncs {}", from, eager.keySet(), pendingIncomingSyncs);
                     sb.append(String.format("Added %s to eager; ", from));
                 }
@@ -434,20 +437,23 @@ public class PlumTree extends GenericProtocol {
 
     }
 
-    private void uponReceiveSyncOpsMsg(SyncOpsMessage msg, Host from, short sourceProto, int channelId) {
-        stats.incrementReceivedSyncOps();
-        logger.debug("Received {} from {}", msg, from);
+    private void uponReceiveSynchronizationMsg(SynchronizationMessage msg, Host from, short sourceProto, int channelId) {
+        try {
+            stats.incrementReceivedSyncOps();
+            logger.debug("Received {} from {}", msg, from);
 
-        for (byte[] serMsg : msg.getMsgs()) {
-            stats.incrementReceivedSyncGossip();
-            try {
-                DataInputStream dis = new DataInputStream(new ByteArrayInputStream(serMsg));
-                GossipMessage gossipMessage = GossipMessage.deserialize(dis);
-                UUID mid = gossipMessage.getMid();
+            StateAndVC stateAndVC = msg.getStateAndVC();
+            if(stateAndVC != null) {
+                triggerNotification(new InstallStateNotification(msg.getMid(), stateAndVC.getState()));
+                this.stateAndVC = stateAndVC;
+                vectorClock = stateAndVC.getVc();
 
-                if (!received.contains(mid)) {
-                    stats.incrementReceivedOps();
-                    logger.info("RECEIVED {}", mid);
+                for (byte[] serMsg : msg.getMsgs()) {
+                    stats.incrementReceivedSyncGossip();
+
+                    DataInputStream dis = new DataInputStream(new ByteArrayInputStream(serMsg));
+                    GossipMessage gossipMessage = GossipMessage.deserialize(dis);
+                    UUID mid = gossipMessage.getMid();
                     Host h = gossipMessage.getOriginalSender();
                     int clock = gossipMessage.getSenderClock();
                     if (vectorClock.getHostClock(h) == clock - 1) {
@@ -459,20 +465,48 @@ public class PlumTree extends GenericProtocol {
                         logger.error("[{}] Out-of-order op {}-{} : {} from {}, Clock {}", true,
                                 h, clock, mid, from, vectorClock.getHostClock(h));
                     } else {
-                        logger.error("[{}] Ignored old op {}-{} : {} from {}, Clock {}", true,
-                                h, clock, mid, from, vectorClock.getHostClock(h));
+                        noExecuteGossipMessage(gossipMessage, from);
                     }
-                } else {
-                    logger.info("DUPLICATE SYNC from {}", from);
-                    logger.debug("Sync op {} was dupe", mid);
-                    stats.incrementReceivedDupesSyncGossip();
                 }
-            } catch (IOException e) {
-                e.printStackTrace();
+                reexecuteMyOps();
+
+            } else {
+                for (byte[] serMsg : msg.getMsgs()) {
+                    stats.incrementReceivedSyncGossip();
+
+                    DataInputStream dis = new DataInputStream(new ByteArrayInputStream(serMsg));
+                    GossipMessage gossipMessage = GossipMessage.deserialize(dis);
+                    UUID mid = gossipMessage.getMid();
+
+                    if (!received.contains(mid)) {
+                        stats.incrementReceivedOps();
+                        logger.info("RECEIVED {}", mid);
+                        Host h = gossipMessage.getOriginalSender();
+                        int clock = gossipMessage.getSenderClock();
+                        if (vectorClock.getHostClock(h) == clock - 1) {
+                            logger.debug("[{}] Accepted op {}-{} : {} from {}, Clock {}", true,
+                                    h, clock, mid, from, vectorClock.getHostClock(h));
+                            triggerNotification(new DeliverNotification(mid, from, gossipMessage.getContent(), true));
+                            handleGossipMessage(gossipMessage, from);
+                        } else if (vectorClock.getHostClock(h) < clock - 1) {
+                            logger.error("[{}] Out-of-order op {}-{} : {} from {}, Clock {}", true,
+                                    h, clock, mid, from, vectorClock.getHostClock(h));
+                        } else {
+                            logger.error("[{}] Ignored old op {}-{} : {} from {}, Clock {}", true,
+                                    h, clock, mid, from, vectorClock.getHostClock(h));
+                        }
+                    } else {
+                        logger.info("DUPLICATE SYNC from {}", from);
+                        logger.debug("Sync op {} was dupe", mid);
+                        stats.incrementReceivedDupesSyncGossip();
+                    }
+                }
             }
+            logger.info("Received sync ops. Sync {} ENDED", msg.getMid());
+            tryNextIncomingSync();
+        } catch (IOException e) {
+            e.printStackTrace();
         }
-        logger.info("Received sync ops. Sync {} ENDED", msg.getMid());
-        tryNextIncomingSync();
     }
 
     private void onMessageFailed(ProtoMessage protoMessage, Host host, short destProto, Throwable reason, int channel) {
@@ -816,6 +850,28 @@ public class PlumTree extends GenericProtocol {
         }
     }
 
+    private void noExecuteGossipMessage(GossipMessage msg, Host from) {
+        try {
+            this.fileManager.writeOperationToFile(msg);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        UUID mid = msg.getMid();
+        received.add(mid);
+        for (Map.Entry<Host, VectorClock> entry : eager.entrySet()) {
+            Host peer = entry.getKey();
+            if (!peer.equals(from)) {
+                VectorClock vc = entry.getValue();
+                if (vc.getHostClock(msg.getOriginalSender()) < msg.getSenderClock()) {
+                    sendMessage(msg, peer);
+                    stats.incrementSentGossip();
+                    logger.debug("Forward gossip {} received from {} to {}", mid, from, peer);
+                }
+            }
+        }
+    }
+
     private void handleAnnouncement(UUID mid, Host from) {
         if (!receivedTreeIDs.contains(mid)) {
             if (eager.isEmpty() && outgoingSyncs.isEmpty()) {
@@ -843,8 +899,17 @@ public class PlumTree extends GenericProtocol {
         return removed;
     }
 
+    private void reexecuteMyOps() {
+        List<GossipMessage> myLateOps = this.fileManager.getMyLateOperations(myself, vectorClock, seqNumber);
+        logger.debug("My VC pos is {} and my seqNumber is {}; executing {} ops", vectorClock.getHostClock(myself), seqNumber, myLateOps.size());
+        for(GossipMessage msg : myLateOps) {
+            vectorClock.incrementClock(myself);
+            triggerNotification(new DeliverNotification(msg.getMid(), myself, msg.getContent(), false));
+        }
+    }
+
     private void garbageCollectOldOperations() {
-        //TODO: garbage collect op irrelevantes em relação a stateVC
+        //TODO: garbage collect op > x time
     }
 
     /*--------------------------------- Channel Metrics ---------------------------------*/

@@ -5,39 +5,41 @@ import io.netty.buffer.Unpooled;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import protocols.broadcast.common.messages.SynchronizationMessage;
 import protocols.broadcast.plumtree.messages.GossipMessage;
 import pt.unl.fct.di.novasys.network.data.Host;
 
 import java.io.*;
 import java.util.*;
 
-public class MyMultiFileManager {
+public class MultiFileWorker {
 
-    private static final Logger logger = LogManager.getLogger(MyMultiFileManager.class);
+    private static final Logger logger = LogManager.getLogger(MultiFileWorker.class);
 
+    private final VectorClock firstVC;
+    private final String fileName;
     private final File file;
     private final DataOutputStream dos;
     private final Map<Host, NavigableMap<Integer, Pair<Long, Integer>>> index;
-    private int nExecuted;
-    private long nBytes;
     private final int indexSpacing;
+    private int nOps;
+    private long nBytes;
 
-    public MyMultiFileManager(Properties properties, Host myself) throws FileNotFoundException {
-        this.file = new File("/tmp/data/ops-" + myself);
+    public MultiFileWorker(VectorClock firstVC, String fileName, int indexSpacing) throws FileNotFoundException {
+        this.firstVC = firstVC;
+        this.fileName = fileName;
+        this.file = new File(fileName);
         if(!this.file.getParentFile().mkdirs())
             logger.warn("Directory for files already existed or was not created.");
         this.dos = new DataOutputStream(new FileOutputStream(this.file));
         this.index = new HashMap<>();
-        this.indexSpacing = Integer.parseInt(properties.getProperty("index_spacing", "100"));
-
+        this.indexSpacing = indexSpacing;
     }
 
-    public void writeOperationToFile(GossipMessage msg) throws IOException {
+    public void writeOperationToFile(long time, GossipMessage msg) throws IOException {
         Host sender = msg.getOriginalSender();
         int senderClock = msg.getSenderClock();
         ByteBuf buf = Unpooled.buffer();
-        buf.writeLong(System.currentTimeMillis());
+        buf.writeLong(time);
         GossipMessage.serializer.serialize(msg, buf);
         byte[] serGossipMsg = new byte[buf.readableBytes()];
         buf.readBytes(serGossipMsg);
@@ -45,13 +47,13 @@ public class MyMultiFileManager {
         dos.flush();
 
         if(senderClock % indexSpacing == 0) {
-            index.computeIfAbsent(sender, k -> treeMapWithDefaultEntry()).put(senderClock, Pair.of(nBytes, nExecuted));
+            index.computeIfAbsent(sender, k -> treeMapWithDefaultEntry()).put(senderClock, Pair.of(nBytes, nOps));
         }
-        nExecuted++;
+        nOps++;
         nBytes += serGossipMsg.length;
     }
 
-    public SynchronizationMessage readSyncOpsFromFile(UUID mid, VectorClock neighbourClock, VectorClock myClock, StateAndVC stateAndVC) {
+    public List<byte[]> readSyncOpsFromFile(VectorClock neighbourClock, VectorClock myClock) {
         long startTime = System.currentTimeMillis();
         Pair<Long, Integer> min = null;
 
@@ -75,7 +77,7 @@ public class MyMultiFileManager {
                     logger.error("SKIPPED {}, WANTED {} OF {}", skipped, min.getLeft(), nBytes);
                 }
 
-                for (int i = min.getRight(); i < nExecuted; i++) {
+                for (int i = min.getRight(); i < nOps; i++) {
                     dis.readLong();
                     GossipMessage msg = GossipMessage.deserialize(dis);
                     Host h = msg.getOriginalSender();
@@ -89,7 +91,7 @@ public class MyMultiFileManager {
                     }
                 }
                 long endTime = System.currentTimeMillis();
-                logger.debug("READ FROM FILE in {} ms started {} of {}", endTime - startTime, min.getRight(), nExecuted);
+                logger.debug("READ FROM FILE in {} ms started {} of {}", endTime - startTime, min.getRight(), nOps);
             } catch (IOException e) {
                 logger.error("Error reading missing ops from file", e);
                 e.printStackTrace();
@@ -97,7 +99,7 @@ public class MyMultiFileManager {
         } else {
             logger.debug("DID NOT OPEN FILE");
         }
-        return new SynchronizationMessage(mid, stateAndVC, gossipMessages);
+        return gossipMessages;
     }
 
     public List<GossipMessage> getMyLateOperations(Host myself, VectorClock myVC, int mySeqNumber) {
@@ -108,7 +110,7 @@ public class MyMultiFileManager {
                  BufferedInputStream bis = new BufferedInputStream(fis);
                  DataInputStream dis = new DataInputStream(bis)) {
 
-                for (int i = 0; i < nExecuted && myLateSeqNumber < mySeqNumber; i++) {
+                for (int i = 0; i < nOps && myLateSeqNumber < mySeqNumber; i++) {
                     dis.readLong();
                     GossipMessage msg = GossipMessage.deserialize(dis);
                     Host h = msg.getOriginalSender();
@@ -124,6 +126,16 @@ public class MyMultiFileManager {
             }
         }
         return gossipMessages;
+    }
+
+    public void deleteFile() throws IOException {
+        dos.close();
+        if(!file.delete())
+            logger.warn("File {} was not deleted.", fileName);
+    }
+
+    public VectorClock getFirstVC() {
+        return this.firstVC;
     }
 
     private NavigableMap<Integer, Pair<Long, Integer>> treeMapWithDefaultEntry() {

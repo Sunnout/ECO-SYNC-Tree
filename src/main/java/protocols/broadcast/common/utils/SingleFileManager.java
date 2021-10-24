@@ -12,25 +12,24 @@ import pt.unl.fct.di.novasys.network.data.Host;
 import java.io.*;
 import java.util.*;
 
-public class MyFileManager {
+public class SingleFileManager {
 
-    private static final Logger logger = LogManager.getLogger(MyFileManager.class);
+    private static final Logger logger = LogManager.getLogger(SingleFileManager.class);
 
     private final File file;
     private final DataOutputStream dos;
     private final Map<Host, NavigableMap<Integer, Pair<Long, Integer>>> index;
-    private int nExecuted;
+    private int nOps;
     private long nBytes;
     private final int indexSpacing;
 
-    public MyFileManager(Properties properties, Host myself) throws FileNotFoundException {
+    public SingleFileManager(Properties properties, Host myself) throws FileNotFoundException {
         this.file = new File("/tmp/data/ops-" + myself);
         if(!this.file.getParentFile().mkdirs())
             logger.warn("Directory for files already existed or was not created.");
         this.dos = new DataOutputStream(new FileOutputStream(this.file));
         this.index = new HashMap<>();
         this.indexSpacing = Integer.parseInt(properties.getProperty("index_spacing", "100"));
-
     }
 
     public void writeOperationToFile(GossipMessage msg) throws IOException {
@@ -45,9 +44,9 @@ public class MyFileManager {
         dos.flush();
 
         if(senderClock % indexSpacing == 0) {
-            index.computeIfAbsent(sender, k -> treeMapWithDefaultEntry()).put(senderClock, Pair.of(nBytes, nExecuted));
+            index.computeIfAbsent(sender, k -> treeMapWithDefaultEntry()).put(senderClock, Pair.of(nBytes, nOps));
         }
-        nExecuted++;
+        nOps++;
         nBytes += serGossipMsg.length;
     }
 
@@ -75,7 +74,7 @@ public class MyFileManager {
                     logger.error("SKIPPED {}, WANTED {} OF {}", skipped, min.getLeft(), nBytes);
                 }
 
-                for (int i = min.getRight(); i < nExecuted; i++) {
+                for (int i = min.getRight(); i < nOps; i++) {
                     dis.readLong();
                     GossipMessage msg = GossipMessage.deserialize(dis);
                     Host h = msg.getOriginalSender();
@@ -89,7 +88,7 @@ public class MyFileManager {
                     }
                 }
                 long endTime = System.currentTimeMillis();
-                logger.debug("READ FROM FILE in {} ms started {} of {}", endTime - startTime, min.getRight(), nExecuted);
+                logger.debug("READ FROM FILE in {} ms started {} of {}", endTime - startTime, min.getRight(), nOps);
             } catch (IOException e) {
                 logger.error("Error reading missing ops from file", e);
                 e.printStackTrace();
@@ -108,7 +107,7 @@ public class MyFileManager {
                  BufferedInputStream bis = new BufferedInputStream(fis);
                  DataInputStream dis = new DataInputStream(bis)) {
 
-                for (int i = 0; i < nExecuted && myLateSeqNumber < mySeqNumber; i++) {
+                for (int i = 0; i < nOps && myLateSeqNumber < mySeqNumber; i++) {
                     dis.readLong();
                     GossipMessage msg = GossipMessage.deserialize(dis);
                     Host h = msg.getOriginalSender();

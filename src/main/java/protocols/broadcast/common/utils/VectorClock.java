@@ -56,6 +56,18 @@ public class VectorClock {
         return true;
     }
 
+    public boolean greaterOrEqualThan(VectorClock otherVC) {
+        for (Map.Entry<Host, Integer> entry: this.clock.entrySet()) {
+            Host host = entry.getKey();
+            int value = entry.getValue();
+            if(otherVC.getHostClock(host) < value)
+                return false;
+        }
+        return true;
+    }
+
+
+
     public static MySerializer<VectorClock> serializer = new MySerializer<VectorClock>() {
         @Override
         public void serialize(VectorClock vc, ByteBuf out) throws IOException {

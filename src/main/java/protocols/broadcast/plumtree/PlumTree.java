@@ -3,11 +3,12 @@ package protocols.broadcast.plumtree;
 import protocols.broadcast.common.notifications.InstallStateNotification;
 import protocols.broadcast.common.notifications.SendStateNotification;
 import protocols.broadcast.common.requests.StateRequest;
+import protocols.broadcast.common.utils.MultiFileManager;
 import protocols.broadcast.common.utils.StateAndVC;
 import protocols.broadcast.common.utils.VectorClock;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import protocols.broadcast.common.utils.MyFileManager;
+import protocols.broadcast.common.utils.SingleFileManager;
 import protocols.broadcast.common.messages.SendVectorClockMessage;
 import protocols.broadcast.common.messages.SynchronizationMessage;
 import protocols.broadcast.common.messages.VectorClockMessage;
@@ -71,7 +72,7 @@ public class PlumTree extends GenericProtocol {
     public static VectorClock vectorClock; // Local vector clock
     private int seqNumber; // Counter of local operations
 
-    private final MyFileManager fileManager;
+    private final MultiFileManager fileManager;
 
     private final PlumtreeStats stats;
 
@@ -106,7 +107,7 @@ public class PlumTree extends GenericProtocol {
 
         vectorClock = new VectorClock(myself);
 
-        this.fileManager = new MyFileManager(properties, myself);
+        this.fileManager = new MultiFileManager(properties, myself);
 
         this.stats = new PlumtreeStats();
 
@@ -363,7 +364,6 @@ public class PlumTree extends GenericProtocol {
             VectorClock msgVC = msg.getVectorClock();
             StateAndVC stateAndVC = null;
             byte[] currState = this.stateAndVC.getState();
-            logger.debug("Current state {}", currState);
             if(currState != null && msgVC.isEmptyExceptFor(from)) {
                 stateAndVC = this.stateAndVC;
                 logger.debug("Sending state {}", stateAndVC);
@@ -830,7 +830,7 @@ public class PlumTree extends GenericProtocol {
         stats.incrementExecutedOps();
         vectorClock.incrementClock(msg.getOriginalSender());
         try {
-            this.fileManager.writeOperationToFile(msg);
+            this.fileManager.writeOperationToFile(msg, vectorClock);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -852,7 +852,7 @@ public class PlumTree extends GenericProtocol {
 
     private void noExecuteGossipMessage(GossipMessage msg, Host from) {
         try {
-            this.fileManager.writeOperationToFile(msg);
+            this.fileManager.writeOperationToFile(msg, vectorClock);
         } catch (IOException e) {
             e.printStackTrace();
         }

@@ -80,6 +80,8 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         registerRequestHandler(SetOperationRequest.REQUEST_ID, this::uponSetOperationRequest);
         registerRequestHandler(MapOperationRequest.REQUEST_ID, this::uponMapOperationRequest);
 
+        registerRequestHandler(PrintStateRequest.REQUEST_ID, this::uponPrintStateRequest);
+
         /* --------------------- Register Notification Handlers --------------------- */
         subscribeNotification(DeliverNotification.NOTIFICATION_ID, this::uponDeliverNotification);
         subscribeNotification(SendStateNotification.NOTIFICATION_ID, this::uponSendStateNotification);
@@ -246,6 +248,14 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         }
     }
 
+    private void uponPrintStateRequest(PrintStateRequest request, short sourceProto) {
+        try {
+            logger.info("Final state hash: " + Arrays.hashCode(serializeCurrentState()));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
 
     /* --------------------------------- Notifications --------------------------------- */
 
@@ -326,7 +336,6 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     }
 
     private byte[] serializeCurrentState() throws IOException {
-
         ByteBuf buf = Unpooled.buffer();
         buf.writeInt(crdtsById.size()); //number of crdts
         for(Map.Entry<String, KernelCRDT> entry : crdtsById.entrySet()) {

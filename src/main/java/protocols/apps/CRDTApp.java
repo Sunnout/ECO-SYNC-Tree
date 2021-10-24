@@ -28,7 +28,7 @@ public class CRDTApp extends GenericProtocol {
     private static final int TO_MILLIS = 1000;
 
     //RUN = 0 --> counter; 1 --> register; 2 --> set; 3 --> map; 4 --> 8 registers;
-    //5 --> 8 sets; 6 --> 8 maps; 7 --> 1 of each CRDT; 8 --> counter + register
+    //5 --> 8 sets; 6 --> 8 maps; 7 --> 1 of each CRDT; 8 --> counter + register + set + map
     private static final int RUN = 8;
 
     private static final String COUNTER = "counter";
@@ -176,6 +176,7 @@ public class CRDTApp extends GenericProtocol {
     private void uponPrintValuesTimer(PrintValuesTimer printValuesTimer, long timerId) {
         printFinalValues();
         printStats();
+//        sendRequest(new PrintStateRequest(), replicationKernelId);
         setupTimer(new ExitTimer(), (long) exitTime * TO_MILLIS);
     }
 
@@ -231,13 +232,17 @@ public class CRDTApp extends GenericProtocol {
         } else if(CRDTApp.RUN == 8) {
             getCRDT(COUNTER, new String[]{"int"}, CRDT0);
             getCRDT(LWW_REGISTER, new String[]{"int"}, CRDT1);
+            getCRDT(OR_SET, new String[]{"int"}, CRDT2);
+            getCRDT(OR_MAP, new String[]{"int", "int"}, CRDT3);
         }
     }
 
     private void executeWithProbability(double prob) {
         if(Math.random() <= prob) {
             executeCounterOperation(CRDT0, CounterOpType.INCREMENT, 1);
-            executeRegisterOperation(CRDT1, RegisterOpType.ASSIGN, new IntegerType(rand.nextInt(20)));
+            executeRegisterOperation(CRDT1, RegisterOpType.ASSIGN, new IntegerType(rand.nextInt(1000)));
+            executeSetOperation(CRDT2, Math.random() > 0.5 ? SetOpType.ADD : SetOpType.REMOVE, new IntegerType(rand.nextInt(50)));
+            executeMapOperation(CRDT3, MapOpType.PUT, new IntegerType(rand.nextInt(10)), new IntegerType(rand.nextInt(1000)));
         }
     }
 
@@ -304,8 +309,13 @@ public class CRDTApp extends GenericProtocol {
             }
             logger.info("Values of {}: {}", CRDT3, getMapValues(CRDT3));
         } else if(CRDTApp.RUN == 8) {
-            logger.info("Integer value of {}: {}", CRDT0, getCounterValue(CRDT0));
-            logger.info("Integer value of {}: {}", CRDT1, getRegisterValue(CRDT1));
+            logger.info("[CRDT-VAL] {} {}", CRDT0, getCounterValue(CRDT0));
+            logger.info("[CRDT-VAL] {} {}", CRDT1, getRegisterValue(CRDT1));
+            logger.info("[CRDT-VAL] {} {}", CRDT2, getSetValue(CRDT2));
+            Set<SerializableType> keys = getMapKeys(CRDT3);
+            for(SerializableType key : keys) {
+                logger.info("[CRDT-VAL] {}:{} {}", CRDT3, key, getMapping(CRDT3, key));
+            }
         }
 
         if(broadcastId == PlumTree.PROTOCOL_ID) {

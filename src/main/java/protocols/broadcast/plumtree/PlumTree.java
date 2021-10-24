@@ -16,10 +16,7 @@ import protocols.broadcast.common.requests.BroadcastRequest;
 import protocols.broadcast.common.notifications.DeliverNotification;
 import protocols.broadcast.plumtree.messages.*;
 import protocols.broadcast.common.timers.ReconnectTimeout;
-import protocols.broadcast.plumtree.timers.CheckReceivedTreeMessagesTimeout;
-import protocols.broadcast.plumtree.timers.GarbageCollectionTimeout;
-import protocols.broadcast.plumtree.timers.IHaveTimeout;
-import protocols.broadcast.plumtree.timers.SendTreeMessageTimeout;
+import protocols.broadcast.plumtree.timers.*;
 import protocols.broadcast.plumtree.utils.*;
 import protocols.membership.common.notifications.NeighbourDown;
 import protocols.membership.common.notifications.NeighbourUp;
@@ -43,6 +40,7 @@ public class PlumTree extends GenericProtocol {
     protected int channelId;
     private final Host myself;
     private final static int PORT_MAPPING = 1000;
+    private final static int SECONDS_TO_MILLIS = 1000;
 
     private final long iHaveTimeout;
     private final long reconnectTimeout;
@@ -51,6 +49,8 @@ public class PlumTree extends GenericProtocol {
     private final long checkTreeMsgsTimeout;
 
     private final long garbageCollectionTimeout;
+    private final long garbageCollectionTTL;
+    private final long saveStateTimeout;
     private StateAndVC stateAndVC; // Current state and corresponding VC
 
     private long sendTreeMsgTimer;
@@ -89,7 +89,9 @@ public class PlumTree extends GenericProtocol {
         this.treeMsgTimeout = Long.parseLong(properties.getProperty("tree_msg_timeout", "100"));
         this.checkTreeMsgsTimeout = Long.parseLong(properties.getProperty("check_tree_msgs_timeout", "5000"));
 
-        this.garbageCollectionTimeout = Long.parseLong(properties.getProperty("garbage_collection_timeout", "1")) * 60000;
+        this.garbageCollectionTimeout = Long.parseLong(properties.getProperty("garbage_collection_timeout", "15")) * SECONDS_TO_MILLIS;
+        this.garbageCollectionTTL = Long.parseLong(properties.getProperty("garbage_collection_ttl", "60")) * SECONDS_TO_MILLIS;
+        this.saveStateTimeout = Long.parseLong(properties.getProperty("save_state_timeout", "30")) * SECONDS_TO_MILLIS;
         this.stateAndVC = new StateAndVC(null, new VectorClock(myself));
 
         this.partialView = new HashSet<>();
@@ -107,7 +109,8 @@ public class PlumTree extends GenericProtocol {
 
         vectorClock = new VectorClock(myself);
 
-        this.fileManager = new MultiFileManager(properties, myself);
+        int indexSpacing = Integer.parseInt(properties.getProperty("index_spacing", "100"));
+        this.fileManager = new MultiFileManager(garbageCollectionTimeout, garbageCollectionTTL, indexSpacing, myself);
 
         this.stats = new PlumtreeStats();
 
@@ -133,6 +136,7 @@ public class PlumTree extends GenericProtocol {
         registerTimerHandler(IHaveTimeout.TIMER_ID, this::uponIHaveTimeout);
         registerTimerHandler(ReconnectTimeout.TIMER_ID, this::uponReconnectTimeout);
         registerTimerHandler(GarbageCollectionTimeout.TIMER_ID, this::uponGarbageCollectionTimeout);
+        registerTimerHandler(SaveStateTimeout.TIMER_ID, this::uponSaveStateTimeout);
 
         /*--------------------- Register Request Handlers ----------------------------- */
         registerRequestHandler(BroadcastRequest.REQUEST_ID, this::uponBroadcastRequest);
@@ -179,6 +183,7 @@ public class PlumTree extends GenericProtocol {
     public void init(Properties props) throws HandlerRegistrationException, IOException {
         setupPeriodicTimer(new CheckReceivedTreeMessagesTimeout(), checkTreeMsgsTimeout, checkTreeMsgsTimeout);
         setupPeriodicTimer(new GarbageCollectionTimeout(), garbageCollectionTimeout, garbageCollectionTimeout);
+        setupPeriodicTimer(new SaveStateTimeout(), saveStateTimeout, saveStateTimeout);
     }
 
 
@@ -446,8 +451,9 @@ public class PlumTree extends GenericProtocol {
             if(stateAndVC != null) {
                 triggerNotification(new InstallStateNotification(msg.getMid(), stateAndVC.getState()));
                 this.stateAndVC = stateAndVC;
-                vectorClock = stateAndVC.getVc();
+                vectorClock = new VectorClock(stateAndVC.getVc().getClock());
 
+                int nExecuted = 0;
                 for (byte[] serMsg : msg.getMsgs()) {
                     stats.incrementReceivedSyncGossip();
 
@@ -461,6 +467,7 @@ public class PlumTree extends GenericProtocol {
                                 h, clock, mid, from, vectorClock.getHostClock(h));
                         triggerNotification(new DeliverNotification(mid, from, gossipMessage.getContent(), true));
                         handleGossipMessage(gossipMessage, from);
+                        nExecuted++;
                     } else if (vectorClock.getHostClock(h) < clock - 1) {
                         logger.error("[{}] Out-of-order op {}-{} : {} from {}, Clock {}", true,
                                 h, clock, mid, from, vectorClock.getHostClock(h));
@@ -468,6 +475,7 @@ public class PlumTree extends GenericProtocol {
                         noExecuteGossipMessage(gossipMessage, from);
                     }
                 }
+                logger.debug("Executed {}/{} ops after installing state", nExecuted, msg.getMsgs().size());
                 reexecuteMyOps();
 
             } else {
@@ -505,7 +513,7 @@ public class PlumTree extends GenericProtocol {
             logger.info("Received sync ops. Sync {} ENDED", msg.getMid());
             tryNextIncomingSync();
         } catch (IOException e) {
-            e.printStackTrace();
+            logger.error("Sync message handling error", e);
         }
     }
 
@@ -545,9 +553,17 @@ public class PlumTree extends GenericProtocol {
         }
     }
 
-    private void uponGarbageCollectionTimeout(GarbageCollectionTimeout timeout, long timerId) {
+    private void uponSaveStateTimeout(SaveStateTimeout timeout, long timerId) {
         this.stateAndVC.setVC(new VectorClock(vectorClock.getClock()));
         triggerNotification(new SendStateNotification(UUID.randomUUID()));
+    }
+
+    private void uponGarbageCollectionTimeout(GarbageCollectionTimeout timeout, long timerId) {
+        try {
+            this.fileManager.garbageCollectOperations();
+        } catch (IOException e) {
+            logger.error("Error garbage collecting", e);
+        }
     }
 
     private void uponReconnectTimeout(ReconnectTimeout timeout, long timerId) {
@@ -832,7 +848,7 @@ public class PlumTree extends GenericProtocol {
         try {
             this.fileManager.writeOperationToFile(msg, vectorClock);
         } catch (IOException e) {
-            e.printStackTrace();
+            logger.error("Error when writing operation to file", e);
         }
 
         UUID mid = msg.getMid();
@@ -854,7 +870,7 @@ public class PlumTree extends GenericProtocol {
         try {
             this.fileManager.writeOperationToFile(msg, vectorClock);
         } catch (IOException e) {
-            e.printStackTrace();
+            logger.error("Error when writing operation to file", e);
         }
 
         UUID mid = msg.getMid();

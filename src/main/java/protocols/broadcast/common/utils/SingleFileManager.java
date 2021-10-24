@@ -91,7 +91,6 @@ public class SingleFileManager {
                 logger.debug("READ FROM FILE in {} ms started {} of {}", endTime - startTime, min.getRight(), nOps);
             } catch (IOException e) {
                 logger.error("Error reading missing ops from file", e);
-                e.printStackTrace();
             }
         } else {
             logger.debug("DID NOT OPEN FILE");
@@ -119,7 +118,6 @@ public class SingleFileManager {
                 }
             } catch (IOException e) {
                 logger.error("Error reading my late ops from file", e);
-                e.printStackTrace();
             }
         }
         return gossipMessages;

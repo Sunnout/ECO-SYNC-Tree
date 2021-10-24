@@ -2,6 +2,7 @@ package protocols.broadcast.common.requests;
 
 import pt.unl.fct.di.novasys.babel.generic.ProtoRequest;
 
+import java.util.Arrays;
 import java.util.UUID;
 
 public class StateRequest extends ProtoRequest {
@@ -25,4 +26,10 @@ public class StateRequest extends ProtoRequest {
         return state;
     }
 
+    @Override
+    public String toString() {
+        return "StateRequest{" +
+                "msgId=" + msgId +
+                '}';
+    }
 }

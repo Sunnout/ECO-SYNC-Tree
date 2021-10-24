@@ -66,8 +66,7 @@ public class SimpleFloodBroadcast extends GenericProtocol {
         try {
             registerMessageHandler(cId, FloodMessage.MSG_ID, this::uponFloodMessage, this::uponMsgFail);
         } catch (HandlerRegistrationException e) {
-            logger.error("Error registering message handler: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("Error registering message handler", e);
             System.exit(1);
         }
         //Now we can start sending messages

@@ -127,8 +127,7 @@ public class Cyclon extends GenericProtocol {
 				pending.add(contactHost);
 				openConnection(contactHost);
 			} catch (Exception e) {
-				logger.error("Invalid contact on configuration: '" + props.getProperty("contacts"));
-				e.printStackTrace();
+				logger.error("Invalid contact on configuration: '" + props.getProperty("contacts"), e);
 				System.exit(-1);
 			}
 		}

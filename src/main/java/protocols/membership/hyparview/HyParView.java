@@ -436,8 +436,7 @@ public class HyParView extends GenericProtocol {
                 logger.trace("Sent " + m + " to " + contactHost);
                 setupTimer(new JoinTimeout(contactHost), joinTimeout);
             } catch (Exception e) {
-                logger.error("Invalid contact on configuration: '" + props.getProperty("contact"));
-                e.printStackTrace();
+                logger.error("Invalid contact on configuration: '" + props.getProperty("contact"), e);
                 System.exit(-1);
             }
         } else {

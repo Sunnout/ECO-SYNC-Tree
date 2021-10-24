@@ -19,11 +19,15 @@ public class MultiFileManager {
     private final ArrayList<Pair<Long, MultiFileWorker>> fileWorkers;
     private final String fileNamePrefix;
     private final int indexSpacing;
+    private final long garbageCollectionTimeout;
+    private final long garbageCollectionTTL;
 
-    public MultiFileManager(Properties properties, Host myself) {
+    public MultiFileManager(long garbageCollectionTimeout, long garbageCollectionTTL, int indexSpacing,  Host myself) {
         this.fileWorkers = new ArrayList<>();
         this.fileNamePrefix = "ops-" + myself +"-";
-        this.indexSpacing = Integer.parseInt(properties.getProperty("index_spacing", "100"));
+        this.indexSpacing = indexSpacing;
+        this.garbageCollectionTimeout = garbageCollectionTimeout;
+        this.garbageCollectionTTL = garbageCollectionTTL;
     }
 
     public void writeOperationToFile(GossipMessage msg, VectorClock vc) throws IOException {
@@ -39,13 +43,17 @@ public class MultiFileManager {
     public SynchronizationMessage readSyncOpsFromFile(UUID mid, VectorClock neighbourClock, VectorClock myClock, StateAndVC stateAndVC) {
         int startIndex = 0;
         for(int i = fileWorkers.size()-1; i >= 0; i--) {
-            if(!neighbourClock.greaterOrEqualThan(fileWorkers.get(i).getRight().getFirstVC())) {
+            if(neighbourClock.greaterOrEqualThan(fileWorkers.get(i).getRight().getFirstVC())) {
                 startIndex = i;
                 break;
             }
         }
 
-        logger.debug("Started reading at {}; {}/{}", fileWorkers.get(startIndex).getLeft(), startIndex, fileWorkers.size()-1);
+        if(fileWorkers.size() > 0)
+            logger.debug("Started reading at {}; {}/{}", fileWorkers.get(startIndex).getLeft(), startIndex, fileWorkers.size()-1);
+        else
+            logger.debug("No files to read");
+
         List<byte[]> gossipMessages = new LinkedList<>();
         for(int j = startIndex; j < fileWorkers.size(); j++) {
             gossipMessages.addAll(fileWorkers.get(j).getRight().readSyncOpsFromFile(neighbourClock, myClock));
@@ -62,13 +70,14 @@ public class MultiFileManager {
         return gossipMessages;
     }
 
-    public void garbageCollectOperations(int ttlMin) throws IOException {
+    public void garbageCollectOperations() throws IOException {
         long time = calculateTime();
         Iterator<Pair<Long, MultiFileWorker>> it = fileWorkers.iterator();
 
-        while(it.hasNext() && (time - it.next().getLeft()) > ttlMin) {
+        while(it.hasNext()) {
             Pair<Long, MultiFileWorker> mf = it.next();
-            if(time - mf.getLeft() > ttlMin) {
+            if(time - mf.getLeft() > (garbageCollectionTTL/garbageCollectionTimeout)) {
+                logger.debug("Deleting file {}", mf.getLeft());
                 mf.getRight().deleteFile();
                 it.remove();
             } else {
@@ -78,7 +87,7 @@ public class MultiFileManager {
     }
 
     private long calculateTime() {
-        return System.currentTimeMillis()/6000;
+        return System.currentTimeMillis()/garbageCollectionTimeout;
     }
 
 }

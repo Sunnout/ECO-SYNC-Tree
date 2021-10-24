@@ -119,7 +119,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
                 sendRequest(new BroadcastRequest(msgId, sender, serializeOperation(true, op)), broadcastId);
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            logger.error("Error when creating CRDT", e);
         }
     }
 
@@ -128,7 +128,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
             sendRequest(new BroadcastRequest(request.getMsgId(), request.getSender(),
                     serializeOperation(false, request.getOperation())), broadcastId);
         } catch (IOException e) {
-            e.printStackTrace();
+            logger.error("Error in handling downstream request", e);
         }
     }
 
@@ -252,7 +252,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         try {
             logger.info("Final state hash: " + Arrays.hashCode(serializeCurrentState()));
         } catch (IOException e) {
-            e.printStackTrace();
+            logger.error("Error in handling print state", e);
         }
     }
 
@@ -271,7 +271,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
                 crdtsById.get(crdtId).upstream(op);
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            logger.error("Error when handling deliver notification", e);
         }
     }
 
@@ -279,7 +279,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         try {
             sendRequest(new StateRequest(notification.getMsgId(), serializeCurrentState()), broadcastId);
         } catch (IOException e) {
-            e.printStackTrace();
+            logger.error("Error when handling send state notification", e);
         }
     }
 
@@ -287,7 +287,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         try {
             deserializeAndInstallState(notification.getState());
         } catch (IOException e) {
-            e.printStackTrace();
+            logger.error("Error when handling install state notification", e);
         }
     }
 

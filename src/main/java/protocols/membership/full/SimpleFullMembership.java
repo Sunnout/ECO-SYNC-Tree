@@ -104,8 +104,7 @@ public class SimpleFullMembership extends GenericProtocol {
                 pending.add(contactHost);
                 openConnection(contactHost);
             } catch (Exception e) {
-                logger.error("Invalid contact on configuration: '" + props.getProperty("contact"));
-                e.printStackTrace();
+                logger.error("Invalid contact on configuration: '" + props.getProperty("contact"), e);
                 System.exit(-1);
             }
         }

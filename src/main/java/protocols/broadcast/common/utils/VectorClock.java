@@ -57,10 +57,10 @@ public class VectorClock {
     }
 
     public boolean greaterOrEqualThan(VectorClock otherVC) {
-        for (Map.Entry<Host, Integer> entry: this.clock.entrySet()) {
+        for (Map.Entry<Host, Integer> entry: otherVC.getClock().entrySet()) {
             Host host = entry.getKey();
             int value = entry.getValue();
-            if(otherVC.getHostClock(host) < value)
+            if(this.getHostClock(host) < value)
                 return false;
         }
         return true;

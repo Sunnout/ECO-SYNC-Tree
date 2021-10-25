@@ -3,7 +3,7 @@ package crdts.operations;
 import datatypes.SerializableType;
 import io.netty.buffer.ByteBuf;
 
-import serializers.MyOpSerializer;
+import serializers.CRDTOpSerializer;
 import serializers.MySerializer;
 
 import java.io.IOException;
@@ -39,7 +39,7 @@ public class RegisterOperation extends Operation {
                 '}';
     }
 
-    public static MyOpSerializer<RegisterOperation> serializer = new MyOpSerializer<RegisterOperation>() {
+    public static CRDTOpSerializer<RegisterOperation> serializer = new CRDTOpSerializer<RegisterOperation>() {
         @Override
         public void serialize(RegisterOperation registerOperation, MySerializer[] serializers, ByteBuf out) throws IOException {
             Operation.serialize(registerOperation, out);

@@ -1,7 +1,7 @@
 package crdts.operations;
 
 import io.netty.buffer.ByteBuf;
-import serializers.MyOpSerializer;
+import serializers.CRDTOpSerializer;
 import serializers.MySerializer;
 
 import java.io.IOException;
@@ -30,7 +30,7 @@ public class CounterOperation extends Operation {
                 '}';
     }
 
-    public static MyOpSerializer<CounterOperation> serializer = new MyOpSerializer<CounterOperation>() {
+    public static CRDTOpSerializer<CounterOperation> serializer = new CRDTOpSerializer<CounterOperation>() {
         @Override
         public void serialize(CounterOperation counterOperation, MySerializer[] serializers, ByteBuf out) throws IOException {
             Operation.serialize(counterOperation, out);

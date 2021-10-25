@@ -2,7 +2,7 @@ package crdts.utils;
 
 import datatypes.SerializableType;
 import io.netty.buffer.ByteBuf;
-import serializers.MyOpSerializer;
+import serializers.CRDTOpSerializer;
 import serializers.MySerializer;
 
 import java.io.IOException;
@@ -26,7 +26,7 @@ public class TaggedElement {
         return tag;
     }
 
-    public static MyOpSerializer<TaggedElement> serializer = new MyOpSerializer<TaggedElement>() {
+    public static CRDTOpSerializer<TaggedElement> serializer = new CRDTOpSerializer<TaggedElement>() {
         @Override
         public void serialize(TaggedElement taggedElement, MySerializer[] serializers, ByteBuf out) throws IOException {
             out.writeLong(taggedElement.tag.getMostSignificantBits());

@@ -4,7 +4,7 @@ import io.netty.buffer.ByteBuf;
 
 import java.io.IOException;
 
-public interface MyOpSerializer<T> {
+public interface CRDTOpSerializer<T> {
 
     void serialize(T t, MySerializer[] serializers, ByteBuf out) throws IOException;
 

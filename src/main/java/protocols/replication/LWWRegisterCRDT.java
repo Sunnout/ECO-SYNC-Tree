@@ -7,14 +7,11 @@ import datatypes.SerializableType;
 import io.netty.buffer.ByteBuf;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import protocols.replication.requests.DownstreamRequest;
-import pt.unl.fct.di.novasys.network.data.Host;
-import serializers.MyCRDTSerializer;
+import serializers.CRDTSerializer;
 import serializers.MySerializer;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.UUID;
 
 public class LWWRegisterCRDT implements RegisterCRDT, KernelCRDT {
 
@@ -76,7 +73,7 @@ public class LWWRegisterCRDT implements RegisterCRDT, KernelCRDT {
         this.ts = newRegister.getInstant();
     }
 
-    public static MyCRDTSerializer<RegisterCRDT> serializer = new MyCRDTSerializer<RegisterCRDT>() {
+    public static CRDTSerializer<RegisterCRDT> serializer = new CRDTSerializer<RegisterCRDT>() {
         @Override
         public void serialize(RegisterCRDT registerCRDT, MySerializer[] serializers, ByteBuf out) throws IOException {
             out.writeInt(registerCRDT.getCrdtId().getBytes().length);

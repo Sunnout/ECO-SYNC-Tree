@@ -2,7 +2,7 @@ package crdts.operations;
 
 import crdts.utils.TaggedElement;
 import io.netty.buffer.ByteBuf;
-import serializers.MyOpSerializer;
+import serializers.CRDTOpSerializer;
 import serializers.MySerializer;
 
 import java.io.*;
@@ -32,7 +32,7 @@ public class SetOperation extends Operation {
                 '}';
     }
 
-    public static MyOpSerializer<SetOperation> serializer = new MyOpSerializer<SetOperation>() {
+    public static CRDTOpSerializer<SetOperation> serializer = new CRDTOpSerializer<SetOperation>() {
         @Override
         public void serialize(SetOperation setOperation, MySerializer[] serializers, ByteBuf out) throws IOException {
             Operation.serialize(setOperation, out);

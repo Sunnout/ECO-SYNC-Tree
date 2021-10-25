@@ -6,8 +6,7 @@ import crdts.operations.Operation;
 import io.netty.buffer.ByteBuf;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import pt.unl.fct.di.novasys.network.data.Host;
-import serializers.MyCRDTSerializer;
+import serializers.CRDTSerializer;
 import serializers.MySerializer;
 
 import java.math.BigInteger;
@@ -82,7 +81,7 @@ public class OpCounterCRDT implements CounterCRDT, KernelCRDT {
         this.c = BigInteger.valueOf(((OpCounterCRDT) newCRDT).value());
     }
 
-    public static MyCRDTSerializer<CounterCRDT> serializer = new MyCRDTSerializer<CounterCRDT>() {
+    public static CRDTSerializer<CounterCRDT> serializer = new CRDTSerializer<CounterCRDT>() {
         @Override
         public void serialize(CounterCRDT counterCRDT, MySerializer[] serializers, ByteBuf out) {
             out.writeInt(counterCRDT.getCrdtId().getBytes().length);

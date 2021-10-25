@@ -1,7 +1,7 @@
 package crdts.operations;
 
 import io.netty.buffer.ByteBuf;
-import serializers.MyOpSerializer;
+import serializers.CRDTOpSerializer;
 import serializers.MySerializer;
 
 import java.io.IOException;
@@ -29,7 +29,7 @@ public class CreateOperation extends Operation {
                 '}';
     }
 
-    public static MyOpSerializer<CreateOperation> serializer = new MyOpSerializer<CreateOperation>() {
+    public static CRDTOpSerializer<CreateOperation> serializer = new CRDTOpSerializer<CreateOperation>() {
         @Override
         public void serialize(CreateOperation createOperation, MySerializer[] serializers, ByteBuf out) throws IOException {
             Operation.serialize(createOperation, out);

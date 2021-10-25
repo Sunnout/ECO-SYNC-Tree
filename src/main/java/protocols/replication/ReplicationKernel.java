@@ -18,15 +18,15 @@ import protocols.replication.requests.*;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.network.data.Host;
-import serializers.MyCRDTSerializer;
-import serializers.MyOpSerializer;
+import serializers.CRDTSerializer;
+import serializers.CRDTOpSerializer;
 import serializers.MySerializer;
 
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class ReplicationKernel extends GenericProtocol implements CRDTCommunicationInterface {
+public class ReplicationKernel extends GenericProtocol {
 
     private static final Logger logger = LogManager.getLogger(ReplicationKernel.class);
 
@@ -59,8 +59,8 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     private final Map<String, List<String>> dataTypesById; //Map that stores CRDT data types by their ID
 
     //Serializers
-    public static Map<String, MyCRDTSerializer> crdtSerializers = initializeCDRTSerializers(); //Static map of CRDT serializers for each crdt type
-    public static Map<String, MyOpSerializer> opSerializers = initializeOperationSerializers(); //Static map of operation serializers for each crdt type
+    public static Map<String, CRDTSerializer> crdtSerializers = initializeCDRTSerializers(); //Static map of CRDT serializers for each crdt type
+    public static Map<String, CRDTOpSerializer> opSerializers = initializeOperationSerializers(); //Static map of operation serializers for each crdt type
     public Map<String, List<MySerializer>> dataSerializers; //Map of data type serializers by crdt ID
 
     public ReplicationKernel(Host myself, short broadcastId) throws HandlerRegistrationException {
@@ -76,13 +76,10 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
 
         /* --------------------- Register Request Handlers --------------------- */
         registerRequestHandler(GetCRDTRequest.REQUEST_ID, this::uponGetCRDTRequest);
-        registerRequestHandler(DownstreamRequest.REQUEST_ID, this::uponDownstreamRequest);
         registerRequestHandler(CounterOperationRequest.REQUEST_ID, this::uponCounterOperationRequest);
         registerRequestHandler(RegisterOperationRequest.REQUEST_ID, this::uponRegisterOperationRequest);
         registerRequestHandler(SetOperationRequest.REQUEST_ID, this::uponSetOperationRequest);
         registerRequestHandler(MapOperationRequest.REQUEST_ID, this::uponMapOperationRequest);
-
-        registerRequestHandler(PrintStateRequest.REQUEST_ID, this::uponPrintStateRequest);
 
         /* --------------------- Register Notification Handlers --------------------- */
         subscribeNotification(DeliverNotification.NOTIFICATION_ID, this::uponDeliverNotification);
@@ -124,14 +121,6 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         }
     }
 
-    private void uponDownstreamRequest(DownstreamRequest request, short sourceProto) {
-        try {
-            sendRequest(new BroadcastRequest(request.getMsgId(), request.getSender(),
-                    serializeOperation(false, request.getOperation())), broadcastId);
-        } catch (IOException e) {
-            logger.error("Error in handling downstream request", e);
-        }
-    }
 
     private void uponCounterOperationRequest(CounterOperationRequest request, short sourceProto) {
         String crdtId = request.getCrdtId();
@@ -263,15 +252,6 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         }
     }
 
-    private void uponPrintStateRequest(PrintStateRequest request, short sourceProto) {
-        try {
-            logger.info("Final state hash: " + Arrays.hashCode(serializeCurrentState()));
-        } catch (IOException e) {
-            logger.error("Error in handling print state", e);
-        }
-    }
-
-
     /* --------------------------------- Notifications --------------------------------- */
 
     private void uponDeliverNotification(DeliverNotification notification, short sourceProto) {
@@ -304,18 +284,6 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         } catch (IOException e) {
             logger.error("Error when handling install state notification", e);
         }
-    }
-
-
-    /* --------------------------------- Interface Methods --------------------------------- */
-
-    /**
-     * CRDTs call this method in order to communicate to the kernel that there is a downstream operation
-     * @param request - request that contains the operation to propagate.
-     * @param sourceProto -
-     */
-    public void downstream(DownstreamRequest request, short sourceProto) {
-        sendRequest(new DownstreamRequest(request.getMsgId(), request.getSender(), request.getOperation()), PROTOCOL_ID);
     }
 
 
@@ -572,8 +540,8 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
      *
      * @return the created map.
      */
-    private static Map<String, MyOpSerializer> initializeOperationSerializers() {
-        Map<String, MyOpSerializer> map = new HashMap<>();
+    private static Map<String, CRDTOpSerializer> initializeOperationSerializers() {
+        Map<String, CRDTOpSerializer> map = new HashMap<>();
         map.put(COUNTER, CounterOperation.serializer);
         map.put(LWW_REGISTER, RegisterOperation.serializer);
         map.put(OR_SET, SetOperation.serializer);
@@ -581,8 +549,8 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         return map;
     }
 
-    private static Map<String, MyCRDTSerializer> initializeCDRTSerializers() {
-        Map<String, MyCRDTSerializer> map = new HashMap<>();
+    private static Map<String, CRDTSerializer> initializeCDRTSerializers() {
+        Map<String, CRDTSerializer> map = new HashMap<>();
         map.put(COUNTER, OpCounterCRDT.serializer);
         map.put(LWW_REGISTER, LWWRegisterCRDT.serializer);
         map.put(OR_SET, ORSetCRDT.serializer);

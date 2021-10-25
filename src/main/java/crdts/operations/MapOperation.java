@@ -3,7 +3,7 @@ package crdts.operations;
 import crdts.utils.TaggedElement;
 import datatypes.SerializableType;
 import io.netty.buffer.ByteBuf;
-import serializers.MyOpSerializer;
+import serializers.CRDTOpSerializer;
 import serializers.MySerializer;
 
 import java.io.*;
@@ -48,7 +48,7 @@ public class MapOperation extends Operation {
                 '}';
     }
 
-    public static MyOpSerializer<MapOperation> serializer = new MyOpSerializer<MapOperation>() {
+    public static CRDTOpSerializer<MapOperation> serializer = new CRDTOpSerializer<MapOperation>() {
         @Override
         public void serialize(MapOperation mapOperation, MySerializer[] serializers, ByteBuf out) throws IOException {
             MySerializer[] teSerializer = getValueSerializer(serializers);

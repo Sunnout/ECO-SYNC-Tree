@@ -8,7 +8,7 @@ import datatypes.SerializableType;
 import io.netty.buffer.ByteBuf;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import serializers.MyCRDTSerializer;
+import serializers.CRDTSerializer;
 import serializers.MySerializer;
 
 import java.io.IOException;
@@ -100,7 +100,7 @@ public class ORSetCRDT implements SetCRDT, KernelCRDT {
         this.set.addAll(newSet);
     }
 
-    public static MyCRDTSerializer<SetCRDT> serializer = new MyCRDTSerializer<SetCRDT>() {
+    public static CRDTSerializer<SetCRDT> serializer = new CRDTSerializer<SetCRDT>() {
         @Override
         public void serialize(SetCRDT setCRDT, MySerializer[] serializers, ByteBuf out) throws IOException {
             out.writeInt(setCRDT.getCrdtId().getBytes().length);

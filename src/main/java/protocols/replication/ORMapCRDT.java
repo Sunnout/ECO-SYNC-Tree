@@ -8,7 +8,7 @@ import datatypes.SerializableType;
 import io.netty.buffer.ByteBuf;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import serializers.MyCRDTSerializer;
+import serializers.CRDTSerializer;
 import serializers.MySerializer;
 
 import java.io.IOException;
@@ -133,7 +133,7 @@ public class ORMapCRDT implements MapCRDT, KernelCRDT {
         this.map.putAll(newMap);
     }
 
-    public static MyCRDTSerializer<MapCRDT> serializer = new MyCRDTSerializer<MapCRDT>() {
+    public static CRDTSerializer<MapCRDT> serializer = new CRDTSerializer<MapCRDT>() {
         @Override
         public void serialize(MapCRDT mapCRDT, MySerializer[] serializers, ByteBuf out) throws IOException {
             out.writeInt(mapCRDT.getCrdtId().getBytes().length);

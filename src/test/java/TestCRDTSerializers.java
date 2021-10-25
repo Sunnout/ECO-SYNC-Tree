@@ -36,7 +36,7 @@ public class TestCRDTSerializers {
     // To work we need to comment kernel.downstream in lww register crdt class
     private static void testRegisterCRDTSerializer() throws HandlerRegistrationException, IOException {
         LWWRegisterCRDT register = new LWWRegisterCRDT("CRDT2");
-        register.assign(new StringType("Eu sou uma string!"));
+        register.assignOperation(new StringType("Eu sou uma string!"));
         System.out.println(register.getCrdtId());
         System.out.println(register.value());
         ByteBuf buf = Unpooled.buffer();

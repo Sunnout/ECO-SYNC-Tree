@@ -8,8 +8,6 @@ import datatypes.SerializableType;
 import io.netty.buffer.ByteBuf;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import protocols.replication.requests.DownstreamRequest;
-import pt.unl.fct.di.novasys.network.data.Host;
 import serializers.MyCRDTSerializer;
 import serializers.MySerializer;
 
@@ -35,18 +33,15 @@ public class ORMapCRDT implements MapCRDT, KernelCRDT {
         DELETE
     }
 
-    private final CRDTCommunicationInterface kernel;
     private final String crdtId;
     private Map<SerializableType, Set<TaggedElement>> map;
 
-    public ORMapCRDT(CRDTCommunicationInterface kernel, String crdtId) {
-        this.kernel = kernel;
+    public ORMapCRDT(String crdtId) {
         this.crdtId = crdtId;
         this.map = new ConcurrentHashMap<>();
     }
 
-    public ORMapCRDT(CRDTCommunicationInterface kernel, String crdtId, Map<SerializableType, Set<TaggedElement>> map) {
-        this.kernel = kernel;
+    public ORMapCRDT(String crdtId, Map<SerializableType, Set<TaggedElement>> map) {
         this.crdtId = crdtId;
         this.map = new ConcurrentHashMap<>();
         this.map.putAll(map);
@@ -100,26 +95,20 @@ public class ORMapCRDT implements MapCRDT, KernelCRDT {
         return values;
     }
 
-    public synchronized void put(Host sender, SerializableType key, SerializableType value) {
+    public synchronized MapOperation put(SerializableType key, SerializableType value) {
         TaggedElement elem = new TaggedElement(value, UUID.randomUUID());
         Set<TaggedElement> toRemove = this.map.get(key);
         toRemove = checkForNullSet(toRemove);
         Set<TaggedElement> toAdd = new HashSet<>();
         toAdd.add(elem);
         this.map.put(key, toAdd);
-        Operation op = new MapOperation(MAP_PUT, crdtId, CRDT_TYPE, key, elem, toRemove);
-        UUID id = UUID.randomUUID();
-        logger.debug("Downstream put {} {} op for {} - {}", key, value, crdtId, id);
-        kernel.downstream(new DownstreamRequest(id, sender, op), (short)0);
+        return new MapOperation(MAP_PUT, crdtId, CRDT_TYPE, key, elem, toRemove);
     }
 
-    public synchronized void delete(Host sender, SerializableType key) {
+    public synchronized MapOperation delete(SerializableType key) {
         Set<TaggedElement> toRemove = this.map.remove(key);
         toRemove = checkForNullSet(toRemove);
-        Operation op = new MapOperation(MAP_DELETE, crdtId, CRDT_TYPE, key, null, toRemove);
-        UUID id = UUID.randomUUID();
-        logger.debug("Downstream delete {} op for {} - {}", key, crdtId, id);
-        kernel.downstream(new DownstreamRequest(id, sender, op), (short)0);
+        return new MapOperation(MAP_DELETE, crdtId, CRDT_TYPE, key, null, toRemove);
     }
 
     public synchronized void upstream(Operation op) {
@@ -162,7 +151,7 @@ public class ORMapCRDT implements MapCRDT, KernelCRDT {
         }
 
         @Override
-        public MapCRDT deserialize(CRDTCommunicationInterface kernel, MySerializer[] serializers, ByteBuf in) throws IOException {
+        public MapCRDT deserialize(MySerializer[] serializers, ByteBuf in) throws IOException {
             int size = in.readInt();
             byte[] crdtId = new byte[size];
             in.readBytes(crdtId);
@@ -177,7 +166,7 @@ public class ORMapCRDT implements MapCRDT, KernelCRDT {
                 }
                 map.put(key, set);
             }
-            return new ORMapCRDT(kernel, new String(crdtId), map);
+            return new ORMapCRDT(new String(crdtId), map);
         }
     };
 

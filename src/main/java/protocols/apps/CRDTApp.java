@@ -118,23 +118,23 @@ public class CRDTApp extends GenericProtocol {
 
     private void getCRDT(String crdtType, String[] dataType, String crdtId) {
         //Creating new CRDT by asking the replication kernel for it
-        sendRequest(new GetCRDTRequest(UUID.randomUUID(), self, crdtType, dataType, crdtId), replicationKernelId);
+        sendRequest(new GetCRDTRequest(UUID.randomUUID(), crdtType, dataType, crdtId), replicationKernelId);
     }
 
     private void executeCounterOperation(String crdtId, CounterOpType opType, int value) {
-        sendRequest(new CounterOperationRequest(self, crdtId, opType, value), replicationKernelId);
+        sendRequest(new CounterOperationRequest(crdtId, opType, value), replicationKernelId);
     }
 
     private void executeRegisterOperation(String crdtId, RegisterOpType opType, SerializableType value) {
-        sendRequest(new RegisterOperationRequest(self, crdtId, opType, value), replicationKernelId);
+        sendRequest(new RegisterOperationRequest(crdtId, opType, value), replicationKernelId);
     }
 
     private void executeSetOperation(String crdtId, SetOpType opType, SerializableType value) {
-        sendRequest(new SetOperationRequest(self, crdtId, opType, value), replicationKernelId);
+        sendRequest(new SetOperationRequest(crdtId, opType, value), replicationKernelId);
     }
 
     private void executeMapOperation(String crdtId, MapOpType opType, SerializableType key, SerializableType value) {
-        sendRequest(new MapOperationRequest(self, crdtId, opType, key, value), replicationKernelId);
+        sendRequest(new MapOperationRequest(crdtId, opType, key, value), replicationKernelId);
     }
 
 

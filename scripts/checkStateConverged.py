@@ -45,7 +45,7 @@ for n_process in processes:
             for run in runs:
                 wrong = []
                 results = {}
-                print(f"Starting to process {proto} with {n_process} nodes and probability {prob}  ( run {run})")
+                print(f"Starting to process {proto} with {n_process} nodes and probability {prob} (run {run})")
                 logs_folder = logs_folder_template.format(n_process, proto, prob, run)
                 all_files = glob.glob(f"{logs_folder}/node_*.log")
                 if len(all_files) == 0:

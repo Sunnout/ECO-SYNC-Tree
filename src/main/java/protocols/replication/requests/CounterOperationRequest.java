@@ -10,21 +10,15 @@ public class CounterOperationRequest extends ProtoRequest {
 
     public static final short REQUEST_ID = 605;
 
-    private final Host sender;
     private final String crdtId;
     private final OpCounterCRDT.CounterOpType opType;
     private final int value;
 
-    public CounterOperationRequest(Host sender, String crdtId, OpCounterCRDT.CounterOpType opType, int value) {
+    public CounterOperationRequest(String crdtId, OpCounterCRDT.CounterOpType opType, int value) {
         super(REQUEST_ID);
-        this.sender = sender;
         this.crdtId = crdtId;
         this.opType = opType;
         this.value = value;
-    }
-
-    public Host getSender() {
-        return sender;
     }
 
     public String getCrdtId() {

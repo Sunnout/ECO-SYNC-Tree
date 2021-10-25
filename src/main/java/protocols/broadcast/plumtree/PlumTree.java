@@ -207,7 +207,6 @@ public class PlumTree extends GenericProtocol {
         VectorClock newVC = this.stateAndVC.getVc();
         newVC.setHostClock(myself, seqNumber);
         this.stateAndVC.setVC(newVC);
-        garbageCollectOldOperations();
     }
 
 
@@ -920,13 +919,11 @@ public class PlumTree extends GenericProtocol {
         logger.debug("My VC pos is {} and my seqNumber is {}; executing {} ops", vectorClock.getHostClock(myself), seqNumber, myLateOps.size());
         for(GossipMessage msg : myLateOps) {
             vectorClock.incrementClock(myself);
+            logger.debug("Reexecuting {}-{} : {}", msg.getOriginalSender(), msg.getSenderClock(), msg.getMid());
             triggerNotification(new DeliverNotification(msg.getMid(), myself, msg.getContent(), false));
         }
     }
 
-    private void garbageCollectOldOperations() {
-        //TODO: garbage collect op > x time
-    }
 
     /*--------------------------------- Channel Metrics ---------------------------------*/
 

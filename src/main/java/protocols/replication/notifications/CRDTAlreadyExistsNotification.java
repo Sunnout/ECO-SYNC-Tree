@@ -8,19 +8,13 @@ import java.util.UUID;
 public class CRDTAlreadyExistsNotification extends ProtoNotification {
     public static final short NOTIFICATION_ID = 601;
 
-    private final Host sender;
     private final UUID msgId;
     private final String crdtId;
 
-    public CRDTAlreadyExistsNotification(UUID msgId, Host sender, String crdtId) {
+    public CRDTAlreadyExistsNotification(UUID msgId, String crdtId) {
         super(NOTIFICATION_ID);
         this.msgId = msgId;
-        this.sender = sender;
         this.crdtId = crdtId;
-    }
-
-    public Host getSender() {
-        return sender;
     }
 
     public UUID getMsgId() {

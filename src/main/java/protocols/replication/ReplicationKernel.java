@@ -52,6 +52,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     private static final String BYTE = "byte";
 
     private final short broadcastId; //Broadcast protocol ID
+    private final Host myself;
 
     private final Map<String, KernelCRDT> crdtsById; //Map that stores CRDTs by their ID
     private final Map<String, String> crdtTypesById; //Map that stores CRDT Types by their ID
@@ -62,8 +63,9 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
     public static Map<String, MyOpSerializer> opSerializers = initializeOperationSerializers(); //Static map of operation serializers for each crdt type
     public Map<String, List<MySerializer>> dataSerializers; //Map of data type serializers by crdt ID
 
-    public ReplicationKernel(short broadcastId) throws HandlerRegistrationException {
+    public ReplicationKernel(Host myself, short broadcastId) throws HandlerRegistrationException {
         super(PROTOCOL_NAME, PROTOCOL_ID);
+        this.myself = myself;
         this.broadcastId = broadcastId;
 
         this.crdtsById = new ConcurrentHashMap<>();
@@ -102,21 +104,20 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
             String crdtId = request.getCrdtId();
             String crdtType = request.getCrdtType();
             String[] dataTypes = request.getDataType();
-            Host sender = request.getSender();
             UUID msgId = request.getMsgId();
 
             KernelCRDT crdt = crdtsById.get(crdtId);
             if (crdt != null) {
                 if (validateCrdtType(crdt, crdtType)) {
-                    triggerNotification(new ReturnCRDTNotification(msgId, sender, crdt));
+                    triggerNotification(new ReturnCRDTNotification(msgId, crdt));
                 } else {
-                    triggerNotification(new CRDTAlreadyExistsNotification(msgId, sender, crdtId));
+                    triggerNotification(new CRDTAlreadyExistsNotification(msgId, crdtId));
                 }
             } else {
                 crdt = createNewCrdt(crdtId, crdtType, dataTypes);
-                triggerNotification(new ReturnCRDTNotification(msgId, sender, crdt));
+                triggerNotification(new ReturnCRDTNotification(msgId, crdt));
                 CreateOperation op = new CreateOperation(CREATE_CRDT, crdtId, crdtType, dataTypes);
-                sendRequest(new BroadcastRequest(msgId, sender, serializeOperation(true, op)), broadcastId);
+                sendRequest(new BroadcastRequest(msgId, myself, serializeOperation(true, op)), broadcastId);
             }
         } catch (IOException e) {
             logger.error("Error when creating CRDT", e);
@@ -138,31 +139,35 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
 
         if(crdt != null) {
             if(crdt instanceof OpCounterCRDT) {
-                Host sender = request.getSender();
                 int value = request.getValue();
                 OpCounterCRDT.CounterOpType opType = request.getOpType();
+                CounterOperation op = null;
                 switch(opType) {
                     case INCREMENT:
-                        ((OpCounterCRDT) crdt).increment(sender);
+                        op = ((OpCounterCRDT) crdt).increment();
                         break;
                     case DECREMENT:
-                        ((OpCounterCRDT) crdt).decrement(sender);
+                        op = ((OpCounterCRDT) crdt).decrement();
                         break;
                     case INCREMENT_BY:
-                        ((OpCounterCRDT) crdt).incrementBy(sender, value);
+                        op = ((OpCounterCRDT) crdt).incrementBy(value);
                         break;
                     case DECREMENT_BY:
-                        ((OpCounterCRDT) crdt).decrementBy(sender, value);
+                        op = ((OpCounterCRDT) crdt).decrementBy(value);
                         break;
                     default:
                         //No other ops
                         break;
                 }
-            } else {
-                //CRDT with crdtId is not a counterCRDT
+
+                try {
+                    UUID mid = UUID.randomUUID();
+                    logger.debug("Downstream {} {} op for {} - {}", opType, value, crdtId, mid);
+                    sendRequest(new BroadcastRequest(mid, myself, serializeOperation(false, op)), broadcastId);
+                } catch (Exception e) {
+                    logger.error("Error handling counter downstream request", e);
+                }
             }
-        } else {
-            //No CRDT with crdtId
         }
     }
 
@@ -172,22 +177,21 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
 
         if(crdt != null) {
             if(crdt instanceof LWWRegisterCRDT) {
-                Host sender = request.getSender();
                 SerializableType value = request.getValue();
                 LWWRegisterCRDT.RegisterOpType opType = request.getOpType();
-                switch(opType) {
-                    case ASSIGN:
-                        ((LWWRegisterCRDT) crdt).assign(sender, value);
-                        break;
-                    default:
-                        //No other ops
-                        break;
+                RegisterOperation op = null;
+                if (opType == LWWRegisterCRDT.RegisterOpType.ASSIGN) {
+                    op = ((LWWRegisterCRDT) crdt).assign(value);
                 }
-            } else {
-                //CRDT with crdtId is not a registerCRDT
+
+                try {
+                    UUID mid = UUID.randomUUID();
+                    logger.debug("Downstream {} {} op for {} - {}", opType, value, crdtId, mid);
+                    sendRequest(new BroadcastRequest(mid, myself, serializeOperation(false, op)), broadcastId);
+                } catch (Exception e) {
+                    logger.error("Error handling register downstream request", e);
+                }
             }
-        } else {
-            //No CRDT with crdtId
         }
     }
 
@@ -197,25 +201,29 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
 
         if(crdt != null) {
             if(crdt instanceof ORSetCRDT) {
-                Host sender = request.getSender();
                 SerializableType value = request.getValue();
                 ORSetCRDT.SetOpType opType = request.getOpType();
+                SetOperation op = null;
                 switch(opType) {
                     case ADD:
-                        ((ORSetCRDT) crdt).add(sender, value);
+                        op = ((ORSetCRDT) crdt).add(value);
                         break;
                     case REMOVE:
-                        ((ORSetCRDT) crdt).remove(sender, value);
+                        op = ((ORSetCRDT) crdt).remove(value);
                         break;
                     default:
                         //No other ops
                         break;
                 }
-            } else {
-                //CRDT with crdtId is not a orSetCRDT
+
+                try {
+                    UUID mid = UUID.randomUUID();
+                    logger.debug("Downstream {} {} op for {} - {}", opType, value, crdtId, mid);
+                    sendRequest(new BroadcastRequest(mid, myself, serializeOperation(false, op)), broadcastId);
+                } catch (Exception e) {
+                    logger.error("Error handling set downstream request", e);
+                }
             }
-        } else {
-            //No CRDT with crdtId
         }
     }
 
@@ -225,26 +233,33 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
 
         if(crdt != null) {
             if(crdt instanceof ORMapCRDT) {
-                Host sender = request.getSender();
                 SerializableType key = request.getKey();
                 SerializableType value = request.getValue();
                 ORMapCRDT.MapOpType opType = request.getOpType();
+                MapOperation op = null;
                 switch(opType) {
                     case PUT:
-                        ((ORMapCRDT) crdt).put(sender, key, value);
+                        op = ((ORMapCRDT) crdt).put(key, value);
                         break;
                     case DELETE:
-                        ((ORMapCRDT) crdt).delete(sender, key);
+                        op = ((ORMapCRDT) crdt).delete(key);
                         break;
                     default:
                         //No other ops
                         break;
                 }
-            } else {
-                //CRDT with crdtId is not a orMapCRDT
+
+                try {
+                    UUID mid = UUID.randomUUID();
+                    if(opType == ORMapCRDT.MapOpType.PUT)
+                        logger.debug("Downstream {} {} op for {} {} - {}", opType, key, value, crdtId, mid);
+                    else
+                        logger.debug("Downstream {} {} op for {} - {}", opType, key, crdtId, mid);
+                    sendRequest(new BroadcastRequest(mid, myself, serializeOperation(false, op)), broadcastId);
+                } catch (Exception e) {
+                    logger.error("Error handling map downstream request", e);
+                }
             }
-        } else {
-            //No CRDT with crdtId
         }
     }
 
@@ -341,8 +356,6 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         for(Map.Entry<String, KernelCRDT> entry : crdtsById.entrySet()) {
             String crdtId = entry.getKey();
             String crdtType = crdtTypesById.get(crdtId);
-            if(crdtType == null)
-                logger.error("crdtType was null");
             List<String> dataTypes = dataTypesById.get(crdtId);
             buf.writeInt(crdtId.length());
             buf.writeBytes(crdtId.getBytes());
@@ -390,7 +403,7 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
                 crdt = createNewCrdt(crdtId, crdtType, dataTypes);
 
             MySerializer[] serializers = dataSerializers.get(crdtId).toArray(new MySerializer[2]);
-            KernelCRDT newCRDT = (KernelCRDT) crdtSerializers.get(crdtType).deserialize(this, serializers, buf);
+            KernelCRDT newCRDT = (KernelCRDT) crdtSerializers.get(crdtType).deserialize(serializers, buf);
             crdt.installState(newCRDT);
         }
     }
@@ -531,19 +544,19 @@ public class ReplicationKernel extends GenericProtocol implements CRDTCommunicat
         KernelCRDT crdt;
         switch (crdtType) {
             case COUNTER:
-                crdt = new OpCounterCRDT(this, crdtId);
+                crdt = new OpCounterCRDT(crdtId);
                 crdtTypesById.put(crdtId, COUNTER);
                 break;
             case LWW_REGISTER:
-                crdt = new LWWRegisterCRDT(this, crdtId);
+                crdt = new LWWRegisterCRDT(crdtId);
                 crdtTypesById.put(crdtId, LWW_REGISTER);
                 break;
             case OR_SET:
-                crdt = new ORSetCRDT(this, crdtId);
+                crdt = new ORSetCRDT(crdtId);
                 crdtTypesById.put(crdtId, OR_SET);
                 break;
             case OR_MAP:
-                crdt = new ORMapCRDT(this, crdtId);
+                crdt = new ORMapCRDT(crdtId);
                 crdtTypesById.put(crdtId, OR_MAP);
                 break;
             default:

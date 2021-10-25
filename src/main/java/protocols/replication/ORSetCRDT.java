@@ -8,8 +8,6 @@ import datatypes.SerializableType;
 import io.netty.buffer.ByteBuf;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import protocols.replication.requests.DownstreamRequest;
-import pt.unl.fct.di.novasys.network.data.Host;
 import serializers.MyCRDTSerializer;
 import serializers.MySerializer;
 
@@ -30,18 +28,15 @@ public class ORSetCRDT implements SetCRDT, KernelCRDT {
         REMOVE
     }
 
-    private final CRDTCommunicationInterface kernel;
     private final String crdtId;
     private Set<TaggedElement> set;
 
-    public ORSetCRDT(CRDTCommunicationInterface kernel, String crdtId) {
-        this.kernel = kernel;
+    public ORSetCRDT(String crdtId) {
         this.crdtId = crdtId;
         this.set = new HashSet<>();
     }
 
-    public ORSetCRDT(CRDTCommunicationInterface kernel, String crdtId, Set<TaggedElement> set) {
-        this.kernel = kernel;
+    public ORSetCRDT(String crdtId, Set<TaggedElement> set) {
         this.crdtId = crdtId;
         this.set = new HashSet<>();
         this.set.addAll(set);
@@ -66,18 +61,15 @@ public class ORSetCRDT implements SetCRDT, KernelCRDT {
         return elemSet;
     }
 
-    public synchronized void add(Host sender, SerializableType elem) {
+    public synchronized SetOperation add(SerializableType elem) {
         TaggedElement e = new TaggedElement(elem, UUID.randomUUID());
         Set<TaggedElement> toAdd = new HashSet<>();
         this.set.add(e);
         toAdd.add(e);
-        Operation op = new SetOperation(SET_ADD, crdtId, CRDT_TYPE, toAdd);
-        UUID id = UUID.randomUUID();
-        logger.debug("Downstream add {} op for {} - {}", elem, crdtId, id);
-        kernel.downstream(new DownstreamRequest(id, sender, op), (short)0);
+        return new SetOperation(SET_ADD, crdtId, CRDT_TYPE, toAdd);
     }
 
-    public synchronized void remove(Host sender, SerializableType elem) {
+    public synchronized SetOperation remove(SerializableType elem) {
         Set<TaggedElement> toRemove = new HashSet<>();
         Iterator<TaggedElement> it = this.set.iterator();
 
@@ -88,10 +80,7 @@ public class ORSetCRDT implements SetCRDT, KernelCRDT {
                 it.remove();
             }
         }
-        Operation op = new SetOperation(SET_REMOVE, crdtId, CRDT_TYPE, toRemove);
-        UUID id = UUID.randomUUID();
-        logger.debug("Downstream remove {} op for {} - {}", elem, crdtId, id);
-        kernel.downstream(new DownstreamRequest(UUID.randomUUID(), sender, op), (short)0);
+        return new SetOperation(SET_REMOVE, crdtId, CRDT_TYPE, toRemove);
     }
 
     public synchronized void upstream(Operation op) {
@@ -124,7 +113,7 @@ public class ORSetCRDT implements SetCRDT, KernelCRDT {
         }
 
         @Override
-        public SetCRDT deserialize(CRDTCommunicationInterface kernel, MySerializer[] serializers, ByteBuf in) throws IOException {
+        public SetCRDT deserialize(MySerializer[] serializers, ByteBuf in) throws IOException {
             int size = in.readInt();
             byte[] crdtId = new byte[size];
             in.readBytes(crdtId);
@@ -133,7 +122,7 @@ public class ORSetCRDT implements SetCRDT, KernelCRDT {
             for(int i = 0; i < size; i++) {
                 set.add(TaggedElement.serializer.deserialize(serializers, in));
             }
-            return new ORSetCRDT(kernel, new String(crdtId), set);
+            return new ORSetCRDT(new String(crdtId), set);
         }
     };
 

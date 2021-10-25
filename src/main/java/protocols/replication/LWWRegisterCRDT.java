@@ -27,20 +27,17 @@ public class LWWRegisterCRDT implements RegisterCRDT, KernelCRDT {
         ASSIGN
     }
 
-    private final CRDTCommunicationInterface kernel;
     private final String crdtId;
     private SerializableType value;
     private Instant ts;
 
-    public LWWRegisterCRDT(CRDTCommunicationInterface kernel, String crdtId) {
-        this.kernel = kernel;
+    public LWWRegisterCRDT(String crdtId) {
         this.crdtId = crdtId;
         this.ts = Instant.now();
         this.value = null;
     }
 
-    public LWWRegisterCRDT(CRDTCommunicationInterface kernel, String crdtId, Instant ts, SerializableType value) {
-        this.kernel = kernel;
+    public LWWRegisterCRDT(String crdtId, Instant ts, SerializableType value) {
         this.crdtId = crdtId;
         this.ts = ts;
         this.value = value;
@@ -55,13 +52,10 @@ public class LWWRegisterCRDT implements RegisterCRDT, KernelCRDT {
         return this.value;
     }
 
-    public synchronized void assign(Host sender, SerializableType value) {
+    public synchronized RegisterOperation assign(SerializableType value) {
         this.ts = Instant.now();
         this.value = value;
-        Operation op = new RegisterOperation(ASSIGN, crdtId, CRDT_TYPE, value, this.ts);
-        UUID id = UUID.randomUUID();
-        logger.debug("Downstream assign {} op for {} - {}", value, crdtId, id);
-        kernel.downstream(new DownstreamRequest(id, sender, op), (short)0);
+        return new RegisterOperation(ASSIGN, crdtId, CRDT_TYPE, value, this.ts);
     }
 
     public synchronized void upstream(Operation op) {
@@ -89,18 +83,24 @@ public class LWWRegisterCRDT implements RegisterCRDT, KernelCRDT {
             out.writeBytes(registerCRDT.getCrdtId().getBytes());
             out.writeLong(((LWWRegisterCRDT)registerCRDT).getInstant().getEpochSecond());
             out.writeInt(((LWWRegisterCRDT)registerCRDT).getInstant().getNano());
-            serializers[0].serialize(registerCRDT.value(), out);
+            boolean isNull = ((LWWRegisterCRDT) registerCRDT).value == null;
+            out.writeBoolean(isNull);
+            if(!isNull)
+                serializers[0].serialize(registerCRDT.value(), out);
         }
 
         @Override
-        public RegisterCRDT deserialize(CRDTCommunicationInterface kernel, MySerializer[] serializers, ByteBuf in) throws IOException {
+        public RegisterCRDT deserialize(MySerializer[] serializers, ByteBuf in) throws IOException {
             int size = in.readInt();
             byte[] crdtId = new byte[size];
             in.readBytes(crdtId);
             long epoch = in.readLong();
             int nano = in.readInt();
-            SerializableType value = (SerializableType) serializers[0].deserialize(in);
-            return new LWWRegisterCRDT(kernel, new String(crdtId), Instant.ofEpochSecond(epoch, nano), value);
+            boolean isNull = in.readBoolean();
+            SerializableType value = null;
+            if(!isNull)
+                value = (SerializableType) serializers[0].deserialize(in);
+            return new LWWRegisterCRDT(new String(crdtId), Instant.ofEpochSecond(epoch, nano), value);
         }
     };
 

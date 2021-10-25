@@ -195,6 +195,7 @@ public class PlumTree extends GenericProtocol {
         UUID mid = request.getMsgId();
         byte[] content = request.getMsg();
         logger.info("SENT {}", mid);
+        triggerNotification(new DeliverNotification(mid, myself, content, false));
         logger.info("RECEIVED {}", mid);
         GossipMessage msg = new GossipMessage(mid, myself, ++seqNumber, content);
         logger.debug("Accepted my op {}-{}: {} to {}", myself, seqNumber, mid, eager);

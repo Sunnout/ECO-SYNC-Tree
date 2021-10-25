@@ -61,15 +61,14 @@ public class ORSetCRDT implements SetCRDT, KernelCRDT {
         return elemSet;
     }
 
-    public synchronized SetOperation add(SerializableType elem) {
+    public synchronized SetOperation addOperation(SerializableType elem) {
         TaggedElement e = new TaggedElement(elem, UUID.randomUUID());
         Set<TaggedElement> toAdd = new HashSet<>();
-        this.set.add(e);
         toAdd.add(e);
         return new SetOperation(SET_ADD, crdtId, CRDT_TYPE, toAdd);
     }
 
-    public synchronized SetOperation remove(SerializableType elem) {
+    public synchronized SetOperation removeOperation(SerializableType elem) {
         Set<TaggedElement> toRemove = new HashSet<>();
         Iterator<TaggedElement> it = this.set.iterator();
 
@@ -77,7 +76,6 @@ public class ORSetCRDT implements SetCRDT, KernelCRDT {
             TaggedElement e = it.next();
             if(e.getValue().equals(elem)) {
                 toRemove.add(e);
-                it.remove();
             }
         }
         return new SetOperation(SET_REMOVE, crdtId, CRDT_TYPE, toRemove);

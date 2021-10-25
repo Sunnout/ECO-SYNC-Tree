@@ -95,18 +95,15 @@ public class ORMapCRDT implements MapCRDT, KernelCRDT {
         return values;
     }
 
-    public synchronized MapOperation put(SerializableType key, SerializableType value) {
+    public synchronized MapOperation putOperation(SerializableType key, SerializableType value) {
         TaggedElement elem = new TaggedElement(value, UUID.randomUUID());
         Set<TaggedElement> toRemove = this.map.get(key);
         toRemove = checkForNullSet(toRemove);
-        Set<TaggedElement> toAdd = new HashSet<>();
-        toAdd.add(elem);
-        this.map.put(key, toAdd);
         return new MapOperation(MAP_PUT, crdtId, CRDT_TYPE, key, elem, toRemove);
     }
 
-    public synchronized MapOperation delete(SerializableType key) {
-        Set<TaggedElement> toRemove = this.map.remove(key);
+    public synchronized MapOperation deleteOperation(SerializableType key) {
+        Set<TaggedElement> toRemove = this.map.get(key);
         toRemove = checkForNullSet(toRemove);
         return new MapOperation(MAP_DELETE, crdtId, CRDT_TYPE, key, null, toRemove);
     }

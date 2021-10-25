@@ -48,21 +48,19 @@ public class OpCounterCRDT implements CounterCRDT, KernelCRDT {
         return this.c.intValue();
     }
 
-    public synchronized CounterOperation increment() {
-        return this.incrementBy(1);
+    public synchronized CounterOperation incrementOperation() {
+        return this.incrementByOperation(1);
     }
 
-    public synchronized CounterOperation incrementBy(int v) {
-        this.c = this.c.add(BigInteger.valueOf(v));
+    public synchronized CounterOperation incrementByOperation(int v) {
         return new CounterOperation(INCREMENT, crdtId, CRDT_TYPE, v);
     }
 
-    public synchronized CounterOperation decrement() {
-        return this.decrementBy(1);
+    public synchronized CounterOperation decrementOperation() {
+        return this.decrementByOperation(1);
     }
 
-    public synchronized CounterOperation decrementBy(int v) {
-        this.c = this.c.subtract(BigInteger.valueOf(v));
+    public synchronized CounterOperation decrementByOperation(int v) {
         return new CounterOperation(DECREMENT, crdtId, CRDT_TYPE, v);
     }
 

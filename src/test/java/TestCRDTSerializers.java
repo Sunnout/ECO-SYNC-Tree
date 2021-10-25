@@ -1,14 +1,11 @@
 import datatypes.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import protocols.broadcast.plumtree.PlumTree;
 import protocols.replication.*;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
-import pt.unl.fct.di.novasys.network.data.Host;
 import serializers.MySerializer;
 
 import java.io.IOException;
-import java.net.InetAddress;
 
 public class TestCRDTSerializers {
 
@@ -24,7 +21,7 @@ public class TestCRDTSerializers {
     // To work we need to comment kernel.downstream in op counter crdt class
     private static void testCounterCRDTSerializer() throws HandlerRegistrationException, IOException {
         OpCounterCRDT counter = new OpCounterCRDT("CRDT1");
-        counter.incrementBy(6);
+        counter.incrementByOperation(6);
         System.out.println(counter.getCrdtId());
         System.out.println(counter.value());
         ByteBuf buf = Unpooled.buffer();
@@ -54,11 +51,11 @@ public class TestCRDTSerializers {
     // To work we need to comment kernel.downstream in add and remove in or set crdt class
     private static void testSetCRDTSerializer() throws HandlerRegistrationException, IOException {
         ORSetCRDT set = new ORSetCRDT("CRDT3");
-        set.add(new BooleanType(true));
-        set.add(new BooleanType(true));
-        set.add(new BooleanType(false));
-        set.remove(new BooleanType(false));
-        set.add(new BooleanType(false));
+        set.addOperation(new BooleanType(true));
+        set.addOperation(new BooleanType(true));
+        set.addOperation(new BooleanType(false));
+        set.removeOperation(new BooleanType(false));
+        set.addOperation(new BooleanType(false));
         System.out.println(set.getCrdtId());
         System.out.println(set.elements());
         ByteBuf buf = Unpooled.buffer();
@@ -73,10 +70,10 @@ public class TestCRDTSerializers {
     // To work we need to comment kernel.downstream in put and delete in or map crdt class
     private static void testMapCRDTSerializer() throws HandlerRegistrationException, IOException {
         ORMapCRDT map = new ORMapCRDT("CRDT4");
-        map.put(new ByteType((byte)1), new ShortType((short)3));
-        map.put(new ByteType((byte)1), new ShortType((short)7));
-        map.delete(new ByteType((byte)1));
-        map.put(new ByteType((byte)0), new ShortType((short)47));
+        map.putOperation(new ByteType((byte)1), new ShortType((short)3));
+        map.putOperation(new ByteType((byte)1), new ShortType((short)7));
+        map.deleteOperation(new ByteType((byte)1));
+        map.putOperation(new ByteType((byte)0), new ShortType((short)47));
         System.out.println("ID: " + map.getCrdtId());
         System.out.println("Keys: " + map.keys());
         System.out.println("Values: " + map.values());

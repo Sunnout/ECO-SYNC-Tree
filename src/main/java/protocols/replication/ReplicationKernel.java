@@ -133,16 +133,16 @@ public class ReplicationKernel extends GenericProtocol {
                 CounterOperation op = null;
                 switch(opType) {
                     case INCREMENT:
-                        op = ((OpCounterCRDT) crdt).increment();
+                        op = ((OpCounterCRDT) crdt).incrementOperation();
                         break;
                     case DECREMENT:
-                        op = ((OpCounterCRDT) crdt).decrement();
+                        op = ((OpCounterCRDT) crdt).decrementOperation();
                         break;
                     case INCREMENT_BY:
-                        op = ((OpCounterCRDT) crdt).incrementBy(value);
+                        op = ((OpCounterCRDT) crdt).incrementByOperation(value);
                         break;
                     case DECREMENT_BY:
-                        op = ((OpCounterCRDT) crdt).decrementBy(value);
+                        op = ((OpCounterCRDT) crdt).decrementByOperation(value);
                         break;
                     default:
                         //No other ops
@@ -170,7 +170,7 @@ public class ReplicationKernel extends GenericProtocol {
                 LWWRegisterCRDT.RegisterOpType opType = request.getOpType();
                 RegisterOperation op = null;
                 if (opType == LWWRegisterCRDT.RegisterOpType.ASSIGN) {
-                    op = ((LWWRegisterCRDT) crdt).assign(value);
+                    op = ((LWWRegisterCRDT) crdt).assignOperation(value);
                 }
 
                 try {
@@ -195,10 +195,10 @@ public class ReplicationKernel extends GenericProtocol {
                 SetOperation op = null;
                 switch(opType) {
                     case ADD:
-                        op = ((ORSetCRDT) crdt).add(value);
+                        op = ((ORSetCRDT) crdt).addOperation(value);
                         break;
                     case REMOVE:
-                        op = ((ORSetCRDT) crdt).remove(value);
+                        op = ((ORSetCRDT) crdt).removeOperation(value);
                         break;
                     default:
                         //No other ops
@@ -228,10 +228,10 @@ public class ReplicationKernel extends GenericProtocol {
                 MapOperation op = null;
                 switch(opType) {
                     case PUT:
-                        op = ((ORMapCRDT) crdt).put(key, value);
+                        op = ((ORMapCRDT) crdt).putOperation(key, value);
                         break;
                     case DELETE:
-                        op = ((ORMapCRDT) crdt).delete(key);
+                        op = ((ORMapCRDT) crdt).deleteOperation(key);
                         break;
                     default:
                         //No other ops

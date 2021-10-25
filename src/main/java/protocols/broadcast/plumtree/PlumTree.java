@@ -8,7 +8,6 @@ import protocols.broadcast.common.utils.StateAndVC;
 import protocols.broadcast.common.utils.VectorClock;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import protocols.broadcast.common.utils.SingleFileManager;
 import protocols.broadcast.common.messages.SendVectorClockMessage;
 import protocols.broadcast.common.messages.SynchronizationMessage;
 import protocols.broadcast.common.messages.VectorClockMessage;

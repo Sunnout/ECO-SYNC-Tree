@@ -203,6 +203,7 @@ public class PlumTree extends GenericProtocol {
     private void uponStateRequest(StateRequest request, short sourceProto) {
         logger.debug("Received {}", request);
         this.stateAndVC.setState(request.getState());
+        this.stateAndVC.setVC(request.getVc());
     }
 
 
@@ -551,8 +552,7 @@ public class PlumTree extends GenericProtocol {
     private void uponSaveStateTimeout(SaveStateTimeout timeout, long timerId) {
         VectorClock newVC = new VectorClock(vectorClock.getClock());
         newVC.setHostClock(myself, seqNumber);
-        this.stateAndVC.setVC(newVC);
-        triggerNotification(new SendStateNotification(UUID.randomUUID()));
+        triggerNotification(new SendStateNotification(UUID.randomUUID(), newVC));
     }
 
     private void uponGarbageCollectionTimeout(GarbageCollectionTimeout timeout, long timerId) {

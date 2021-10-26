@@ -273,7 +273,7 @@ public class ReplicationKernel extends GenericProtocol {
 
     private void uponSendStateNotification(SendStateNotification notification, short sourceProto) {
         try {
-            sendRequest(new StateRequest(notification.getMsgId(), serializeCurrentState()), broadcastId);
+            sendRequest(new StateRequest(notification.getMsgId(), notification.getVc(), serializeCurrentState()), broadcastId);
         } catch (IOException e) {
             logger.error("Error when handling send state notification", e);
         }

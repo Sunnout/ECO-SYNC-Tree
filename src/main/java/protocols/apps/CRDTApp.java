@@ -143,7 +143,7 @@ public class CRDTApp extends GenericProtocol {
     private void uponReturnCRDTNotification(ReturnCRDTNotification notification, short sourceProto) {
         GenericCRDT crdt = notification.getCrdt();
         String crdtId = crdt.getCrdtId();
-        logger.info("CRDT {} was created by {}", crdtId, self);
+        logger.info("CRDT {} was created by {} - {}", crdtId, self, notification.getMsgId());
         myCRDTs.put(crdtId, crdt);
     }
 

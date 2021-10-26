@@ -50,7 +50,7 @@ public class LWWRegisterCRDT implements RegisterCRDT, KernelCRDT {
     }
 
     public synchronized RegisterOperation assignOperation(SerializableType value) {
-        return new RegisterOperation(ASSIGN, crdtId, CRDT_TYPE, value, this.ts);
+        return new RegisterOperation(ASSIGN, crdtId, CRDT_TYPE, value, Instant.now());
     }
 
     public synchronized void upstream(Operation op) {

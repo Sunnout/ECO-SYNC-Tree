@@ -48,7 +48,6 @@ public class PlumTree extends GenericProtocol {
     private final long checkTreeMsgsTimeout;
 
     private final long garbageCollectionTimeout;
-    private final long garbageCollectionTTL;
     private final long saveStateTimeout;
     private StateAndVC stateAndVC; // Current state and corresponding VC
 
@@ -89,7 +88,7 @@ public class PlumTree extends GenericProtocol {
         this.checkTreeMsgsTimeout = Long.parseLong(properties.getProperty("check_tree_msgs_timeout", "5000"));
 
         this.garbageCollectionTimeout = Long.parseLong(properties.getProperty("garbage_collection_timeout", "15")) * SECONDS_TO_MILLIS;
-        this.garbageCollectionTTL = Long.parseLong(properties.getProperty("garbage_collection_ttl", "60")) * SECONDS_TO_MILLIS;
+        long garbageCollectionTTL = Long.parseLong(properties.getProperty("garbage_collection_ttl", "60")) * SECONDS_TO_MILLIS;
         this.saveStateTimeout = Long.parseLong(properties.getProperty("save_state_timeout", "30")) * SECONDS_TO_MILLIS;
         this.stateAndVC = new StateAndVC(null, new VectorClock(myself));
 
@@ -197,16 +196,13 @@ public class PlumTree extends GenericProtocol {
         triggerNotification(new DeliverNotification(mid, myself, content, false));
         logger.info("RECEIVED {}", mid);
         GossipMessage msg = new GossipMessage(mid, myself, ++seqNumber, content);
-        logger.debug("Accepted my op {}-{}: {} to {}", myself, seqNumber, mid, eager);
+        logger.debug("Accepted my op {}-{}: {}", myself, seqNumber, mid);
         handleGossipMessage(msg, myself);
     }
 
     private void uponStateRequest(StateRequest request, short sourceProto) {
         logger.debug("Received {}", request);
         this.stateAndVC.setState(request.getState());
-        VectorClock newVC = this.stateAndVC.getVc();
-        newVC.setHostClock(myself, seqNumber);
-        this.stateAndVC.setVC(newVC);
     }
 
 
@@ -553,7 +549,9 @@ public class PlumTree extends GenericProtocol {
     }
 
     private void uponSaveStateTimeout(SaveStateTimeout timeout, long timerId) {
-        this.stateAndVC.setVC(new VectorClock(vectorClock.getClock()));
+        VectorClock newVC = new VectorClock(vectorClock.getClock());
+        newVC.setHostClock(myself, seqNumber);
+        this.stateAndVC.setVC(newVC);
         triggerNotification(new SendStateNotification(UUID.randomUUID()));
     }
 

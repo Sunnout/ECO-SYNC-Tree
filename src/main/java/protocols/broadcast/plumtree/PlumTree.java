@@ -366,7 +366,7 @@ public class PlumTree extends GenericProtocol {
             StateAndVC stateAndVC = null;
             byte[] currState = this.stateAndVC.getState();
             if(currState != null && msgVC.isEmptyExceptFor(from)) {
-                stateAndVC = this.stateAndVC;
+                stateAndVC = new StateAndVC(this.stateAndVC.getState(), this.stateAndVC.getVc());
                 logger.debug("Sending state {}", stateAndVC);
             }
 
@@ -448,6 +448,7 @@ public class PlumTree extends GenericProtocol {
                 triggerNotification(new InstallStateNotification(msg.getMid(), stateAndVC.getState()));
                 this.stateAndVC = stateAndVC;
                 vectorClock = new VectorClock(stateAndVC.getVc().getClock());
+                reexecuteMyOps();
 
                 int nExecuted = 0;
                 for (byte[] serMsg : msg.getMsgs()) {
@@ -472,8 +473,6 @@ public class PlumTree extends GenericProtocol {
                     }
                 }
                 logger.debug("Executed {}/{} ops after installing state", nExecuted, msg.getMsgs().size());
-                reexecuteMyOps();
-
             } else {
                 for (byte[] serMsg : msg.getMsgs()) {
                     stats.incrementReceivedSyncGossip();

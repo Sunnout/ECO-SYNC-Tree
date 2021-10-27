@@ -12,24 +12,24 @@ public class TreeMessage extends ProtoMessage {
     public static final short MSG_ID = 906;
 
     private final UUID mid;
-    private final Host sender;
+    private final Host originalSender;
 
     @Override
     public String toString() {
         return "TreeMessage{" +
                 "mid=" + mid + ", " +
-                "sender=" + sender +
+                "originalSender=" + originalSender +
                 '}';
     }
 
     public TreeMessage(UUID mid, Host sender) {
         super(MSG_ID);
         this.mid = mid;
-        this.sender = sender;
+        this.originalSender = sender;
     }
 
-	public Host getSender() {
-        return sender;
+	public Host getOriginalSender() {
+        return originalSender;
     }
 
     public UUID getMid() {
@@ -42,7 +42,7 @@ public class TreeMessage extends ProtoMessage {
         public void serialize(TreeMessage treeMessage, ByteBuf out) throws IOException {
             out.writeLong(treeMessage.mid.getMostSignificantBits());
             out.writeLong(treeMessage.mid.getLeastSignificantBits());
-            Host.serializer.serialize(treeMessage.sender, out);
+            Host.serializer.serialize(treeMessage.originalSender, out);
         }
 
         @Override

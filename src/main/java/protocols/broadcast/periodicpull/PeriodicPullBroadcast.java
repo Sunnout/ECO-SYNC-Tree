@@ -8,13 +8,13 @@ import protocols.broadcast.common.messages.VectorClockMessage;
 import protocols.broadcast.common.notifications.DeliverNotification;
 import protocols.broadcast.common.requests.BroadcastRequest;
 import protocols.broadcast.common.timers.ReconnectTimeout;
+import protocols.broadcast.common.utils.CommunicationCostCalculator;
 import protocols.broadcast.common.utils.MultiFileManager;
 import protocols.broadcast.common.utils.VectorClock;
 import protocols.broadcast.periodicpull.timers.PeriodicPullTimeout;
 import protocols.broadcast.plumtree.utils.IncomingSync;
 import protocols.membership.common.notifications.NeighbourDown;
 import protocols.membership.common.notifications.NeighbourUp;
-import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;
 import pt.unl.fct.di.novasys.channel.tcp.TCPChannel;
@@ -26,7 +26,7 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.*;
 
-public class PeriodicPullBroadcast extends GenericProtocol  {
+public class PeriodicPullBroadcast extends CommunicationCostCalculator {
     private static final Logger logger = LogManager.getLogger(PeriodicPullBroadcast.class);
 
     public final static short PROTOCOL_ID = 490;
@@ -160,7 +160,8 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
         receivedVC++;
         logger.debug("Received {} from {}", msg, from);
 
-        SynchronizationMessage synchronizationMsg = this.fileManager.readSyncOpsFromFile(msg.getMid(), msg.getVectorClock(), new VectorClock(vectorClock.getClock()), null);
+        SynchronizationMessage synchronizationMsg = new SynchronizationMessage(msg.getMid(), null,
+                this.fileManager.readSyncOpsFromFile(msg.getVectorClock(), new VectorClock(vectorClock.getClock())));
         sendMessage(synchronizationMsg, from);
         sentSyncOps++;
         sentSyncPull += synchronizationMsg.getMsgs().size();
@@ -223,7 +224,7 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
         if(h != null) {
             UUID mid = UUID.randomUUID();
             this.incomingSync = new IncomingSync(h, mid);
-            VectorClockMessage msg = new VectorClockMessage(mid, myself, new VectorClock(vectorClock.getClock()));
+            VectorClockMessage msg = new VectorClockMessage(mid, new VectorClock(vectorClock.getClock()));
             sendMessage(msg, h);
             sentVC++;
             logger.debug("Sent {} to {}", msg, h);
@@ -336,44 +337,5 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
             return hosts[idx];
         } else
             return null;
-    }
-
-
-    /*--------------------------------- Metrics ---------------------------------*/
-
-    /**
-     * If we passed a value > 0 in the METRICS_INTERVAL_KEY property of the channel, this event will be triggered
-     * periodically by the channel. "getInConnections" and "getOutConnections" returns the currently established
-     * connection to/from me. "getOldInConnections" and "getOldOutConnections" returns connections that have already
-     * been closed.
-     */
-    private void uponChannelMetrics(ChannelMetrics event, int channelId) {
-        StringBuilder sb = new StringBuilder("Channel Metrics: ");
-        long bytesSent = 0;
-        long bytesReceived = 0;
-
-        for(ChannelMetrics.ConnectionMetrics c: event.getOutConnections()){
-            bytesSent += c.getSentAppBytes();
-            bytesReceived += c.getReceivedAppBytes();
-        }
-
-        for(ChannelMetrics.ConnectionMetrics c: event.getOldOutConnections()){
-            bytesSent += c.getSentAppBytes();
-            bytesReceived += c.getReceivedAppBytes();
-        }
-
-        for(ChannelMetrics.ConnectionMetrics c: event.getInConnections()){
-            bytesSent += c.getSentAppBytes();
-            bytesReceived += c.getReceivedAppBytes();
-        }
-
-        for(ChannelMetrics.ConnectionMetrics c: event.getOldInConnections()){
-            bytesSent += c.getSentAppBytes();
-            bytesReceived += c.getReceivedAppBytes();
-        }
-
-        sb.append(String.format("BytesSent=%s ", bytesSent));
-        sb.append(String.format("BytesReceived=%s", bytesReceived));
-        logger.info(sb);
     }
 }

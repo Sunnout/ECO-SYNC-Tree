@@ -7,6 +7,7 @@ import protocols.broadcast.common.messages.SynchronizationMessage;
 import protocols.broadcast.common.messages.VectorClockMessage;
 import protocols.broadcast.common.requests.BroadcastRequest;
 import protocols.broadcast.common.notifications.DeliverNotification;
+import protocols.broadcast.common.utils.CommunicationCostCalculator;
 import protocols.broadcast.common.utils.MultiFileManager;
 import protocols.broadcast.common.utils.VectorClock;
 import protocols.broadcast.common.timers.ReconnectTimeout;
@@ -16,7 +17,6 @@ import protocols.broadcast.plumtree.utils.IncomingSync;
 import protocols.broadcast.plumtree.utils.OutgoingSync;
 import protocols.membership.common.notifications.NeighbourDown;
 import protocols.membership.common.notifications.NeighbourUp;
-import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;
 import pt.unl.fct.di.novasys.channel.tcp.TCPChannel;
@@ -28,7 +28,7 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.*;
 
-public class FloodBroadcast extends GenericProtocol  {
+public class FloodBroadcast extends CommunicationCostCalculator {
     private static final Logger logger = LogManager.getLogger(FloodBroadcast.class);
 
     public final static short PROTOCOL_ID = 1500;
@@ -165,7 +165,8 @@ public class FloodBroadcast extends GenericProtocol  {
 
     private void uponReceiveVectorClockMsg(VectorClockMessage msg, Host from, short sourceProto, int channelId) {
         this.stats.incrementReceivedVC();
-        SynchronizationMessage synchronizationMsg = this.fileManager.readSyncOpsFromFile(msg.getMid(), msg.getVectorClock(), new VectorClock(vectorClock.getClock()), null);
+        SynchronizationMessage synchronizationMsg = new SynchronizationMessage(msg.getMid(), null,
+                this.fileManager.readSyncOpsFromFile(msg.getVectorClock(), new VectorClock(vectorClock.getClock())));
         sendMessage(synchronizationMsg, from);
         this.stats.incrementSentSyncOps();
         this.stats.incrementSentSyncFloodBy(synchronizationMsg.getMsgs().size());
@@ -183,7 +184,7 @@ public class FloodBroadcast extends GenericProtocol  {
         if (currentPending == null) {
             incomingSync = new IncomingSync(from, mid);
             logger.debug("{} is my incomingSync ", from);
-            VectorClockMessage vectorClockMessage = new VectorClockMessage(mid, myself, new VectorClock(vectorClock.getClock()));
+            VectorClockMessage vectorClockMessage = new VectorClockMessage(mid, new VectorClock(vectorClock.getClock()));
             sendMessage(vectorClockMessage, from, TCPChannel.CONNECTION_IN);
             this.stats.incrementSentVC();
             logger.debug("Sent {} to {}", vectorClockMessage, from);
@@ -386,7 +387,7 @@ public class FloodBroadcast extends GenericProtocol  {
             UUID mid = nextIncomingSync.getMid();
             incomingSync = nextIncomingSync;
             logger.debug("{} is my incomingSync try", currentPending);
-            VectorClockMessage vectorClockMessage = new VectorClockMessage(mid, myself, new VectorClock(vectorClock.getClock()));
+            VectorClockMessage vectorClockMessage = new VectorClockMessage(mid, new VectorClock(vectorClock.getClock()));
             sendMessage(vectorClockMessage, currentPending, TCPChannel.CONNECTION_IN);
             this.stats.incrementSentVC();
         } else {
@@ -404,44 +405,5 @@ public class FloodBroadcast extends GenericProtocol  {
             }
         }
         return removed;
-    }
-
-
-    /*--------------------------------- Metrics ---------------------------------*/
-
-    /**
-     * If we passed a value > 0 in the METRICS_INTERVAL_KEY property of the channel, this event will be triggered
-     * periodically by the channel. "getInConnections" and "getOutConnections" returns the currently established
-     * connection to/from me. "getOldInConnections" and "getOldOutConnections" returns connections that have already
-     * been closed.
-     */
-    private void uponChannelMetrics(ChannelMetrics event, int channelId) {
-        StringBuilder sb = new StringBuilder("Channel Metrics: ");
-        long bytesSent = 0;
-        long bytesReceived = 0;
-
-        for(ChannelMetrics.ConnectionMetrics c: event.getOutConnections()){
-            bytesSent += c.getSentAppBytes();
-            bytesReceived += c.getReceivedAppBytes();
-        }
-
-        for(ChannelMetrics.ConnectionMetrics c: event.getOldOutConnections()){
-            bytesSent += c.getSentAppBytes();
-            bytesReceived += c.getReceivedAppBytes();
-        }
-
-        for(ChannelMetrics.ConnectionMetrics c: event.getInConnections()){
-            bytesSent += c.getSentAppBytes();
-            bytesReceived += c.getReceivedAppBytes();
-        }
-
-        for(ChannelMetrics.ConnectionMetrics c: event.getOldInConnections()){
-            bytesSent += c.getSentAppBytes();
-            bytesReceived += c.getReceivedAppBytes();
-        }
-
-        sb.append(String.format("BytesSent=%s ", bytesSent));
-        sb.append(String.format("BytesReceived=%s", bytesReceived));
-        logger.info(sb);
     }
 }

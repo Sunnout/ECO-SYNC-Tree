@@ -4,6 +4,7 @@ import protocols.broadcast.common.messages.GossipMessage;
 import protocols.broadcast.common.notifications.InstallStateNotification;
 import protocols.broadcast.common.notifications.SendStateNotification;
 import protocols.broadcast.common.requests.UpdateStateRequest;
+import protocols.broadcast.common.utils.CommunicationCostCalculator;
 import protocols.broadcast.common.utils.MultiFileManager;
 import protocols.broadcast.common.utils.StateAndVC;
 import protocols.broadcast.common.utils.VectorClock;
@@ -20,7 +21,6 @@ import protocols.broadcast.plumtree.timers.*;
 import protocols.broadcast.plumtree.utils.*;
 import protocols.membership.common.notifications.NeighbourDown;
 import protocols.membership.common.notifications.NeighbourUp;
-import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;
 import pt.unl.fct.di.novasys.channel.tcp.TCPChannel;
@@ -30,7 +30,7 @@ import pt.unl.fct.di.novasys.network.data.Host;
 import java.io.*;
 import java.util.*;
 
-public class PlumTree extends GenericProtocol {
+public class PlumTree extends CommunicationCostCalculator {
 
     private static final Logger logger = LogManager.getLogger(PlumTree.class);
 
@@ -371,7 +371,8 @@ public class PlumTree extends GenericProtocol {
                 logger.debug("Sending state {}", stateAndVC);
             }
 
-            SynchronizationMessage synchronizationMsg = this.fileManager.readSyncOpsFromFile(msg.getMid(), msgVC, new VectorClock(vectorClock.getClock()), stateAndVC);
+            SynchronizationMessage synchronizationMsg = new SynchronizationMessage(msg.getMid(), stateAndVC,
+                    this.fileManager.readSyncOpsFromFile(msgVC, new VectorClock(vectorClock.getClock())));
             sendMessage(synchronizationMsg, from);
             stats.incrementSentSyncOps();
             stats.incrementSentSyncGossipBy(synchronizationMsg.getMsgs().size());
@@ -424,7 +425,7 @@ public class PlumTree extends GenericProtocol {
             incomingSync = new IncomingSync(from, mid);
             logger.debug("{} is my incomingSync ", from);
             sb.append(String.format("Added %s to incomingSync; ", from));
-            VectorClockMessage vectorClockMessage = new VectorClockMessage(mid, myself, new VectorClock(vectorClock.getClock()));
+            VectorClockMessage vectorClockMessage = new VectorClockMessage(mid, new VectorClock(vectorClock.getClock()));
             sendMessage(vectorClockMessage, from, TCPChannel.CONNECTION_IN);
             stats.incrementSentVC();
             logger.debug("Sent {} to {}", vectorClockMessage, from);
@@ -787,7 +788,7 @@ public class PlumTree extends GenericProtocol {
             incomingSync = nextIncomingSync;
             sb.append(String.format("Removed %s from pendingIncomingSyncs; ", currentPending));
             sb.append(String.format("Added %s to incomingSync; ", currentPending));
-            VectorClockMessage vectorClockMessage = new VectorClockMessage(mid, myself, new VectorClock(vectorClock.getClock()));
+            VectorClockMessage vectorClockMessage = new VectorClockMessage(mid, new VectorClock(vectorClock.getClock()));
             sendMessage(vectorClockMessage, currentPending, TCPChannel.CONNECTION_IN);
             stats.incrementSentVC();
             sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager.keySet(), lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
@@ -801,10 +802,10 @@ public class PlumTree extends GenericProtocol {
     }
 
     private void handleTreeMessage(TreeMessage msg, Host from) {
-        if(msg.getSender().compareTo(myself) <= 0) {
-            logger.debug("Received tree msg from equal or smaller host {}", msg.getSender());
+        if(msg.getOriginalSender().compareTo(myself) <= 0) {
+            logger.debug("Received tree msg from equal or smaller host {}", msg.getOriginalSender());
             treeMsgsFromSmallerHost++;
-            if(!msg.getSender().equals(myself))
+            if(!msg.getOriginalSender().equals(myself))
                 cancelTimer(sendTreeMsgTimer);
         }
 
@@ -921,44 +922,4 @@ public class PlumTree extends GenericProtocol {
             triggerNotification(new DeliverNotification(msg.getMid(), myself, msg.getContent(), false));
         }
     }
-
-
-    /*--------------------------------- Channel Metrics ---------------------------------*/
-
-    /**
-     * If we passed a value > 0 in the METRICS_INTERVAL_KEY property of the channel, this event will be triggered
-     * periodically by the channel. "getInConnections" and "getOutConnections" returns the currently established
-     * connection to/from me. "getOldInConnections" and "getOldOutConnections" returns connections that have already
-     * been closed.
-     */
-    private void uponChannelMetrics(ChannelMetrics event, int channelId) {
-        StringBuilder sb = new StringBuilder("Channel Metrics: ");
-        long bytesSent = 0;
-        long bytesReceived = 0;
-
-        for(ChannelMetrics.ConnectionMetrics c: event.getOutConnections()){
-            bytesSent += c.getSentAppBytes();
-            bytesReceived += c.getReceivedAppBytes();
-        }
-
-        for(ChannelMetrics.ConnectionMetrics c: event.getOldOutConnections()){
-            bytesSent += c.getSentAppBytes();
-            bytesReceived += c.getReceivedAppBytes();
-        }
-
-        for(ChannelMetrics.ConnectionMetrics c: event.getInConnections()){
-            bytesSent += c.getSentAppBytes();
-            bytesReceived += c.getReceivedAppBytes();
-        }
-
-        for(ChannelMetrics.ConnectionMetrics c: event.getOldInConnections()){
-            bytesSent += c.getSentAppBytes();
-            bytesReceived += c.getReceivedAppBytes();
-        }
-
-        sb.append(String.format("BytesSent=%s ", bytesSent));
-        sb.append(String.format("BytesReceived=%s", bytesReceived));
-        logger.info(sb);
-    }
-
 }

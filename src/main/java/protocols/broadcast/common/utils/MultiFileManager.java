@@ -40,7 +40,7 @@ public class MultiFileManager {
         fileWorkers.get(fileWorkers.size()-1).getRight().writeOperationToFile(time, msg);
     }
 
-    public SynchronizationMessage readSyncOpsFromFile(UUID mid, VectorClock neighbourClock, VectorClock myClock, StateAndVC stateAndVC) {
+    public List<byte[]> readSyncOpsFromFile(VectorClock neighbourClock, VectorClock myClock) {
         int startIndex = 0;
         for(int i = fileWorkers.size()-1; i >= 0; i--) {
             if(neighbourClock.greaterOrEqualThan(fileWorkers.get(i).getRight().getFirstVC())) {
@@ -59,7 +59,7 @@ public class MultiFileManager {
             gossipMessages.addAll(fileWorkers.get(j).getRight().readSyncOpsFromFile(neighbourClock, myClock));
         }
 
-        return new SynchronizationMessage(mid, stateAndVC, gossipMessages);
+        return gossipMessages;
     }
 
     public List<GossipMessage> getMyLateOperations(Host myself, VectorClock myVC, int mySeqNumber) {

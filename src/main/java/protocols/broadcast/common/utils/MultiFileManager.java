@@ -4,7 +4,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import protocols.broadcast.common.messages.SynchronizationMessage;
-import protocols.broadcast.plumtree.messages.GossipMessage;
+import protocols.broadcast.common.messages.GossipMessage;
 import pt.unl.fct.di.novasys.network.data.Host;
 
 import java.io.IOException;

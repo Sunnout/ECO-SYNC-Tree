@@ -31,9 +31,7 @@ public class PlumtreeStats {
     public static int receivedSyncGossip;
     public static int receivedDupesSyncGossip;
 
-    public PlumtreeStats() {
-
-    }
+    public PlumtreeStats() {}
 
     public void incrementSentOps() {
         sentOps++;

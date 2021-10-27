@@ -4,7 +4,7 @@ import java.util.Properties;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-//import protocols.broadcast.flood.FloodBroadcast;
+import protocols.broadcast.flood.FloodBroadcast;
 //import protocols.broadcast.periodicpull.PeriodicPullBroadcast;
 import protocols.broadcast.plumtree.PlumTree;
 import protocols.membership.hyparview.HyParView;
@@ -67,13 +67,13 @@ public class Main {
                 registerAndStartProtocols(babel, crdtApp, replicationKernel, broadcast, membership, props);
                 break;
 
-//            case "flood":
-//                crdtApp = new CRDTApp(props, myself, ReplicationKernel.PROTOCOL_ID, FloodBroadcast.PROTOCOL_ID);
-//                replicationKernel = new ReplicationKernel(myself, FloodBroadcast.PROTOCOL_ID);
-//                broadcast = new FloodBroadcast(props, myself);
-//                membership = new HyParView(props, myself_membership);
-//                registerAndStartProtocols(babel, crdtApp, replicationKernel, broadcast, membership, props);
-//                break;
+            case "flood":
+                crdtApp = new CRDTApp(props, myself, ReplicationKernel.PROTOCOL_ID, FloodBroadcast.PROTOCOL_ID);
+                replicationKernel = new ReplicationKernel(myself, FloodBroadcast.PROTOCOL_ID);
+                broadcast = new FloodBroadcast(props, myself);
+                membership = new HyParView(props, myself_membership);
+                registerAndStartProtocols(babel, crdtApp, replicationKernel, broadcast, membership, props);
+                break;
 //
 //            case "periodicpull":
 //                crdtApp = new CRDTApp(props, myself, ReplicationKernel.PROTOCOL_ID, PeriodicPullBroadcast.PROTOCOL_ID);

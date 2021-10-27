@@ -1,5 +1,6 @@
 package protocols.broadcast.plumtree;
 
+import protocols.broadcast.common.messages.GossipMessage;
 import protocols.broadcast.common.notifications.InstallStateNotification;
 import protocols.broadcast.common.notifications.SendStateNotification;
 import protocols.broadcast.common.requests.UpdateStateRequest;

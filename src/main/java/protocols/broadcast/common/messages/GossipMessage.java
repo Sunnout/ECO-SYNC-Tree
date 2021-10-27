@@ -1,7 +1,6 @@
-package protocols.broadcast.plumtree.messages;
+package protocols.broadcast.common.messages;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;
 import pt.unl.fct.di.novasys.network.ISerializer;
 import pt.unl.fct.di.novasys.network.data.Host;

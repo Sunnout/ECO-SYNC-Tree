@@ -2,8 +2,9 @@ package protocols.apps;
 
 import java.util.*;
 
+import protocols.broadcast.flood.FloodBroadcast;
+import protocols.broadcast.flood.utils.FloodStats;
 import protocols.replication.crdts.interfaces.*;
-//import protocols.broadcast.flood.FloodBroadcast;
 //import protocols.broadcast.periodicpull.PeriodicPullBroadcast;
 import protocols.broadcast.plumtree.PlumTree;
 import protocols.broadcast.plumtree.utils.PlumtreeStats;
@@ -349,22 +350,22 @@ public class CRDTApp extends GenericProtocol {
             logger.info("receivedDupesSyncGossip: {}", PlumtreeStats.receivedDupesSyncGossip);
         }
 
-//        //Flood
-//        else if(broadcastId == FloodBroadcast.PROTOCOL_ID) {
-//            logger.info("sentFlood: {}", FloodBroadcast.sentFlood);
-//            logger.info("sentSendVC: {}", FloodBroadcast.sentSendVC);
-//            logger.info("sentVC: {}", FloodBroadcast.sentVC);
-//            logger.info("sentSyncOps: {}", FloodBroadcast.sentSyncOps);
-//            logger.info("sentSyncFlood: {}", FloodBroadcast.sentSyncFlood);
-//
-//            logger.info("receivedFlood: {}", FloodBroadcast.receivedFlood);
-//            logger.info("receivedDupesFlood: {}", FloodBroadcast.receivedDupesFlood);
-//            logger.info("receivedSendVC: {}", FloodBroadcast.receivedSendVC);
-//            logger.info("receivedVC: {}", FloodBroadcast.receivedVC);
-//            logger.info("receivedSyncOps: {}", FloodBroadcast.receivedSyncOps);
-//            logger.info("receivedSyncFlood: {}", FloodBroadcast.receivedSyncFlood);
-//            logger.info("receivedDupesSyncFlood: {}", FloodBroadcast.receivedDupesSyncFlood);
-//        }
+        //Flood
+        else if(broadcastId == FloodBroadcast.PROTOCOL_ID) {
+            logger.info("sentFlood: {}", FloodStats.sentFlood);
+            logger.info("sentSendVC: {}", FloodStats.sentSendVC);
+            logger.info("sentVC: {}", FloodStats.sentVC);
+            logger.info("sentSyncOps: {}", FloodStats.sentSyncOps);
+            logger.info("sentSyncFlood: {}", FloodStats.sentSyncFlood);
+
+            logger.info("receivedFlood: {}", FloodStats.receivedFlood);
+            logger.info("receivedDupesFlood: {}", FloodStats.receivedDupesFlood);
+            logger.info("receivedSendVC: {}", FloodStats.receivedSendVC);
+            logger.info("receivedVC: {}", FloodStats.receivedVC);
+            logger.info("receivedSyncOps: {}", FloodStats.receivedSyncOps);
+            logger.info("receivedSyncFlood: {}", FloodStats.receivedSyncFlood);
+            logger.info("receivedDupesSyncFlood: {}", FloodStats.receivedDupesSyncFlood);
+        }
 //
 //        //Periodic Pull
 //        else if(broadcastId == PeriodicPullBroadcast.PROTOCOL_ID) {

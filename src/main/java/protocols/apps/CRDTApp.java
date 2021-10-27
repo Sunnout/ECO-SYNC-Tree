@@ -5,7 +5,7 @@ import java.util.*;
 import protocols.broadcast.flood.FloodBroadcast;
 import protocols.broadcast.flood.utils.FloodStats;
 import protocols.replication.crdts.interfaces.*;
-//import protocols.broadcast.periodicpull.PeriodicPullBroadcast;
+import protocols.broadcast.periodicpull.PeriodicPullBroadcast;
 import protocols.broadcast.plumtree.PlumTree;
 import protocols.broadcast.plumtree.utils.PlumtreeStats;
 import protocols.replication.OpCounterCRDT.CounterOpType;
@@ -366,18 +366,18 @@ public class CRDTApp extends GenericProtocol {
             logger.info("receivedSyncFlood: {}", FloodStats.receivedSyncFlood);
             logger.info("receivedDupesSyncFlood: {}", FloodStats.receivedDupesSyncFlood);
         }
-//
-//        //Periodic Pull
-//        else if(broadcastId == PeriodicPullBroadcast.PROTOCOL_ID) {
-//            logger.info("sentVC: {}", PeriodicPullBroadcast.sentVC);
-//            logger.info("sentSyncOps: {}", PeriodicPullBroadcast.sentSyncOps);
-//            logger.info("sentSyncPull: {}", PeriodicPullBroadcast.sentSyncPull);
-//
-//            logger.info("receivedVC: {}", PeriodicPullBroadcast.receivedVC);
-//            logger.info("receivedSyncOps: {}", PeriodicPullBroadcast.receivedSyncOps);
-//            logger.info("receivedSyncPull: {}", PeriodicPullBroadcast.receivedSyncPull);
-//            logger.info("receivedDupes: {}", PeriodicPullBroadcast.receivedDupes);
-//        }
+
+        //Periodic Pull
+        else if(broadcastId == PeriodicPullBroadcast.PROTOCOL_ID) {
+            logger.info("sentVC: {}", PeriodicPullBroadcast.sentVC);
+            logger.info("sentSyncOps: {}", PeriodicPullBroadcast.sentSyncOps);
+            logger.info("sentSyncPull: {}", PeriodicPullBroadcast.sentSyncPull);
+
+            logger.info("receivedVC: {}", PeriodicPullBroadcast.receivedVC);
+            logger.info("receivedSyncOps: {}", PeriodicPullBroadcast.receivedSyncOps);
+            logger.info("receivedSyncPull: {}", PeriodicPullBroadcast.receivedSyncPull);
+            logger.info("receivedDupes: {}", PeriodicPullBroadcast.receivedDupes);
+        }
 
     }
 

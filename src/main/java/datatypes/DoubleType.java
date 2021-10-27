@@ -46,4 +46,9 @@ public class DoubleType extends SerializableType{
     public int hashCode() {
         return this.value.hashCode();
     }
+
+    @Override
+    public int compareTo(Object o) {
+        return this.value.compareTo(((DoubleType)o).value);
+    }
 }

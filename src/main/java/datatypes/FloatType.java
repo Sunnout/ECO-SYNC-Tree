@@ -45,4 +45,9 @@ public class FloatType extends SerializableType{
     public int hashCode() {
         return this.value.hashCode();
     }
+
+    @Override
+    public int compareTo(Object o) {
+        return this.value.compareTo(((FloatType)o).value);
+    }
 }

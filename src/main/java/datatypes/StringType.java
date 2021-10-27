@@ -51,4 +51,9 @@ public class StringType extends SerializableType{
     public int hashCode() {
         return this.value.hashCode();
     }
+
+    @Override
+    public int compareTo(Object o) {
+        return this.value.compareTo(((StringType)o).value);
+    }
 }

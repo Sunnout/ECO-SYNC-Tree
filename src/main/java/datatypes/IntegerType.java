@@ -45,4 +45,9 @@ public class IntegerType extends SerializableType {
     public int hashCode() {
         return this.value.hashCode();
     }
+
+    @Override
+    public int compareTo(Object o) {
+        return this.value.compareTo(((IntegerType)o).value);
+    }
 }

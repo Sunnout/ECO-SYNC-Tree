@@ -388,8 +388,10 @@ public class CRDTApp extends GenericProtocol {
         return ((RegisterCRDT) myCRDTs.get(crdtId)).value();
     }
 
-    private Object getSetValue(String crdtId) {
-        return ((SetCRDT) myCRDTs.get(crdtId)).elements();
+    private List<SerializableType> getSetValue(String crdtId) {
+        List<SerializableType> list = new LinkedList<>(((SetCRDT) myCRDTs.get(crdtId)).elements());
+        Collections.sort(list);
+        return list;
     }
 
     private Set<SerializableType> getMapKeys(String crdtId) {
@@ -397,11 +399,15 @@ public class CRDTApp extends GenericProtocol {
     }
 
     private List<SerializableType> getMapValues(String crdtId) {
-        return ((MapCRDT) myCRDTs.get(crdtId)).values();
+        List<SerializableType> list = new LinkedList<>(((MapCRDT) myCRDTs.get(crdtId)).values());
+        Collections.sort(list);
+        return list;
     }
 
-    private Set<SerializableType> getMapping(String crdtId, SerializableType key) {
-        return ((MapCRDT) myCRDTs.get(crdtId)).get(key);
+    private List<SerializableType> getMapping(String crdtId, SerializableType key) {
+        List<SerializableType> list = new LinkedList<>(((MapCRDT) myCRDTs.get(crdtId)).get(key));
+        Collections.sort(list);
+        return list;
     }
 
 

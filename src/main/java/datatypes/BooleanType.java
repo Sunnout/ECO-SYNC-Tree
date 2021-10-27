@@ -46,4 +46,8 @@ public class BooleanType extends SerializableType{
         return this.value.hashCode();
     }
 
+    @Override
+    public int compareTo(Object o) {
+        return this.value.compareTo(((BooleanType)o).value);
+    }
 }

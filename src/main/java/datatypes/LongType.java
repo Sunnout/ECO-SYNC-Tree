@@ -45,4 +45,9 @@ public class LongType extends SerializableType{
     public int hashCode() {
         return this.value.hashCode();
     }
+
+    @Override
+    public int compareTo(Object o) {
+        return this.value.compareTo(((LongType)o).value);
+    }
 }

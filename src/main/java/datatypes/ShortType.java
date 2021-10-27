@@ -45,4 +45,9 @@ public class ShortType extends SerializableType{
     public int hashCode() {
         return this.value.hashCode();
     }
+
+    @Override
+    public int compareTo(Object o) {
+        return this.value.compareTo(((ShortType)o).value);
+    }
 }

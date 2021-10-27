@@ -1,7 +1,7 @@
 //import protocols.replication.ORSetCRDT;
-//import crdts.operations.Operation;
-//import crdts.operations.SetOperation;
-//import datatypes.StringType;
+//import protocols.replication.crdts.operations.Operation;
+//import protocols.replication.crdts.operations.SetOperation;
+//import protocols.replication.crdts.datatypes.StringType;
 //
 //import java.util.Set;
 //

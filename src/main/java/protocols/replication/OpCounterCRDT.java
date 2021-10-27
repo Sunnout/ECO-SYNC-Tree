@@ -1,13 +1,13 @@
 package protocols.replication;
 
-import crdts.interfaces.CounterCRDT;
-import crdts.operations.CounterOperation;
-import crdts.operations.Operation;
+import protocols.replication.crdts.interfaces.CounterCRDT;
+import protocols.replication.crdts.operations.CounterOperation;
+import protocols.replication.crdts.operations.Operation;
 import io.netty.buffer.ByteBuf;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import serializers.CRDTSerializer;
-import serializers.MySerializer;
+import protocols.replication.crdts.serializers.CRDTSerializer;
+import protocols.replication.crdts.serializers.MySerializer;
 
 import java.math.BigInteger;
 

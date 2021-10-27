@@ -1,15 +1,15 @@
 package protocols.replication;
 
-import crdts.interfaces.MapCRDT;
-import crdts.operations.MapOperation;
-import crdts.operations.Operation;
-import crdts.utils.TaggedElement;
-import datatypes.SerializableType;
+import protocols.replication.crdts.interfaces.MapCRDT;
+import protocols.replication.crdts.operations.MapOperation;
+import protocols.replication.crdts.operations.Operation;
+import protocols.replication.crdts.utils.TaggedElement;
+import protocols.replication.crdts.datatypes.SerializableType;
 import io.netty.buffer.ByteBuf;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import serializers.CRDTSerializer;
-import serializers.MySerializer;
+import protocols.replication.crdts.serializers.CRDTSerializer;
+import protocols.replication.crdts.serializers.MySerializer;
 
 import java.io.IOException;
 import java.util.*;

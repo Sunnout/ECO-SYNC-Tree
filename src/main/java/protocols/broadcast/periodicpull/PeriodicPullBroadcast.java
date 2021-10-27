@@ -94,8 +94,8 @@
 //
 //        /*--------------------- Register Request Handlers ----------------------------- */
 //        registerRequestHandler(BroadcastRequest.REQUEST_ID, this::uponBroadcast);
-//        registerRequestHandler(VectorClockRequest.REQUEST_ID, this::uponVectorClock);
-//        registerRequestHandler(SyncOpsRequest.REQUEST_ID, this::uponSyncOps);
+//        registerRequestHandler(VectorClockRequest.REQUEST_ID, this::uponVectorClockRequest);
+//        registerRequestHandler(SyncOpsRequest.REQUEST_ID, this::uponSyncOpsRequest);
 //
 //        /*--------------------- Register Notification Handlers ----------------------------- */
 //        subscribeNotification(NeighbourUp.NOTIFICATION_ID, this::uponNeighbourUp);
@@ -106,8 +106,8 @@
 //        registerMessageSerializer(channelId, SyncOpsMessage.MSG_ID, SyncOpsMessage.serializer);
 //
 //        /*---------------------- Register Message Handlers -------------------------- */
-//        registerMessageHandler(channelId, VectorClockMessage.MSG_ID, this::uponReceiveVectorClock, this::onMessageFailed);
-//        registerMessageHandler(channelId, SyncOpsMessage.MSG_ID, this::uponReceiveSyncOps, this::onMessageFailed);
+//        registerMessageHandler(channelId, VectorClockMessage.MSG_ID, this::uponReceiveVectorClockMsg, this::onMessageFailed);
+//        registerMessageHandler(channelId, SyncOpsMessage.MSG_ID, this::uponReceiveSyncOpsMsg, this::onMessageFailed);
 //
 //        /*--------------------- Register Timer Handlers ----------------------------- */
 //        registerTimerHandler(PeriodicPullTimeout.TIMER_ID, this::uponPeriodicPullTimeout);
@@ -136,7 +136,7 @@
 //        handlePullMessage(mid, myself, content, false);
 //    }
 //
-//    private void uponVectorClock(VectorClockRequest request, short sourceProto) {
+//    private void uponVectorClockRequest(VectorClockRequest request, short sourceProto) {
 //        Host neighbour = request.getTo();
 //        Pair<Host, UUID> info = Pair.of(neighbour, request.getMsgId());
 //        if (!info.equals(currentPendingInfo))
@@ -148,7 +148,7 @@
 //        logger.debug("Sent {} to {}", msg, neighbour);
 //    }
 //
-//    private void uponSyncOps(SyncOpsRequest request, short sourceProto) {
+//    private void uponSyncOpsRequest(SyncOpsRequest request, short sourceProto) {
 //        Host neighbour = request.getTo();
 //        SyncOpsMessage msg = new SyncOpsMessage(request.getMsgId(), request.getIds(), request.getOperations());
 //        sendMessage(msg, neighbour, TCPChannel.CONNECTION_IN);
@@ -160,7 +160,7 @@
 //
 //    /*--------------------------------- Messages ---------------------------------------- */
 //
-//    private void uponReceiveVectorClock(VectorClockMessage msg, Host from, short sourceProto, int channelId) {
+//    private void uponReceiveVectorClockMsg(VectorClockMessage msg, Host from, short sourceProto, int channelId) {
 //        receivedVC++;
 //
 //        logger.debug("Received {} from {}", msg, from);
@@ -199,7 +199,7 @@
 //
 //    /*--------------------------------- Timers ---------------------------------------- */
 //
-//    private void uponReconnectTimeout(ReconnectTimeout timeout, long timerId) {
+//    private void uponReconnectTimeoutMsg(ReconnectTimeout timeout, long timerId) {
 //        Host neighbour = timeout.getHost();
 //        if(partialView.contains(neighbour)) {
 //            logger.debug("Reconnecting with {}", neighbour);

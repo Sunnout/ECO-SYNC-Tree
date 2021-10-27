@@ -1,14 +1,14 @@
 package protocols.replication;
 
-import crdts.interfaces.RegisterCRDT;
-import crdts.operations.Operation;
-import crdts.operations.RegisterOperation;
-import datatypes.SerializableType;
+import protocols.replication.crdts.interfaces.RegisterCRDT;
+import protocols.replication.crdts.operations.Operation;
+import protocols.replication.crdts.operations.RegisterOperation;
+import protocols.replication.crdts.datatypes.SerializableType;
 import io.netty.buffer.ByteBuf;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import serializers.CRDTSerializer;
-import serializers.MySerializer;
+import protocols.replication.crdts.serializers.CRDTSerializer;
+import protocols.replication.crdts.serializers.MySerializer;
 
 import java.io.IOException;
 import java.time.Instant;

@@ -6,12 +6,16 @@
 //import org.apache.logging.log4j.LogManager;
 //import org.apache.logging.log4j.Logger;
 //import protocols.broadcast.common.messages.SendVectorClockMessage;
-//import protocols.broadcast.common.messages.SyncOpsMessage;
+//import protocols.broadcast.common.messages.SynchronizationMessage;
 //import protocols.broadcast.common.messages.VectorClockMessage;
 //import protocols.broadcast.common.requests.BroadcastRequest;
 //import protocols.broadcast.common.notifications.DeliverNotification;
+//import protocols.broadcast.common.utils.MultiFileManager;
+//import protocols.broadcast.common.utils.VectorClock;
 //import protocols.broadcast.flood.messages.FloodMessage;
 //import protocols.broadcast.common.timers.ReconnectTimeout;
+//import protocols.broadcast.plumtree.utils.IncomingSync;
+//import protocols.broadcast.plumtree.utils.OutgoingSync;
 //import protocols.membership.common.notifications.NeighbourDown;
 //import protocols.membership.common.notifications.NeighbourUp;
 //import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
@@ -33,16 +37,23 @@
 //    protected int channelId;
 //    private final Host myself;
 //    private final static int PORT_MAPPING = 1000;
+//    private final static int SECONDS_TO_MILLIS = 1000;
 //
+//    private final long garbageCollectionTimeout;
 //    private final long reconnectTimeout;
 //
 //    private final Set<Host> partialView;
 //    private final Set<Host> neighbours;
-//    private final Set<Host> onGoingSyncs; // Set to know which hosts we have asked for vcs
-//    private final Queue<Pair<Host, UUID>> pending;
-//    private Pair<Host, UUID> currentPendingInfo;
-//    private final Map<UUID, Queue<FloodMessage>> bufferedOps; //Buffer ops received between sending vc to kernel and sending sync ops (and send them after)
 //    private final Set<UUID> received;
+//
+//    private final Set<OutgoingSync> outgoingSyncs; // Hosts we have asked for vcs
+//    private IncomingSync incomingSync; // Host that we sent our vc to
+//    private final Queue<IncomingSync> pendingIncomingSyncs; // Queue of pending incoming syncs
+//
+//    public static VectorClock vectorClock; // Local vector clock
+//    private int seqNumber; // Counter of local operations
+//
+//    private final MultiFileManager fileManager;
 //
 //    /*** Stats ***/
 //    public static int sentFlood;
@@ -60,22 +71,28 @@
 //    public static int receivedDupesSyncFlood;
 //
 //
-//
 //    /*--------------------------------- Initialization ---------------------------------------- */
 //
 //    public FloodBroadcast(Properties properties, Host myself) throws HandlerRegistrationException, IOException {
 //        super(PROTOCOL_NAME, PROTOCOL_ID);
 //        this.myself = myself;
 //
+//        this.garbageCollectionTimeout = Long.parseLong(properties.getProperty("garbage_collection_timeout", "15")) * SECONDS_TO_MILLIS;
+//        long garbageCollectionTTL = Long.parseLong(properties.getProperty("garbage_collection_ttl", "60")) * SECONDS_TO_MILLIS;
 //        this.reconnectTimeout = Long.parseLong(properties.getProperty("reconnect_timeout", "500"));
 //
 //        this.partialView = new HashSet<>();
 //        this.neighbours = new HashSet<>();
-//        this.onGoingSyncs = new HashSet<>();
-//        this.pending = new LinkedList<>();
-//        this.currentPendingInfo = Pair.of(null, null);
-//        this.bufferedOps = new HashMap<>();
 //        this.received = new HashSet<>();
+//
+//        this.outgoingSyncs = new HashSet<>();
+//        this.incomingSync = new IncomingSync(null, null);
+//        this.pendingIncomingSyncs = new LinkedList<>();
+//
+//        vectorClock = new VectorClock(myself);
+//
+//        int indexSpacing = Integer.parseInt(properties.getProperty("index_spacing", "100"));
+//        this.fileManager = new MultiFileManager(garbageCollectionTimeout, garbageCollectionTTL, indexSpacing, myself);
 //
 //        String cMetricsInterval = properties.getProperty("bcast_channel_metrics_interval", "10000"); // 10 seconds
 //
@@ -97,9 +114,7 @@
 //        registerTimerHandler(ReconnectTimeout.TIMER_ID, this::uponReconnectTimeout);
 //
 //        /*--------------------- Register Request Handlers ----------------------------- */
-//        registerRequestHandler(BroadcastRequest.REQUEST_ID, this::uponBroadcast);
-//        registerRequestHandler(VectorClockRequest.REQUEST_ID, this::uponVectorClock);
-//        registerRequestHandler(SyncOpsRequest.REQUEST_ID, this::uponSyncOps);
+//        registerRequestHandler(BroadcastRequest.REQUEST_ID, this::uponBroadcastRequest);
 //
 //        /*--------------------- Register Notification Handlers ----------------------------- */
 //        subscribeNotification(NeighbourUp.NOTIFICATION_ID, this::uponNeighbourUp);
@@ -110,14 +125,14 @@
 //
 //        registerMessageSerializer(channelId, SendVectorClockMessage.MSG_ID, SendVectorClockMessage.serializer);
 //        registerMessageSerializer(channelId, VectorClockMessage.MSG_ID, VectorClockMessage.serializer);
-//        registerMessageSerializer(channelId, SyncOpsMessage.MSG_ID, SyncOpsMessage.serializer);
+//        registerMessageSerializer(channelId, SynchronizationMessage.MSG_ID, SynchronizationMessage.serializer);
 //
 //        /*---------------------- Register Message Handlers -------------------------- */
-//        registerMessageHandler(channelId, FloodMessage.MSG_ID, this::uponReceiveFlood, this::onMessageFailed);
+//        registerMessageHandler(channelId, FloodMessage.MSG_ID, this::uponReceiveFloodMsg, this::onMessageFailed);
 //
-//        registerMessageHandler(channelId, SendVectorClockMessage.MSG_ID, this::uponReceiveSendVectorClock, this::onMessageFailed);
-//        registerMessageHandler(channelId, VectorClockMessage.MSG_ID, this::uponReceiveVectorClock, this::onMessageFailed);
-//        registerMessageHandler(channelId, SyncOpsMessage.MSG_ID, this::uponReceiveSyncOps, this::onMessageFailed);
+//        registerMessageHandler(channelId, SendVectorClockMessage.MSG_ID, this::uponReceiveSendVectorClockMsg, this::onMessageFailed);
+//        registerMessageHandler(channelId, VectorClockMessage.MSG_ID, this::uponReceiveVectorClockMsg, this::onMessageFailed);
+//        registerMessageHandler(channelId, SynchronizationMessage.MSG_ID, this::uponReceiveSynchronizationMsg, this::onMessageFailed);
 //
 //        /*-------------------- Register Channel Event ------------------------------- */
 //        registerChannelEventHandler(channelId, OutConnectionDown.EVENT_ID, this::uponOutConnectionDown);
@@ -136,40 +151,20 @@
 //
 //    /*--------------------------------- Requests ---------------------------------------- */
 //
-//    private void uponBroadcast(BroadcastRequest request, short sourceProto) {
+//    private void uponBroadcastRequest(BroadcastRequest request, short sourceProto) {
 //        UUID mid = request.getMsgId();
 //        Host sender = request.getSender();
 //        byte[] content = request.getMsg();
 //        logger.debug("Propagating my {} to {}", mid, neighbours);
 //        FloodMessage msg = new FloodMessage(mid, sender, sourceProto, content);
 //        logger.info("SENT {}", mid);
-//        uponReceiveFlood(msg, myself, getProtoId(), -1);
-//    }
-//
-//    private void uponVectorClock(VectorClockRequest request, short sourceProto) {
-//        Host neighbour = request.getTo();
-//        VectorClockMessage msg = new VectorClockMessage(request.getMsgId(), request.getSender(), request.getVectorClock());
-//        sendMessage(msg, neighbour, TCPChannel.CONNECTION_IN);
-//        sentVC++;
-//        logger.debug("Sent {} to {}", msg, neighbour);
-//    }
-//
-//    private void uponSyncOps(SyncOpsRequest request, short sourceProto) {
-//        Host neighbour = request.getTo();
-//        UUID mid = request.getMsgId();
-//        SyncOpsMessage msg = new SyncOpsMessage(request.getMsgId(), request.getIds(), request.getOperations());
-//        sendMessage(msg, neighbour);
-//        sentSyncOps++;
-//        sentSyncFlood += request.getIds().size();
-//        logger.debug("Sent {} to {}", msg, neighbour);
-//        handleBufferedOperations(neighbour, mid);
-//        addHostToNeighbours(neighbour);
+//        uponReceiveFloodMsg(msg, myself, getProtoId(), -1);
 //    }
 //
 //
 //    /*--------------------------------- Messages ---------------------------------------- */
 //
-//    private void uponReceiveFlood(FloodMessage msg, Host from, short sourceProto, int channelId) {
+//    private void uponReceiveFloodMsg(FloodMessage msg, Host from, short sourceProto, int channelId) {
 //        receivedFlood++;
 //
 //        UUID mid = msg.getMid();
@@ -181,34 +176,40 @@
 //        }
 //    }
 //
-//    private void uponReceiveVectorClock(VectorClockMessage msg, Host from, short sourceProto, int channelId) {
-//        receivedVC++;
+//    private void uponReceiveVectorClockMsg(VectorClockMessage msg, Host from, short sourceProto, int channelId) {
+//        SynchronizationMessage synchronizationMsg = this.fileManager.readSyncOpsFromFile(msg.getMid(), msg.getVectorClock(), new VectorClock(vectorClock.getClock()), null);
+//        sendMessage(synchronizationMsg, from);
+//        sentSyncOps++;
+//        sentSyncFlood += synchronizationMsg.getMsgs().size();
+//        logger.debug("Sent {} to {}", msg, from);
 //
-//        logger.debug("Received {} from {}", msg, from);
-//        this.bufferedOps.put(msg.getMid(), new LinkedList<>());
-//        triggerNotification(new VectorClockNotification(msg.getMid(), msg.getSender(), msg.getVectorClock()));
+//        if (neighbours.add(from)) {
+//            logger.debug("Added {} to neighbours {} : pendingIncomingSyncs {}", from, neighbours, pendingIncomingSyncs);
+//        }
 //    }
 //
-//    private void uponReceiveSendVectorClock(SendVectorClockMessage msg, Host from, short sourceProto, int channelId) {
+//    private void uponReceiveSendVectorClockMsg(SendVectorClockMessage msg, Host from, short sourceProto, int channelId) {
 //        receivedSendVC++;
 //
 //        UUID mid = msg.getMid();
 //        if(partialView.contains(from)) {
-//            Host currentPending = currentPendingInfo.getLeft();
+//            Host currentPending = incomingSync.getLeft();
 //            if (currentPending == null) {
 //                currentPending = from;
-//                currentPendingInfo = Pair.of(currentPending, mid);
+//                incomingSync = Pair.of(currentPending, mid);
 //                logger.debug("{} is my currentPending ", from);
-//                triggerNotification(new SendVectorClockNotification(mid, from));
-//            } else {
-//                pending.add(Pair.of(from, mid));
-//                logger.debug("Added {} to pending {}", from, pending);
+//                VectorClockMessage msg = new VectorClockMessage(request.getMsgId(), request.getSender(), request.getVectorClock());
+//                sendMessage(msg, neighbour, TCPChannel.CONNECTION_IN);
+//                sentVC++;
+//                logger.debug("Sent {} to {}", msg, neighbour);            } else {
+//                pendingIncomingSyncs.add(Pair.of(from, mid));
+//                logger.debug("Added {} to pending {}", from, pendingIncomingSyncs);
 //            }
 //        } else
 //            triggerNotification(new SendVectorClockNotification(mid, from));
 //    }
 //
-//    private void uponReceiveSyncOps(SyncOpsMessage msg, Host from, short sourceProto, int channelId) {
+//    private void uponReceiveSynchronizationMsg(SynchronizationMessage msg, Host from, short sourceProto, int channelId) {
 //        receivedSyncOps++;
 //
 //        logger.debug("Received {} from {}", msg, from);
@@ -229,7 +230,7 @@
 //                receivedDupesSyncFlood++;
 //            }
 //        }
-//        tryNextSync();
+//        tryNextIncomingSync();
 //    }
 //
 //    private void onMessageFailed(ProtoMessage protoMessage, Host host, short destProto, Throwable reason, int channel) {
@@ -277,17 +278,17 @@
 //            logger.debug("Removed {} from neighbours due to down {}", neighbour, neighbours);
 //        }
 //
-//        if (removeFromPending(neighbour)) {
-//            logger.debug("Removed {} from pending due to down {}", neighbour, pending);
+//        if (removeFromPendingIncomingSyncs(neighbour)) {
+//            logger.debug("Removed {} from pending due to down {}", neighbour, pendingIncomingSyncs);
 //        }
 //
-//        if (onGoingSyncs.remove(neighbour)) {
-//            logger.debug("Removed {} from onGoingSyncs due to down {}", neighbour, onGoingSyncs);
+//        if (outgoingSyncs.remove(neighbour)) {
+//            logger.debug("Removed {} from onGoingSyncs due to down {}", neighbour, outgoingSyncs);
 //        }
 //
-//        if (neighbour.equals(currentPendingInfo.getLeft())) {
+//        if (neighbour.equals(incomingSync.getHost())) {
 //            logger.debug("Removed {} from current pending due to down", neighbour);
-//            tryNextSync();
+//            tryNextIncomingSync();
 //        }
 //        closeConnection(neighbour);
 //    }
@@ -303,17 +304,17 @@
 //            logger.debug("Removed {} from neighbours due to flood down {}", host, neighbours);
 //        }
 //
-//        if (removeFromPending(host)) {
-//            logger.debug("Removed {} from pending due to flood down {}", host, pending);
+//        if (removeFromPendingIncomingSyncs(host)) {
+//            logger.debug("Removed {} from pending due to flood down {}", host, pendingIncomingSyncs);
 //        }
 //
-//        if (onGoingSyncs.remove(host)) {
-//            logger.debug("Removed {} from onGoingSyncs due to flood down {}", host, onGoingSyncs);
+//        if (outgoingSyncs.remove(host)) {
+//            logger.debug("Removed {} from onGoingSyncs due to flood down {}", host, outgoingSyncs);
 //        }
 //
-//        if (host.equals(currentPendingInfo.getLeft())) {
+//        if (host.equals(incomingSync.getHost())) {
 //            logger.debug("Removed {} from current pending due to flood down", host);
-//            tryNextSync();
+//            tryNextIncomingSync();
 //        }
 //
 //        if(partialView.contains(host)) {
@@ -335,7 +336,7 @@
 //        logger.trace("Host (out) {} is up", neighbour);
 //        if(partialView.contains(neighbour)) {
 //            logger.debug("Trying sync from neighbour {} up", neighbour);
-//            startSynchronization(neighbour);
+//            startOutgoingSync(neighbour, UUID.randomUUID());
 //        }
 //    }
 //
@@ -353,8 +354,6 @@
 //    private void handleFloodMessage(FloodMessage msg, Host from, boolean fromSync) {
 //        UUID mid = msg.getMid();
 //        logger.debug("Received op {} from {}. Is from sync {}", mid, from, fromSync);
-//        for(Queue<FloodMessage> q : this.bufferedOps.values())
-//            q.add(msg);
 //
 //        logger.info("RECEIVED {}", mid);
 //        triggerNotification(new DeliverNotification(mid, msg.getSender(), msg.getContent(), fromSync));
@@ -371,10 +370,12 @@
 //        });
 //    }
 //
-//    private void startSynchronization(Host neighbour) {
-//        if (!onGoingSyncs.contains(neighbour)) {
-//            logger.debug("Added {} to onGoingSyncs", neighbour);
-//            this.onGoingSyncs.add(neighbour);
+//    private void startOutgoingSync(Host neighbour, UUID msgId) {
+//        OutgoingSync os = new OutgoingSync(neighbour, msgId);
+//
+//        if (!outgoingSyncs.contains(os)) {
+//            logger.debug("Added {} to outgoingSyncs", neighbour);
+//            this.outgoingSyncs.add(os);
 //            UUID mid = UUID.randomUUID();
 //            SendVectorClockMessage msg = new SendVectorClockMessage(mid);
 //            sendMessage(msg, neighbour);
@@ -383,35 +384,19 @@
 //        }
 //    }
 //
-//    private void addHostToNeighbours(Host host) {
-//        if (neighbours.add(host)) {
-//            logger.debug("Added {} to neighbours {} : pending list {}", host, neighbours, pending);
-//        }
-//    }
+//    private void tryNextIncomingSync() {
+//        IncomingSync nextIncomingSync = pendingIncomingSyncs.poll();
 //
-//    private void tryNextSync() {
-//        Pair<Host, UUID> nextCurrentPendingInfo = pending.poll();
-//
-//        if (nextCurrentPendingInfo != null) {
-//            Host currentPending = nextCurrentPendingInfo.getLeft();
-//            UUID mid = nextCurrentPendingInfo.getRight();
-//            currentPendingInfo = nextCurrentPendingInfo;
-//            logger.debug("{} is my currentPending try", currentPending);
-//            triggerNotification(new SendVectorClockNotification(mid, currentPending));
+//        if (nextIncomingSync != null) {
+//            Host currentPending = nextIncomingSync.getHost();
+//            UUID mid = nextIncomingSync.getMid();
+//            incomingSync = nextIncomingSync;
+//            logger.debug("{} is my incomingSync try", currentPending);
+//            VectorClockMessage vectorClockMessage = new VectorClockMessage(mid, myself, new VectorClock(vectorClock.getClock()));
+//            sendMessage(vectorClockMessage, currentPending, TCPChannel.CONNECTION_IN);
+//            sentVC++;
 //        } else {
-//            currentPendingInfo = Pair.of(null, null);
-//        }
-//    }
-//
-//    private void handleBufferedOperations(Host neighbour, UUID mid) {
-//        Queue<FloodMessage> q = this.bufferedOps.remove(mid);
-//        FloodMessage msg;
-//        while((msg = q.poll()) != null) {
-//            if(!msg.getSender().equals(neighbour)) {
-//                sendMessage(msg, neighbour);
-//                sentFlood++;
-//                logger.debug("Sent buffered {} to {}", msg, neighbour);
-//            }
+//            incomingSync = new IncomingSync(null, null);
 //        }
 //    }
 //
@@ -420,11 +405,11 @@
 //        return new UUID(buf.readLong(), buf.readLong());
 //    }
 //
-//    private boolean removeFromPending(Host host) {
+//    private boolean removeFromPendingIncomingSyncs(Host host) {
 //        boolean removed = false;
-//        Iterator<Pair<Host, UUID>> it = this.pending.iterator();
+//        Iterator<IncomingSync> it = this.pendingIncomingSyncs.iterator();
 //        while(it.hasNext()) {
-//            if(it.next().getLeft().equals(host)) {
+//            if(it.next().getHost().equals(host)) {
 //                removed = true;
 //                it.remove();
 //            }

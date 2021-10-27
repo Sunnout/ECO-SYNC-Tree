@@ -1,8 +1,7 @@
 package protocols.replication.notifications;
 
-import crdts.interfaces.GenericCRDT;
+import protocols.replication.crdts.interfaces.GenericCRDT;
 import pt.unl.fct.di.novasys.babel.generic.ProtoNotification;
-import pt.unl.fct.di.novasys.network.data.Host;
 
 import java.util.UUID;
 

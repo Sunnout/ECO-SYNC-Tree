@@ -2,7 +2,7 @@ package protocols.apps;
 
 import java.util.*;
 
-import crdts.interfaces.*;
+import protocols.replication.crdts.interfaces.*;
 //import protocols.broadcast.flood.FloodBroadcast;
 //import protocols.broadcast.periodicpull.PeriodicPullBroadcast;
 import protocols.broadcast.plumtree.PlumTree;
@@ -11,7 +11,7 @@ import protocols.replication.OpCounterCRDT.CounterOpType;
 import protocols.replication.LWWRegisterCRDT.RegisterOpType;
 import protocols.replication.ORSetCRDT.SetOpType;
 import protocols.replication.ORMapCRDT.MapOpType;
-import datatypes.*;
+import protocols.replication.crdts.datatypes.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -54,7 +54,7 @@ public class CRDTApp extends GenericProtocol {
     private final short broadcastId;
     private final Host self;
 
-    //Time to wait until creating crdts
+    //Time to wait until creating protocols.replication.crdts
     private final int createTime;
     //Time to run before stopping sending messages
     private final int runTime;
@@ -108,7 +108,7 @@ public class CRDTApp extends GenericProtocol {
 
     @Override
     public void init(Properties props) {
-        //Wait before creating crdts
+        //Wait before creating protocols.replication.crdts
         logger.info("Waiting...");
         setupTimer(new CreateCRDTsTimer(), (long) createTime * TO_MILLIS);
     }
@@ -155,7 +155,7 @@ public class CRDTApp extends GenericProtocol {
     /* --------------------------------- Timers --------------------------------- */
 
     private void uponCreateCRDTsTimer(CreateCRDTsTimer timer, long timerId) {
-        logger.info("Creating crdts...");
+        logger.info("Creating protocols.replication.crdts...");
         getCRDTs();
         logger.warn("Starting operations...");
         ops1Timer = setupPeriodicTimer(new ExecuteOps1Timer(), 0, ops1Interval);

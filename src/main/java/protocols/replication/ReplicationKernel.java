@@ -1,9 +1,9 @@
 package protocols.replication;
 
-import crdts.operations.*;
-import datatypes.*;
-import exceptions.NoSuchCrdtType;
-import exceptions.NoSuchDataType;
+import protocols.replication.crdts.operations.*;
+import protocols.replication.crdts.datatypes.*;
+import protocols.replication.exceptions.NoSuchCrdtType;
+import protocols.replication.exceptions.NoSuchDataType;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import org.apache.logging.log4j.LogManager;
@@ -12,15 +12,15 @@ import protocols.broadcast.common.notifications.InstallStateNotification;
 import protocols.broadcast.common.notifications.SendStateNotification;
 import protocols.broadcast.common.requests.BroadcastRequest;
 import protocols.broadcast.common.notifications.DeliverNotification;
-import protocols.broadcast.common.requests.StateRequest;
+import protocols.broadcast.common.requests.UpdateStateRequest;
 import protocols.replication.notifications.*;
 import protocols.replication.requests.*;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.network.data.Host;
-import serializers.CRDTSerializer;
-import serializers.CRDTOpSerializer;
-import serializers.MySerializer;
+import protocols.replication.crdts.serializers.CRDTSerializer;
+import protocols.replication.crdts.serializers.CRDTOpSerializer;
+import protocols.replication.crdts.serializers.MySerializer;
 
 import java.io.*;
 import java.util.*;
@@ -59,9 +59,9 @@ public class ReplicationKernel extends GenericProtocol {
     private final Map<String, List<String>> dataTypesById; //Map that stores CRDT data types by their ID
 
     //Serializers
-    public static Map<String, CRDTSerializer> crdtSerializers = initializeCDRTSerializers(); //Static map of CRDT serializers for each crdt type
-    public static Map<String, CRDTOpSerializer> opSerializers = initializeOperationSerializers(); //Static map of operation serializers for each crdt type
-    public Map<String, List<MySerializer>> dataSerializers; //Map of data type serializers by crdt ID
+    public static Map<String, CRDTSerializer> crdtSerializers = initializeCDRTSerializers(); //Static map of CRDT protocols.replication.crdts.serializers for each crdt type
+    public static Map<String, CRDTOpSerializer> opSerializers = initializeOperationSerializers(); //Static map of operation protocols.replication.crdts.serializers for each crdt type
+    public Map<String, List<MySerializer>> dataSerializers; //Map of data type protocols.replication.crdts.serializers by crdt ID
 
     public ReplicationKernel(Host myself, short broadcastId) throws HandlerRegistrationException {
         super(PROTOCOL_NAME, PROTOCOL_ID);
@@ -280,7 +280,7 @@ public class ReplicationKernel extends GenericProtocol {
 
     private void uponSendStateNotification(SendStateNotification notification, short sourceProto) {
         try {
-            sendRequest(new StateRequest(notification.getMsgId(), notification.getVc(), serializeCurrentState()), broadcastId);
+            sendRequest(new UpdateStateRequest(notification.getMsgId(), notification.getVc(), serializeCurrentState()), broadcastId);
         } catch (IOException e) {
             logger.error("Error when handling send state notification", e);
         }
@@ -328,7 +328,7 @@ public class ReplicationKernel extends GenericProtocol {
 
     private byte[] serializeCurrentState() throws IOException {
         ByteBuf buf = Unpooled.buffer();
-        buf.writeInt(crdtsById.size()); //number of crdts
+        buf.writeInt(crdtsById.size()); //number of protocols.replication.crdts
         for(Map.Entry<String, KernelCRDT> entry : crdtsById.entrySet()) {
             String crdtId = entry.getKey();
             String crdtType = crdtTypesById.get(crdtId);
@@ -386,7 +386,7 @@ public class ReplicationKernel extends GenericProtocol {
 
     /**
      * Maps each CRDT to its own dataType serializer. If the CRDT is a map
-     * two serializers must be added (the first for the key, the second for
+     * two protocols.replication.crdts.serializers must be added (the first for the key, the second for
      * the value).
      *
      * @param crdtId    - ID of the CRDT.
@@ -509,7 +509,7 @@ public class ReplicationKernel extends GenericProtocol {
     /**
      * Creates a new CRDT of the given dataType with the given ID
      * and registers it in the kernel. Adds the host to the replication
-     * set of this replica and registers its serializers.
+     * set of this replica and registers its protocols.replication.crdts.serializers.
      *
      * @param crdtId    - ID of the CRDT.
      * @param crdtType  - type of the CRDT.
@@ -544,7 +544,7 @@ public class ReplicationKernel extends GenericProtocol {
     }
 
     /**
-     * Creates a map with the operation serializers for each crdt type.
+     * Creates a map with the operation protocols.replication.crdts.serializers for each crdt type.
      *
      * @return the created map.
      */

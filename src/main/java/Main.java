@@ -69,7 +69,7 @@ public class Main {
 
 //            case "flood":
 //                crdtApp = new CRDTApp(props, myself, ReplicationKernel.PROTOCOL_ID, FloodBroadcast.PROTOCOL_ID);
-//                replicationKernel = new ReplicationKernel(props, myself, FloodBroadcast.PROTOCOL_ID);
+//                replicationKernel = new ReplicationKernel(myself, FloodBroadcast.PROTOCOL_ID);
 //                broadcast = new FloodBroadcast(props, myself);
 //                membership = new HyParView(props, myself_membership);
 //                registerAndStartProtocols(babel, crdtApp, replicationKernel, broadcast, membership, props);
@@ -77,7 +77,7 @@ public class Main {
 //
 //            case "periodicpull":
 //                crdtApp = new CRDTApp(props, myself, ReplicationKernel.PROTOCOL_ID, PeriodicPullBroadcast.PROTOCOL_ID);
-//                replicationKernel = new ReplicationKernel(props, myself, PeriodicPullBroadcast.PROTOCOL_ID);
+//                replicationKernel = new ReplicationKernel(myself, PeriodicPullBroadcast.PROTOCOL_ID);
 //                broadcast = new PeriodicPullBroadcast(props, myself);
 //                membership = new HyParView(props, myself_membership);
 //                registerAndStartProtocols(babel, crdtApp, replicationKernel, broadcast, membership, props);

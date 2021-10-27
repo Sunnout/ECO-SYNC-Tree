@@ -2,7 +2,7 @@ package protocols.broadcast.common.utils;
 
 import io.netty.buffer.ByteBuf;
 import pt.unl.fct.di.novasys.network.data.Host;
-import serializers.MySerializer;
+import protocols.replication.crdts.serializers.MySerializer;
 
 import java.io.IOException;
 import java.util.HashMap;

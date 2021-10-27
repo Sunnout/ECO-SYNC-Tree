@@ -14,7 +14,7 @@ public class SynchronizationMessage extends ProtoMessage {
     public static final short MSG_ID = 908;
 
     private final UUID mid;
-    private StateAndVC stateAndVC;
+    private final StateAndVC stateAndVC;
     private final List<byte[]> msgs;
 
     public SynchronizationMessage(UUID mid, StateAndVC stateAndVC, List<byte[]> msgs) {
@@ -78,7 +78,7 @@ public class SynchronizationMessage extends ProtoMessage {
 
     @Override
     public String toString() {
-        return "SyncOpsMessage{" +
+        return "SynchronizationMessage{" +
                 "mid=" + mid +
                 ", nMsgs=" + msgs.size() +
                 ", stateAndVC=" + stateAndVC +

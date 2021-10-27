@@ -1,6 +1,6 @@
 //import protocols.replication.OpCounterCRDT;
-//import crdts.operations.CounterOperation;
-//import crdts.operations.Operation;
+//import protocols.replication.crdts.operations.CounterOperation;
+//import protocols.replication.crdts.operations.Operation;
 //
 //public class TestCounter {
 //

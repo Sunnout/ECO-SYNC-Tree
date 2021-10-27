@@ -70,6 +70,6 @@ for n_process in processes:
                             print(f"\t{len(nodes)}x -> {state}")
                     # print(" ")
                 if len(wrong) > 0:
-                    print(f"!!!!!!!!!!!!!!!!!!! Not converged, wrong crdts {wrong}")
+                    print(f"!!!!!!!!!!!!!!!!!!! Not converged, wrong protocols.replication.crdts {wrong}")
                 else:
                     print("All ok!")

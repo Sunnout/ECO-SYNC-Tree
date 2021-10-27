@@ -55,7 +55,7 @@ public class SimpleFloodBroadcast extends GenericProtocol {
         //Nothing to do here, we just wait for event from the membership or the application
     }
 
-    //Upon receiving the channelId from the membership, register our own callbacks and serializers
+    //Upon receiving the channelId from the membership, register our own callbacks and protocols.replication.crdts.serializers
     private void uponChannelCreated(ChannelCreated notification, short sourceProto) {
         int cId = notification.getChannelId();
         // Allows this protocol to receive events from this channel.

@@ -1,7 +1,7 @@
 package protocols.replication;
 
-import crdts.interfaces.GenericCRDT;
-import crdts.operations.Operation;
+import protocols.replication.crdts.interfaces.GenericCRDT;
+import protocols.replication.crdts.operations.Operation;
 
 interface KernelCRDT extends GenericCRDT {
 

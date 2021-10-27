@@ -1,9 +1,8 @@
 package protocols.replication.requests;
 
-import datatypes.SerializableType;
+import protocols.replication.crdts.datatypes.SerializableType;
 import protocols.replication.ORSetCRDT;
 import pt.unl.fct.di.novasys.babel.generic.ProtoRequest;
-import pt.unl.fct.di.novasys.network.data.Host;
 
 public class SetOperationRequest extends ProtoRequest {
 

@@ -1,9 +1,9 @@
 //import protocols.replication.ORMapCRDT;
-//import crdts.operations.Operation;
-//import crdts.operations.MapOperation;
-//import crdts.utils.TaggedElement;
-//import datatypes.IntegerType;
-//import datatypes.StringType;
+//import protocols.replication.crdts.operations.Operation;
+//import protocols.replication.crdts.operations.MapOperation;
+//import protocols.replication.crdts.utils.TaggedElement;
+//import protocols.replication.crdts.datatypes.IntegerType;
+//import protocols.replication.crdts.datatypes.StringType;
 //
 //import java.util.List;
 //import java.util.Set;

@@ -2,7 +2,7 @@ package protocols.broadcast.plumtree;
 
 import protocols.broadcast.common.notifications.InstallStateNotification;
 import protocols.broadcast.common.notifications.SendStateNotification;
-import protocols.broadcast.common.requests.StateRequest;
+import protocols.broadcast.common.requests.UpdateStateRequest;
 import protocols.broadcast.common.utils.MultiFileManager;
 import protocols.broadcast.common.utils.StateAndVC;
 import protocols.broadcast.common.utils.VectorClock;
@@ -138,7 +138,7 @@ public class PlumTree extends GenericProtocol {
 
         /*--------------------- Register Request Handlers ----------------------------- */
         registerRequestHandler(BroadcastRequest.REQUEST_ID, this::uponBroadcastRequest);
-        registerRequestHandler(StateRequest.REQUEST_ID, this::uponStateRequest);
+        registerRequestHandler(UpdateStateRequest.REQUEST_ID, this::uponStateRequest);
 
         /*--------------------- Register Notification Handlers ----------------------------- */
         subscribeNotification(NeighbourUp.NOTIFICATION_ID, this::uponNeighbourUp);
@@ -200,7 +200,7 @@ public class PlumTree extends GenericProtocol {
         handleGossipMessage(msg, myself);
     }
 
-    private void uponStateRequest(StateRequest request, short sourceProto) {
+    private void uponStateRequest(UpdateStateRequest request, short sourceProto) {
         logger.debug("Received {}", request);
         this.stateAndVC.setState(request.getState());
         this.stateAndVC.setVC(request.getVc());

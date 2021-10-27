@@ -1,9 +1,9 @@
-import datatypes.*;
+import protocols.replication.crdts.datatypes.*;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import protocols.replication.*;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
-import serializers.MySerializer;
+import protocols.replication.crdts.serializers.MySerializer;
 
 import java.io.IOException;
 

@@ -1,7 +1,7 @@
 package protocols.broadcast.common.utils;
 
 import io.netty.buffer.ByteBuf;
-import serializers.MySerializer;
+import protocols.replication.crdts.serializers.MySerializer;
 
 import java.io.IOException;
 

@@ -111,8 +111,6 @@ public class ReplicationKernel extends GenericProtocol {
                     triggerNotification(new CRDTAlreadyExistsNotification(msgId, crdtId));
                 }
             } else {
-//                crdt = createNewCrdt(crdtId, crdtType, dataTypes);
-//                triggerNotification(new ReturnCRDTNotification(msgId, crdt));
                 CreateOperation op = new CreateOperation(CREATE_CRDT, crdtId, crdtType, dataTypes);
                 sendRequest(new BroadcastRequest(msgId, myself, serializeOperation(true, op)), broadcastId);
             }
@@ -256,12 +254,21 @@ public class ReplicationKernel extends GenericProtocol {
 
     private void uponDeliverNotification(DeliverNotification notification, short sourceProto) {
         try {
+            UUID mid = notification.getMsgId();
             Operation op = deserializeOperation(notification.getMsg());
             String crdtId = op.getCrdtId();
+            String crdtType = op.getCrdtType();
             if (op instanceof CreateOperation) {
-                if (crdtsById.get(crdtId) == null) {
-                    KernelCRDT crdt = createNewCrdt(crdtId,  op.getCrdtType(), ((CreateOperation) op).getDataTypes());
-                    triggerNotification(new ReturnCRDTNotification(notification.getMsgId(), crdt));
+                KernelCRDT crdt = crdtsById.get(crdtId);
+                if (crdt == null) {
+                    crdt = createNewCrdt(crdtId,  crdtType, ((CreateOperation) op).getDataTypes());
+                    triggerNotification(new ReturnCRDTNotification(mid, crdt));
+                } else {
+                    if (validateCrdtType(crdt, crdtType)) {
+                        triggerNotification(new ReturnCRDTNotification(mid, crdt));
+                    } else {
+                        triggerNotification(new CRDTAlreadyExistsNotification(mid, crdtId));
+                    }
                 }
             } else {
                 crdtsById.get(crdtId).upstream(op);

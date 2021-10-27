@@ -158,6 +158,7 @@ for nNodes in "${nNodesList[@]}"; do
   pos=pos+1
 done #nNodes
 for n in $(oarprint host); do
-    oarsh -n $n "$HOME/PlumtreeOpLogs/docker/compressLogs.sh $expName $n"
-  done
+    oarsh -n $n "$HOME/PlumtreeOpLogs/docker/compressLogs.sh $expName $n" &
+done
+wait
 exit

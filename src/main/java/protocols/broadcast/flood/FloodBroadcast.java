@@ -155,6 +155,7 @@ public class FloodBroadcast extends CommunicationCostCalculator {
     private void uponReceiveGossipMsg(GossipMessage msg, Host from, short sourceProto, int channelId) {
         this.stats.incrementReceivedFlood();
         UUID mid = msg.getMid();
+        logger.debug("Received {} from {}. Is from sync {}", mid, from, false);
         if (received.add(mid)) {
             handleGossipMessage(msg, from, false);
         } else {
@@ -164,33 +165,35 @@ public class FloodBroadcast extends CommunicationCostCalculator {
     }
 
     private void uponReceiveVectorClockMsg(VectorClockMessage msg, Host from, short sourceProto, int channelId) {
+        logger.debug("Received {} from {}.", msg, from);
         this.stats.incrementReceivedVC();
         SynchronizationMessage synchronizationMsg = new SynchronizationMessage(msg.getMid(), null,
-                this.fileManager.readSyncOpsFromFile(msg.getVectorClock(), new VectorClock(vectorClock.getClock())));
+                this.fileManager.readSyncOpsFromFile(msg.getVectorClock(), vectorClock));
         sendMessage(synchronizationMsg, from);
         this.stats.incrementSentSyncOps();
         this.stats.incrementSentSyncFloodBy(synchronizationMsg.getMsgs().size());
         logger.debug("Sent {} to {}", msg, from);
 
         if (neighbours.add(from)) {
-            logger.debug("Added {} to neighbours {} : pendingIncomingSyncs {}", from, neighbours, pendingIncomingSyncs);
+            logger.debug("Added {} to neighbours {}", from, neighbours);
         }
     }
 
     private void uponReceiveSendVectorClockMsg(SendVectorClockMessage msg, Host from, short sourceProto, int channelId) {
+        logger.debug("Received {} from {}.", msg, from);
         this.stats.incrementReceivedSendVC();
         UUID mid = msg.getMid();
         Host currentPending = incomingSync.getHost();
         if (currentPending == null) {
             incomingSync = new IncomingSync(from, mid);
-            logger.debug("{} is my incomingSync ", from);
+            logger.debug("Added {} to incomingSync; pendingIncomingSyncs {} ", from, pendingIncomingSyncs);
             VectorClockMessage vectorClockMessage = new VectorClockMessage(mid, new VectorClock(vectorClock.getClock()));
             sendMessage(vectorClockMessage, from, TCPChannel.CONNECTION_IN);
             this.stats.incrementSentVC();
             logger.debug("Sent {} to {}", vectorClockMessage, from);
         } else {
             pendingIncomingSyncs.add(new IncomingSync(from, mid));
-            logger.debug("Added {} to pending {}", from, pendingIncomingSyncs);
+            logger.debug("Added {} to pendingIncomingSyncs {}", from, pendingIncomingSyncs);
         }
     }
 
@@ -333,6 +336,17 @@ public class FloodBroadcast extends CommunicationCostCalculator {
 
     private void uponInConnectionDown(InConnectionDown event, int channelId) {
         logger.trace("Connection from host {} is down, cause: {}", event.getNode(), event.getCause());
+
+        Host host = event.getNode();
+
+        if (removeFromPendingIncomingSyncs(host)) {
+            logger.debug("Removed {} from pendingIncomingSyncs due to in connection down {}", host, pendingIncomingSyncs);
+        }
+
+        if (host.equals(incomingSync.getHost())) {
+            logger.debug("Removed {} from incomingSync due to in connection down", host);
+            tryNextIncomingSync();
+        }
     }
 
 
@@ -349,7 +363,6 @@ public class FloodBroadcast extends CommunicationCostCalculator {
         }
 
         UUID mid = msg.getMid();
-        logger.debug("Received op {} from {}. Is from sync {}", mid, from, fromSync);
         logger.info("RECEIVED {}", mid);
         triggerNotification(new DeliverNotification(mid, sender, msg.getContent(), fromSync));
         forwardGossipMessage(msg, from);
@@ -386,12 +399,13 @@ public class FloodBroadcast extends CommunicationCostCalculator {
             Host currentPending = nextIncomingSync.getHost();
             UUID mid = nextIncomingSync.getMid();
             incomingSync = nextIncomingSync;
-            logger.debug("{} is my incomingSync try", currentPending);
+            logger.debug("Added {} to incomingSync (try Next); pendingIncomingSyncs {} ", currentPending, pendingIncomingSyncs);
             VectorClockMessage vectorClockMessage = new VectorClockMessage(mid, new VectorClock(vectorClock.getClock()));
             sendMessage(vectorClockMessage, currentPending, TCPChannel.CONNECTION_IN);
             this.stats.incrementSentVC();
         } else {
             incomingSync = new IncomingSync(null, null);
+            logger.debug("Added null to incomingSync (try Next); pendingIncomingSyncs {} ", pendingIncomingSyncs);
         }
     }
 

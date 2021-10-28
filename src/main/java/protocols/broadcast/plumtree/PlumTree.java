@@ -372,7 +372,7 @@ public class PlumTree extends CommunicationCostCalculator {
             }
 
             SynchronizationMessage synchronizationMsg = new SynchronizationMessage(msg.getMid(), stateAndVC,
-                    this.fileManager.readSyncOpsFromFile(msgVC, new VectorClock(vectorClock.getClock())));
+                    this.fileManager.readSyncOpsFromFile(msgVC, vectorClock));
             sendMessage(synchronizationMsg, from);
             stats.incrementSentSyncOps();
             stats.incrementSentSyncGossipBy(synchronizationMsg.getMsgs().size());
@@ -471,7 +471,7 @@ public class PlumTree extends CommunicationCostCalculator {
                         logger.error("[{}] Out-of-order op {}-{} : {} from {}, Clock {}", true,
                                 h, clock, mid, from, vectorClock.getHostClock(h));
                     } else {
-                        noExecuteGossipMessage(gossipMessage, from);
+                        writeToFileAndForwardGossipMessage(gossipMessage, from);
                     }
                 }
                 logger.debug("Executed {}/{} ops after installing state", nExecuted, msg.getMsgs().size());
@@ -843,28 +843,10 @@ public class PlumTree extends CommunicationCostCalculator {
     private void handleGossipMessage(GossipMessage msg, Host from) {
         stats.incrementExecutedOps();
         vectorClock.incrementClock(msg.getOriginalSender());
-        try {
-            this.fileManager.writeOperationToFile(msg, vectorClock);
-        } catch (IOException e) {
-            logger.error("Error when writing operation to file", e);
-        }
-
-        UUID mid = msg.getMid();
-        received.add(mid);
-        for (Map.Entry<Host, VectorClock> entry : eager.entrySet()) {
-            Host peer = entry.getKey();
-            if (!peer.equals(from)) {
-                VectorClock vc = entry.getValue();
-                if (vc.getHostClock(msg.getOriginalSender()) < msg.getSenderClock()) {
-                    sendMessage(msg, peer);
-                    stats.incrementSentGossip();
-                    logger.debug("Forward gossip {} received from {} to {}", mid, from, peer);
-                }
-            }
-        }
+        writeToFileAndForwardGossipMessage(msg, from);
     }
 
-    private void noExecuteGossipMessage(GossipMessage msg, Host from) {
+    private void writeToFileAndForwardGossipMessage(GossipMessage msg, Host from) {
         try {
             this.fileManager.writeOperationToFile(msg, vectorClock);
         } catch (IOException e) {

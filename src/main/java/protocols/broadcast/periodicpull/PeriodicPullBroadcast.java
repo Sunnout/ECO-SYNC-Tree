@@ -161,7 +161,7 @@ public class PeriodicPullBroadcast extends CommunicationCostCalculator {
         logger.debug("Received {} from {}", msg, from);
 
         SynchronizationMessage synchronizationMsg = new SynchronizationMessage(msg.getMid(), null,
-                this.fileManager.readSyncOpsFromFile(msg.getVectorClock(), new VectorClock(vectorClock.getClock())));
+                this.fileManager.readSyncOpsFromFile(msg.getVectorClock(), vectorClock));
         sendMessage(synchronizationMsg, from);
         sentSyncOps++;
         sentSyncPull += synchronizationMsg.getMsgs().size();
@@ -285,6 +285,7 @@ public class PeriodicPullBroadcast extends CommunicationCostCalculator {
         }
     }
 
+    @SuppressWarnings("rawtypes")
     private void uponOutConnectionFailed(OutConnectionFailed event, int channelId) {
         Host host = event.getNode();
         logger.trace("Connection to host {} failed, cause: {}", host, event.getCause());

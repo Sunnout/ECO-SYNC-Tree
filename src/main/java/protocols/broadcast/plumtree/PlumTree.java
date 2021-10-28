@@ -42,14 +42,14 @@ public class PlumTree extends CommunicationCostCalculator {
     private final static int PORT_MAPPING = 1000;
     private final static int SECONDS_TO_MILLIS = 1000;
 
-    private final long iHaveTimeout;
     private final long reconnectTimeout;
 
-    private final long treeMsgTimeout;
-    private final long checkTreeMsgsTimeout;
+    private final long iHaveTimeout; // Timeout to send announcements
+    private final long treeMsgTimeout; // Timeout to send tree message
+    private final long checkTreeMsgsTimeout; // Timeout to check if tree messages have been received recently
 
-    private final long garbageCollectionTimeout;
-    private final long saveStateTimeout;
+    private final long garbageCollectionTimeout; // Timeout to garbage collect old operations
+    private final long saveStateTimeout; // Timeout do compute new state
     private StateAndVC stateAndVC; // Current state and corresponding VC
 
     private long sendTreeMsgTimer;
@@ -82,9 +82,9 @@ public class PlumTree extends CommunicationCostCalculator {
         super(PROTOCOL_NAME, PROTOCOL_ID);
         this.myself = myself;
 
-        this.iHaveTimeout = Long.parseLong(properties.getProperty("i_have_timeout", "1000"));
         this.reconnectTimeout = Long.parseLong(properties.getProperty("reconnect_timeout", "500"));
 
+        this.iHaveTimeout = Long.parseLong(properties.getProperty("i_have_timeout", "1000"));
         this.treeMsgTimeout = Long.parseLong(properties.getProperty("tree_msg_timeout", "100"));
         this.checkTreeMsgsTimeout = Long.parseLong(properties.getProperty("check_tree_msgs_timeout", "5000"));
 
@@ -139,7 +139,7 @@ public class PlumTree extends CommunicationCostCalculator {
 
         /*--------------------- Register Request Handlers ----------------------------- */
         registerRequestHandler(BroadcastRequest.REQUEST_ID, this::uponBroadcastRequest);
-        registerRequestHandler(UpdateStateRequest.REQUEST_ID, this::uponStateRequest);
+        registerRequestHandler(UpdateStateRequest.REQUEST_ID, this::uponUpdateStateRequest);
 
         /*--------------------- Register Notification Handlers ----------------------------- */
         subscribeNotification(NeighbourUp.NOTIFICATION_ID, this::uponNeighbourUp);
@@ -201,7 +201,7 @@ public class PlumTree extends CommunicationCostCalculator {
         handleGossipMessage(msg, myself);
     }
 
-    private void uponStateRequest(UpdateStateRequest request, short sourceProto) {
+    private void uponUpdateStateRequest(UpdateStateRequest request, short sourceProto) {
         logger.debug("Received {}", request);
         this.stateAndVC.setState(request.getState());
         this.stateAndVC.setVC(request.getVc());
@@ -214,15 +214,15 @@ public class PlumTree extends CommunicationCostCalculator {
         stats.incrementReceivedTree();
         UUID mid = msg.getMid();
         logger.debug("Received tree {} from {}", mid, from);
-        if (!receivedTreeIDs.contains(mid)) {
+        if (!receivedTreeIDs.contains(mid))
             handleTreeMessage(msg, from);
-        } else {
+        else {
             stats.incrementReceivedDupesTree();
             logger.debug("{} was duplicated tree from {}", mid, from);
             StringBuilder sb = new StringBuilder(String.format("[PEER %s] VIS-TREEDUPE: ", from));
             boolean print = false;
 
-            if(partialView.contains(from)) { //Because we can receive messages before neigh up
+            if(partialView.contains(from)) { // Because we can receive messages before neigh up
                 if (eager.remove(from) != null) {
                     logger.debug("Removed {} from eager due to duplicate tree {}", from, eager);
                     print = true;
@@ -246,7 +246,7 @@ public class PlumTree extends CommunicationCostCalculator {
                 stats.incrementSentPrune();
             }
 
-            if(print) {
+            if (print) {
                 sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager.keySet(), lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
                 logger.info(sb);
             }
@@ -319,7 +319,7 @@ public class PlumTree extends CommunicationCostCalculator {
             tryNextIncomingSync();
         }
 
-        if(print) {
+        if (print) {
             sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager.keySet(), lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
             logger.info(sb);
         }
@@ -378,7 +378,7 @@ public class PlumTree extends CommunicationCostCalculator {
             stats.incrementSentSyncGossipBy(synchronizationMsg.getMsgs().size());
             logger.debug("Sent {} to {}", synchronizationMsg, from);
 
-            if(partialView.contains(from)) {
+            if (partialView.contains(from)) {
                 StringBuilder sb = new StringBuilder(String.format("[PEER %s] VIS-ENDSYNC: ", from));
 
                 if (eager.put(from, msgVC) == null) {
@@ -400,9 +400,10 @@ public class PlumTree extends CommunicationCostCalculator {
                 logger.info(sb);
 
                 sb = new StringBuilder("Cancelled timer for ");
-                for (Iterator<Map.Entry<UUID, Queue<Host>>> iterator = missing.entrySet().iterator(); iterator.hasNext(); ) {
+                Iterator<Map.Entry<UUID, Queue<Host>>> iterator = missing.entrySet().iterator();
+                while(iterator.hasNext()) {
                     Map.Entry<UUID, Queue<Host>> iHaves = iterator.next();
-                    if(iHaves.getValue().contains(from)) {
+                    if (iHaves.getValue().contains(from)) {
                         cancelTimer(onGoingTimers.remove(iHaves.getKey()));
                         sb.append(iHaves.getKey()).append(" ");
                         iterator.remove();
@@ -437,81 +438,20 @@ public class PlumTree extends CommunicationCostCalculator {
 
         sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager.keySet(), lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
         logger.info(sb);
-
     }
 
     private void uponReceiveSynchronizationMsg(SynchronizationMessage msg, Host from, short sourceProto, int channelId) {
-        try {
-            stats.incrementReceivedSyncOps();
-            logger.debug("Received {} from {}", msg, from);
+        stats.incrementReceivedSyncOps();
+        logger.debug("Received {} from {}", msg, from);
 
-            StateAndVC stateAndVC = msg.getStateAndVC();
-            if(stateAndVC != null) {
-                triggerNotification(new InstallStateNotification(msg.getMid(), stateAndVC.getState()));
-                this.stateAndVC = stateAndVC;
-                vectorClock = new VectorClock(stateAndVC.getVc().getClock());
-                reexecuteMyOps();
+        StateAndVC msgStateAndVC = msg.getStateAndVC();
+        if(msgStateAndVC != null)
+            installStateAndExecuteSyncOps(msg, from, msgStateAndVC);
+        else
+            executeSyncOps(msg, from);
 
-                int nExecuted = 0;
-                for (byte[] serMsg : msg.getMsgs()) {
-                    stats.incrementReceivedSyncGossip();
-
-                    DataInputStream dis = new DataInputStream(new ByteArrayInputStream(serMsg));
-                    GossipMessage gossipMessage = GossipMessage.deserialize(dis);
-                    UUID mid = gossipMessage.getMid();
-                    Host h = gossipMessage.getOriginalSender();
-                    int clock = gossipMessage.getSenderClock();
-                    if (vectorClock.getHostClock(h) == clock - 1) {
-                        logger.debug("[{}] Accepted op {}-{} : {} from {}, Clock {}", true,
-                                h, clock, mid, from, vectorClock.getHostClock(h));
-                        triggerNotification(new DeliverNotification(mid, from, gossipMessage.getContent(), true));
-                        handleGossipMessage(gossipMessage, from);
-                        nExecuted++;
-                    } else if (vectorClock.getHostClock(h) < clock - 1) {
-                        logger.error("[{}] Out-of-order op {}-{} : {} from {}, Clock {}", true,
-                                h, clock, mid, from, vectorClock.getHostClock(h));
-                    } else {
-                        writeToFileAndForwardGossipMessage(gossipMessage, from);
-                    }
-                }
-                logger.debug("Executed {}/{} ops after installing state", nExecuted, msg.getMsgs().size());
-            } else {
-                for (byte[] serMsg : msg.getMsgs()) {
-                    stats.incrementReceivedSyncGossip();
-
-                    DataInputStream dis = new DataInputStream(new ByteArrayInputStream(serMsg));
-                    GossipMessage gossipMessage = GossipMessage.deserialize(dis);
-                    UUID mid = gossipMessage.getMid();
-
-                    if (!received.contains(mid)) {
-                        stats.incrementReceivedOps();
-                        logger.info("RECEIVED {}", mid);
-                        Host h = gossipMessage.getOriginalSender();
-                        int clock = gossipMessage.getSenderClock();
-                        if (vectorClock.getHostClock(h) == clock - 1) {
-                            logger.debug("[{}] Accepted op {}-{} : {} from {}, Clock {}", true,
-                                    h, clock, mid, from, vectorClock.getHostClock(h));
-                            triggerNotification(new DeliverNotification(mid, from, gossipMessage.getContent(), true));
-                            handleGossipMessage(gossipMessage, from);
-                        } else if (vectorClock.getHostClock(h) < clock - 1) {
-                            logger.error("[{}] Out-of-order op {}-{} : {} from {}, Clock {}", true,
-                                    h, clock, mid, from, vectorClock.getHostClock(h));
-                        } else {
-                            logger.error("[{}] Ignored old op {}-{} : {} from {}, Clock {}", true,
-                                    h, clock, mid, from, vectorClock.getHostClock(h));
-                        }
-                    } else {
-                        logger.info("DUPLICATE SYNC from {}", from);
-                        logger.debug("Sync op {} was dupe", mid);
-                        stats.incrementReceivedDupesSyncGossip();
-                    }
-                }
-            }
-            logger.info("Received sync ops. Sync {} ENDED", msg.getMid());
-            tryNextIncomingSync();
-        } catch (IOException e) {
-            logger.error("Sync message handling error", e);
-        }
+        logger.info("Sync {} ENDED", msg.getMid());
+        tryNextIncomingSync();
     }
 
     private void onMessageFailed(ProtoMessage protoMessage, Host host, short destProto, Throwable reason, int channel) {
@@ -524,27 +464,25 @@ public class PlumTree extends CommunicationCostCalculator {
     private void uponSendTreeMessageTimeout(SendTreeMessageTimeout timeout, long timerId) {
         UUID mid = UUID.randomUUID();
         logger.debug("Generated tree msg {}", mid);
-        TreeMessage msg = new TreeMessage(mid, myself);
-        handleTreeMessage(msg, myself);
+        handleTreeMessage(new TreeMessage(mid, myself), myself);
     }
 
     private void uponCheckReceivedTreeMessagesTimeout(CheckReceivedTreeMessagesTimeout timeout, long timerId) {
-        if(treeMsgsFromSmallerHost == 0) {
+        if(treeMsgsFromSmallerHost == 0)
             sendTreeMsgTimer = setupPeriodicTimer(new SendTreeMessageTimeout(), 0, treeMsgTimeout);
-        } else {
+        else
             treeMsgsFromSmallerHost = 0;
-        }
     }
 
     private void uponIHaveTimeout(IHaveTimeout timeout, long timerId) {
         UUID mid = timeout.getMid();
         logger.debug("IHave timeout {}", mid);
-        if(onGoingTimers.containsKey(mid)) {
+        if (onGoingTimers.containsKey(mid)) {
             if (!receivedTreeIDs.contains(mid)) {
-                Host msgSrc = missing.get(mid).poll();
-                if (msgSrc != null) {
-                    logger.debug("Try sync with {} for timeout {}", msgSrc, mid);
-                    startOutgoingSync(msgSrc, mid, "TIMEOUT-" + mid, true);
+                Host sender = missing.get(mid).poll();
+                if (sender != null) {
+                    logger.debug("Try sync with {} for timeout {}", sender, mid);
+                    startOutgoingSync(sender, mid, "TIMEOUT-" + mid, true);
                 }
             }
         }
@@ -581,11 +519,10 @@ public class PlumTree extends CommunicationCostCalculator {
         Host tmp = notification.getNeighbour();
         Host neighbour = new Host(tmp.getAddress(), tmp.getPort() + PORT_MAPPING);
 
-        if (partialView.add(neighbour)) {
+        if (partialView.add(neighbour))
             logger.debug("Added {} to partial view due to up {}", neighbour, partialView);
-        } else {
+        else
             logger.error("Tried to add {} to partial view but is already there {}", neighbour, partialView);
-        }
 
         openConnection(neighbour);
     }
@@ -685,12 +622,12 @@ public class PlumTree extends CommunicationCostCalculator {
             tryNextIncomingSync();
         }
 
-        if(print) {
+        if (print) {
             sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager.keySet(), lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
             logger.info(sb);
         }
 
-        if(partialView.contains(host)) {
+        if (partialView.contains(host)) {
             setupTimer(new ReconnectTimeout(host), reconnectTimeout);
         }
     }
@@ -699,9 +636,8 @@ public class PlumTree extends CommunicationCostCalculator {
     private void uponOutConnectionFailed(OutConnectionFailed event, int channelId) {
         Host host = event.getNode();
         logger.trace("Connection to host {} failed, cause: {}", host, event.getCause());
-        if(partialView.contains(host)) {
+        if(partialView.contains(host))
             setupTimer(new ReconnectTimeout(host), reconnectTimeout);
-        }
     }
 
     private void uponOutConnectionUp(OutConnectionUp event, int channelId) {
@@ -711,12 +647,12 @@ public class PlumTree extends CommunicationCostCalculator {
         StringBuilder sb = new StringBuilder(String.format("[PEER %s] VIS-CONNUP: ", neighbour));
 
         if (partialView.contains(neighbour)) {
-                if (lazy.add(neighbour)) {
-                    logger.debug("Added {} to lazy due to neigh up {}", neighbour, lazy);
-                    sb.append(String.format("Added %s to lazy; ", neighbour));
-                    sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager.keySet(), lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
-                    logger.info(sb);
-                }
+            if (lazy.add(neighbour)) {
+                logger.debug("Added {} to lazy due to neigh up {}", neighbour, lazy);
+                sb.append(String.format("Added %s to lazy; ", neighbour));
+                sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager.keySet(), lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
+                logger.info(sb);
+            }
         }
     }
 
@@ -744,7 +680,7 @@ public class PlumTree extends CommunicationCostCalculator {
             tryNextIncomingSync();
         }
 
-        if(print)
+        if (print)
             logger.info(sb);
     }
 
@@ -779,16 +715,15 @@ public class PlumTree extends CommunicationCostCalculator {
     private void tryNextIncomingSync() {
         IncomingSync nextIncomingSync = pendingIncomingSyncs.poll();
         StringBuilder sb = new StringBuilder(String.format("[PEER %s] VIS-NEXTINCOMINGSYNC: ", incomingSync.getHost()));
-        if(incomingSync.getHost() != null)
+        if (incomingSync.getHost() != null)
             sb.append(String.format("Removed %s from incomingSync; ", incomingSync.getHost()));
 
         if (nextIncomingSync != null) {
             Host currentPending = nextIncomingSync.getHost();
-            UUID mid = nextIncomingSync.getMid();
             incomingSync = nextIncomingSync;
             sb.append(String.format("Removed %s from pendingIncomingSyncs; ", currentPending));
             sb.append(String.format("Added %s to incomingSync; ", currentPending));
-            VectorClockMessage vectorClockMessage = new VectorClockMessage(mid, new VectorClock(vectorClock.getClock()));
+            VectorClockMessage vectorClockMessage = new VectorClockMessage(nextIncomingSync.getMid(), new VectorClock(vectorClock.getClock()));
             sendMessage(vectorClockMessage, currentPending, TCPChannel.CONNECTION_IN);
             stats.incrementSentVC();
             sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager.keySet(), lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
@@ -802,10 +737,10 @@ public class PlumTree extends CommunicationCostCalculator {
     }
 
     private void handleTreeMessage(TreeMessage msg, Host from) {
-        if(msg.getOriginalSender().compareTo(myself) <= 0) {
+        if (msg.getOriginalSender().compareTo(myself) <= 0) {
             logger.debug("Received tree msg from equal or smaller host {}", msg.getOriginalSender());
             treeMsgsFromSmallerHost++;
-            if(!msg.getOriginalSender().equals(myself))
+            if (!msg.getOriginalSender().equals(myself))
                 cancelTimer(sendTreeMsgTimer);
         }
 
@@ -818,7 +753,7 @@ public class PlumTree extends CommunicationCostCalculator {
             missing.remove(mid);
         }
 
-        StringBuilder sb = new StringBuilder(String.format("Forward tree %s received from %s to ", msg.getMid(), from));
+        StringBuilder sb = new StringBuilder(String.format("Forward tree %s received from %s to ", mid, from));
         for (Host peer : eager.keySet()) {
             if (!peer.equals(from)) {
                 sendMessage(msg, peer);
@@ -828,7 +763,7 @@ public class PlumTree extends CommunicationCostCalculator {
         }
         logger.debug(sb);
 
-        IHaveMessage iHave = new IHaveMessage(msg.getMid());
+        IHaveMessage iHave = new IHaveMessage(mid);
         sb = new StringBuilder(String.format("Sent %s to ", iHave));
         for (Host peer : lazy) {
             if (!peer.equals(from)) {
@@ -895,13 +830,88 @@ public class PlumTree extends CommunicationCostCalculator {
         return removed;
     }
 
+    private void installStateAndExecuteSyncOps(SynchronizationMessage msg, Host from, StateAndVC msgStateAndVC) {
+        triggerNotification(new InstallStateNotification(msg.getMid(), msgStateAndVC.getState()));
+        this.stateAndVC = msgStateAndVC;
+        vectorClock = new VectorClock(msgStateAndVC.getVc().getClock());
+        reexecuteMyOps();
+
+        int nExecutedSyncOps = 0;
+        for (byte[] serMsg : msg.getMsgs()) {
+            stats.incrementReceivedSyncGossip();
+            //TODO: devia ver se received contém? como medir dupes aqui?
+            try {
+                DataInputStream dis = new DataInputStream(new ByteArrayInputStream(serMsg));
+                GossipMessage gossipMessage = GossipMessage.deserialize(dis);
+                UUID mid = gossipMessage.getMid();
+                Host h = gossipMessage.getOriginalSender();
+                int msgClock = gossipMessage.getSenderClock();
+                int myClock = vectorClock.getHostClock(h);
+                if (myClock == msgClock - 1) {
+                    logger.debug("[{}] Accepted op {}-{} : {} from {}, Clock {}", true, h, msgClock, mid,
+                            from, myClock);
+                    triggerNotification(new DeliverNotification(mid, from, gossipMessage.getContent(), true));
+                    handleGossipMessage(gossipMessage, from);
+                    nExecutedSyncOps++;
+                } else if (myClock < msgClock - 1) {
+                    logger.error("[{}] Out-of-order op {}-{} : {} from {}, Clock {}", true, h, msgClock,
+                            mid, from, myClock);
+                } else {
+                    writeToFileAndForwardGossipMessage(gossipMessage, from);
+                }
+            } catch (IOException e) {
+                logger.error("Sync message handling error", e);
+            }
+        }
+        logger.debug("Executed {}/{} ops after installing state", nExecutedSyncOps, msg.getMsgs().size());
+    }
+
+    private void executeSyncOps(SynchronizationMessage msg, Host from) {
+        for (byte[] serMsg : msg.getMsgs()) {
+            stats.incrementReceivedSyncGossip();
+
+            try {
+                DataInputStream dis = new DataInputStream(new ByteArrayInputStream(serMsg));
+                GossipMessage gossipMessage = GossipMessage.deserialize(dis);
+                UUID mid = gossipMessage.getMid();
+
+                if (!received.contains(mid)) {
+                    stats.incrementReceivedOps();
+                    logger.info("RECEIVED {}", mid);
+                    Host h = gossipMessage.getOriginalSender();
+                    int msgClock = gossipMessage.getSenderClock();
+                    int myClock = vectorClock.getHostClock(h);
+                    if (myClock == msgClock - 1) {
+                        logger.debug("[{}] Accepted op {}-{} : {} from {}, Clock {}", true,
+                                h, msgClock, mid, from, myClock);
+                        triggerNotification(new DeliverNotification(mid, from, gossipMessage.getContent(), true));
+                        handleGossipMessage(gossipMessage, from);
+                    } else if (myClock < msgClock - 1) {
+                        logger.error("[{}] Out-of-order op {}-{} : {} from {}, Clock {}", true,
+                                h, msgClock, mid, from, myClock);
+                    } else {
+                        logger.error("[{}] Ignored old op {}-{} : {} from {}, Clock {}", true,
+                                h, msgClock, mid, from, myClock);
+                    }
+                } else {
+                    logger.info("DUPLICATE SYNC from {}", from);
+                    logger.debug("Sync op {} was dupe", mid);
+                    stats.incrementReceivedDupesSyncGossip();
+                }
+            } catch (IOException e) {
+                logger.error("Sync message handling error", e);
+            }
+        }
+    }
+
     private void reexecuteMyOps() {
         List<GossipMessage> myLateOps = this.fileManager.getMyLateOperations(myself, vectorClock, seqNumber);
         logger.debug("My VC pos is {} and my seqNumber is {}; executing {} ops", vectorClock.getHostClock(myself), seqNumber, myLateOps.size());
-        for(GossipMessage msg : myLateOps) {
+        for (GossipMessage msg : myLateOps) {
+            UUID mid = msg.getMid();
             vectorClock.incrementClock(myself);
-            logger.debug("Reexecuting {}-{} : {}", msg.getOriginalSender(), msg.getSenderClock(), msg.getMid());
-            triggerNotification(new DeliverNotification(msg.getMid(), myself, msg.getContent(), false));
+            logger.debug("Reexecuting {}-{} : {}", msg.getOriginalSender(), msg.getSenderClock(), mid);
+            triggerNotification(new DeliverNotification(mid, myself, msg.getContent(), false));
         }
     }
 }

@@ -2,7 +2,6 @@ package protocols.apps;
 
 import java.util.*;
 
-import org.apache.commons.lang3.RandomStringUtils;
 import protocols.broadcast.flood.FloodBroadcast;
 import protocols.broadcast.flood.utils.FloodStats;
 import protocols.replication.crdts.interfaces.*;
@@ -27,8 +26,12 @@ import pt.unl.fct.di.novasys.network.data.Host;
 public class CRDTApp extends GenericProtocol {
 
     private static final Logger logger = LogManager.getLogger(CRDTApp.class);
-    private static final int TO_MILLIS = 1000;
 
+    //Protocol information, to register in babel
+    public static final String PROTO_NAME = "CRDTApp";
+    public static final short PROTO_ID = 300;
+
+    private static final int TO_MILLIS = 1000;
     //RUN = 0 --> counter; 1 --> register; 2 --> set; 3 --> map; 4 --> 8 registers;
     //5 --> 8 sets; 6 --> 8 maps; 7 --> 1 of each CRDT; 8 --> counter + register + set + map
     //9 --> 1 register de strings
@@ -49,10 +52,6 @@ public class CRDTApp extends GenericProtocol {
     private static final String CRDT7 = "CRDT7";
     private static final String CRDT8 = "CRDT8";
 
-    //Protocol information, to register in babel
-    public static final String PROTO_NAME = "CRDTApp";
-    public static final short PROTO_ID = 300;
-
     private final short replicationKernelId;
     private final short broadcastId;
     private final Host self;
@@ -70,16 +69,13 @@ public class CRDTApp extends GenericProtocol {
 
     private final float prob;
 
-    //Interval between each increment
-    private final int ops1Interval;
-
-    //Increment(By), decrement(By) and value periodic timers
-    private long ops1Timer;
-
-    //Map of crdtId to GenericCRDT
-    private final Map<String, GenericCRDT> myCRDTs;
+    private final int sendOpsTimeout;
+    private long sendOpsTimer;
 
     private final Random rand;
+
+    private final Map<String, GenericCRDT> myCRDTs;
+
 
     public CRDTApp(Properties properties, Host self, short replicationKernelId, short broadcastId) throws HandlerRegistrationException {
         super(PROTO_NAME, PROTO_ID);
@@ -94,13 +90,13 @@ public class CRDTApp extends GenericProtocol {
         this.cooldownTime = Integer.parseInt(properties.getProperty("cooldown_time"));
         this.exitTime = Integer.parseInt(properties.getProperty("exit_time"));
         this.payloadSize = Integer.parseInt(properties.getProperty("payload_size"));
-        this.ops1Interval = Integer.parseInt(properties.getProperty("ops1"));
+        this.sendOpsTimeout = Integer.parseInt(properties.getProperty("send_ops_timeout"));
         this.prob = Float.parseFloat(properties.getProperty("op_probability", "1"));
 
         this.rand = new Random();
 
         /*--------------------- Register Timer Handlers ----------------------------- */
-        registerTimerHandler(ExecuteOps1Timer.TIMER_ID, this::uponExecuteOps1Timer);
+        registerTimerHandler(SendOpsTimer.TIMER_ID, this::uponSendOpsTimer);
         registerTimerHandler(CreateCRDTsTimer.TIMER_ID, this::uponCreateCRDTsTimer);
         registerTimerHandler(StopTimer.TIMER_ID, this::uponStopTimer);
         registerTimerHandler(PrintValuesTimer.TIMER_ID, this::uponPrintValuesTimer);
@@ -148,33 +144,33 @@ public class CRDTApp extends GenericProtocol {
     private void uponReturnCRDTNotification(ReturnCRDTNotification notification, short sourceProto) {
         GenericCRDT crdt = notification.getCrdt();
         String crdtId = crdt.getCrdtId();
-        logger.info("CRDT {} was created by {} - {}", crdtId, self, notification.getMsgId());
+        logger.debug("CRDT {} was created by {} - {}", crdtId, self, notification.getMsgId());
         myCRDTs.put(crdtId, crdt);
     }
 
     private void uponCRDTAlreadyExistsNotification(CRDTAlreadyExistsNotification notification, short sourceProto) {
-        logger.info("CRDT {} already exists for {}", notification.getCrdtId(), self);
+        logger.debug("CRDT {} already exists for {}", notification.getCrdtId(), self);
     }
 
 
     /* --------------------------------- Timers --------------------------------- */
 
     private void uponCreateCRDTsTimer(CreateCRDTsTimer timer, long timerId) {
-        logger.info("Creating protocols.replication.crdts...");
+        logger.warn("Creating CRDTs...");
         getCRDTs();
         logger.warn("Starting operations...");
-        ops1Timer = setupPeriodicTimer(new ExecuteOps1Timer(), 0, ops1Interval);
+        sendOpsTimer = setupPeriodicTimer(new SendOpsTimer(), 0, sendOpsTimeout);
         setupTimer(new StopTimer(), (long) runTime * TO_MILLIS);
     }
 
-    private void uponExecuteOps1Timer(ExecuteOps1Timer incTimer, long timerId) {
+    private void uponSendOpsTimer(SendOpsTimer timer, long timerId) {
         executeWithProbability(prob);
     }
 
     private void uponStopTimer(StopTimer stopTimer, long timerId) {
         logger.warn("Stopping broadcasts");
         //Stop executing operations
-        this.cancelTimer(ops1Timer);
+        this.cancelTimer(sendOpsTimer);
         setupTimer(new PrintValuesTimer(), (long) cooldownTime * TO_MILLIS);
     }
 
@@ -450,8 +446,9 @@ public class CRDTApp extends GenericProtocol {
         String alphabetsInUpperCase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
         String alphabetsInLowerCase = "abcdefghijklmnopqrstuvwxyz";
         String numbers = "0123456789";
+        String others = "!?&$%+*#=<>?@~^";
         // Create a super set of all characters
-        String allCharacters = alphabetsInLowerCase + alphabetsInUpperCase + numbers;
+        String allCharacters = alphabetsInLowerCase + alphabetsInUpperCase + numbers + others;
         StringBuffer randomString = new StringBuffer();
         for (int i = 0; i < nChars; i++) {
             int randomIndex = rand.nextInt(allCharacters.length());

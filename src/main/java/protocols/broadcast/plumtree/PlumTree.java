@@ -195,7 +195,6 @@ public class PlumTree extends CommunicationCostCalculator {
         byte[] content = request.getMsg();
         logger.info("SENT {}", mid);
         triggerNotification(new DeliverNotification(mid, myself, content, false));
-        logger.info("RECEIVED {}", mid);
         GossipMessage msg = new GossipMessage(mid, myself, ++seqNumber, content);
         logger.debug("Accepted my op {}-{}: {}", myself, seqNumber, mid);
         handleGossipMessage(msg, myself);
@@ -259,7 +258,6 @@ public class PlumTree extends CommunicationCostCalculator {
         logger.debug("Received gossip {} from {}", mid, from);
         if (!received.contains(mid)) {
             stats.incrementReceivedOps();
-            logger.info("RECEIVED {}", mid);
             Host h = msg.getOriginalSender();
             int clock = msg.getSenderClock();
             if (vectorClock.getHostClock(h) == clock - 1) {
@@ -450,7 +448,7 @@ public class PlumTree extends CommunicationCostCalculator {
         else
             executeSyncOps(msg, from);
 
-        logger.info("Sync {} ENDED", msg.getMid());
+        logger.debug("Sync {} ENDED", msg.getMid());
         tryNextIncomingSync();
     }
 
@@ -776,6 +774,7 @@ public class PlumTree extends CommunicationCostCalculator {
     }
 
     private void handleGossipMessage(GossipMessage msg, Host from) {
+        logger.info("RECEIVED {}", msg.getMid());
         stats.incrementExecutedOps();
         vectorClock.incrementClock(msg.getOriginalSender());
         writeToFileAndForwardGossipMessage(msg, from);
@@ -839,7 +838,6 @@ public class PlumTree extends CommunicationCostCalculator {
         int nExecutedSyncOps = 0;
         for (byte[] serMsg : msg.getMsgs()) {
             stats.incrementReceivedSyncGossip();
-            //TODO: devia ver se received contém? como medir dupes aqui?
             try {
                 DataInputStream dis = new DataInputStream(new ByteArrayInputStream(serMsg));
                 GossipMessage gossipMessage = GossipMessage.deserialize(dis);
@@ -877,7 +875,6 @@ public class PlumTree extends CommunicationCostCalculator {
 
                 if (!received.contains(mid)) {
                     stats.incrementReceivedOps();
-                    logger.info("RECEIVED {}", mid);
                     Host h = gossipMessage.getOriginalSender();
                     int msgClock = gossipMessage.getSenderClock();
                     int myClock = vectorClock.getHostClock(h);

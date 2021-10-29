@@ -1,11 +1,19 @@
 #!/bin/bash
 
+### USAGE ###
+# ./runExperimentsStable.sh --expname test1 --nnodes 50,100,150,200 --protocols plumtree,flood --probs 1,0.5,0.3 --nruns 2,3 --payloads 128,256,512,1024
+
 POSITIONAL=()
 while [[ $# -gt 0 ]]; do
   key="$1"
   case $key in
   --expname)
     expname="$2"
+    shift # past argument
+    shift # past value
+    ;;
+  --runtime)
+    runtime="$2"
     shift # past argument
     shift # past value
     ;;
@@ -47,6 +55,9 @@ if [[ -z "${expname}" ]]; then
   echo "expname not set"
   exit
 fi
+if [[ -z "${runtime}" ]]; then
+  runtime="5"
+fi
 if [[ -z "${nruns}" ]]; then
   echo "nruns not set"
   exit
@@ -63,16 +74,19 @@ if [[ -z "${probs}" ]]; then
   probs="1"
 fi
 if [[ -z "${payloads}" ]]; then
-  payloads=128,256,512,1024
+  payloads="128"
 fi
 
 IFS=', ' read -r -a expName <<<"$expname"
+IFS=', ' read -r -a runTime <<<"$runtime"
 IFS=', ' read -r -a nRunsList <<<"$nruns"
 IFS=', ' read -r -a nNodesList <<<"$nnodes"
 IFS=', ' read -r -a protocolList <<<"$protocols"
 IFS=', ' read -r -a probabilityList <<<"$probs"
+IFS=', ' read -r -a payloadList <<<"$payloads"
 
-# ./runExperiments --nnodes 50,100,150,200 --protocols plumtree,flood --probability 1,0.5,0.3 --nruns 2,3
+### START OF EXPERIMENTS ###
+
 echo "Killing previous existing containers"
 for n in $(oarprint host); do
   oarsh -n $n 'docker kill $(docker ps -aq)';
@@ -101,40 +115,43 @@ for nNodes in "${nNodesList[@]}"; do
     fi
     echo Cooldown is $cooldown
 
-    for probability in "${probabilityList[@]}"; do
-      echo Starting probability $probability
-      for run in "${nRunsList[@]}"; do
-        echo Starting run $run
-        exp_path="/logs/${nNodes}nodes/${protocol}/prob${probability}/${run}runs"
-        echo Exp_path is $exp_path
+    for payload in "${payloadList[@]}"; do
+      echo Starting payload $payload
+      for probability in "${probabilityList[@]}"; do
+        echo Starting probability $probability
+        for run in "${nRunsList[@]}"; do
+          echo Starting run $run
+          exp_path="/logs/${nNodes}nodes/${protocol}/prob${probability}/${run}runs"
+          echo Exp_path is $exp_path
 
-        for node in $(oarprint host); do
-          oarsh $node "mkdir -p /tmp${exp_path}"
-        done
+          for node in $(oarprint host); do
+            oarsh $node "mkdir -p /tmp${exp_path}"
+          done
 
-        docker exec -d node_0 ./start.sh $protocol $probability $warmup $runtime $cooldown $exp_path
-        sleep 0.5
-
-        contactnode="node_0:5000"
-
-        mapfile -t hosts < <(uniq $OAR_FILE_NODES)
-        serverNodes=$(uniq $OAR_FILE_NODES | wc -l)
-        perHost=$((nNodes / serverNodes))
-
-        inode=$((nInitNodesList[pos]))
-        echo inode is $inode
-        for ((nodeNumber=1;nodeNumber<inode;nodeNumber++)); do
-          node=$((nodeNumber/perHost))
-          echo node $nodeNumber host ${hosts[node]}
-          oarsh -n ${hosts[node]} "docker exec -d node_${nodeNumber} ./start.sh $protocol $probability $warmup $runtime $cooldown $exp_path ${contactnode}:5000"
+          docker exec -d node_0 ./start.sh $protocol $probability $warmup $runtime $cooldown $exp_path
           sleep 0.5
-        done
 
-        sleep_time=$((warmup + cooldown + 300 + 10 + 20))
-        echo Sleeping $sleep_time $(date)
-        sleep $sleep_time
-      done #run
-    done #probability
+          contactnode="node_0:5000"
+
+          mapfile -t hosts < <(uniq $OAR_FILE_NODES)
+          serverNodes=$(uniq $OAR_FILE_NODES | wc -l)
+          perHost=$((nNodes / serverNodes))
+
+          inode=$((nInitNodesList[pos]))
+          echo inode is $inode
+          for ((nodeNumber=1;nodeNumber<inode;nodeNumber++)); do
+            node=$((nodeNumber/perHost))
+            echo node $nodeNumber host ${hosts[node]}
+            oarsh -n ${hosts[node]} "docker exec -d node_${nodeNumber} ./start.sh $protocol $probability $warmup $runtime $cooldown $exp_path ${contactnode}:5000"
+            sleep 0.5
+          done
+
+          sleep_time=$((warmup + cooldown + 300 + 10 + 20))
+          echo Sleeping $sleep_time $(date)
+          sleep $sleep_time
+        done #run
+      done #probability
+    done #payload
   done #protocol
   echo "Killing all containers"
   for n in $(oarprint host); do
@@ -143,8 +160,12 @@ for nNodes in "${nNodesList[@]}"; do
   sleep 15
   pos=pos+1
 done #nNodes
+
+### COMPRESSING LOGS ###
+
 for n in $(oarprint host); do
     oarsh -n $n "$HOME/PlumtreeOpLogs/docker/compressLogs.sh $expName $n" &
 done
 wait
+
 exit

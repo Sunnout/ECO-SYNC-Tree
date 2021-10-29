@@ -6,8 +6,8 @@ import java.util.UUID;
 
 public class IncomingSync implements TreeSync{
 
-    private Host host;
-    private UUID mid;
+    private final Host host;
+    private final UUID mid;
 
 
     public IncomingSync(Host host, UUID mid) {
@@ -30,8 +30,12 @@ public class IncomingSync implements TreeSync{
             return true;
         } else if (!(other instanceof IncomingSync)) {
             return false;
+        }
+
+        IncomingSync o = (IncomingSync)other;
+        if (o.getMid() == null && o.getHost() == null) {
+            return this.mid == null && this.host == null;
         } else {
-            IncomingSync o = (IncomingSync)other;
             return o.getMid().equals(this.mid) && o.getHost().equals(this.host);
         }
     }

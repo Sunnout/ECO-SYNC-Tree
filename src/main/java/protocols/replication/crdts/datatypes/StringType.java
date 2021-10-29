@@ -3,6 +3,8 @@ package protocols.replication.crdts.datatypes;
 import io.netty.buffer.ByteBuf;
 import protocols.replication.crdts.serializers.MySerializer;
 
+import java.nio.charset.StandardCharsets;
+
 
 public class StringType extends SerializableType{
 
@@ -15,7 +17,7 @@ public class StringType extends SerializableType{
     public static MySerializer<StringType> serializer = new MySerializer<StringType>() {
         @Override
         public void serialize(StringType stringType, ByteBuf out) {
-            byte[] data = stringType.value.getBytes();
+            byte[] data = stringType.value.getBytes(StandardCharsets.US_ASCII);
             int size = data.length;
             out.writeInt(size);
             out.writeBytes(data);
@@ -26,7 +28,7 @@ public class StringType extends SerializableType{
             int size = in.readInt();
             byte[] string = new byte[size];
             in.readBytes(string);
-            return new StringType(new String(string));
+            return new StringType(new String(string, StandardCharsets.US_ASCII));
         }
     };
 

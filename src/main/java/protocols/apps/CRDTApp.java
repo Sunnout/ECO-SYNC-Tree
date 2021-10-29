@@ -2,6 +2,7 @@ package protocols.apps;
 
 import java.util.*;
 
+import org.apache.commons.lang3.RandomStringUtils;
 import protocols.broadcast.flood.FloodBroadcast;
 import protocols.broadcast.flood.utils.FloodStats;
 import protocols.replication.crdts.interfaces.*;
@@ -30,7 +31,8 @@ public class CRDTApp extends GenericProtocol {
 
     //RUN = 0 --> counter; 1 --> register; 2 --> set; 3 --> map; 4 --> 8 registers;
     //5 --> 8 sets; 6 --> 8 maps; 7 --> 1 of each CRDT; 8 --> counter + register + set + map
-    private static final int RUN = 8;
+    //9 --> 1 register de strings
+    private static final int RUN = 9;
 
     private static final String COUNTER = "counter";
     private static final String LWW_REGISTER = "lww_register";
@@ -64,6 +66,8 @@ public class CRDTApp extends GenericProtocol {
     //Time to wait until shut down
     private final int exitTime;
 
+    private final int payloadSize;
+
     private final float prob;
 
     //Interval between each increment
@@ -89,6 +93,7 @@ public class CRDTApp extends GenericProtocol {
         this.runTime = Integer.parseInt(properties.getProperty("run_time"));
         this.cooldownTime = Integer.parseInt(properties.getProperty("cooldown_time"));
         this.exitTime = Integer.parseInt(properties.getProperty("exit_time"));
+        this.payloadSize = Integer.parseInt(properties.getProperty("payload_size"));
         this.ops1Interval = Integer.parseInt(properties.getProperty("ops1"));
         this.prob = Float.parseFloat(properties.getProperty("op_probability", "1"));
 
@@ -242,15 +247,25 @@ public class CRDTApp extends GenericProtocol {
                 getCRDT(OR_SET, new String[]{"int"}, CRDT2);
                 getCRDT(OR_MAP, new String[]{"int", "int"}, CRDT3);
                 break;
+            case  9:
+                getCRDT(LWW_REGISTER, new String[]{"string"}, CRDT0);
+                break;
         }
     }
 
     private void executeWithProbability(double prob) {
         if(Math.random() <= prob) {
-            executeCounterOperation(CRDT0, CounterOpType.INCREMENT, 1);
-            executeRegisterOperation(CRDT1, RegisterOpType.ASSIGN, new IntegerType(rand.nextInt(1000)));
-            executeSetOperation(CRDT2, Math.random() > 0.5 ? SetOpType.ADD : SetOpType.REMOVE, new IntegerType(rand.nextInt(50)));
-            executeMapOperation(CRDT3, MapOpType.PUT, new IntegerType(rand.nextInt(10)), new IntegerType(rand.nextInt(1000)));
+            switch (CRDTApp.RUN) {
+                case 8:
+                    executeCounterOperation(CRDT0, CounterOpType.INCREMENT, 1);
+                    executeRegisterOperation(CRDT1, RegisterOpType.ASSIGN, new IntegerType(rand.nextInt(1000)));
+                    executeSetOperation(CRDT2, Math.random() > 0.5 ? SetOpType.ADD : SetOpType.REMOVE, new IntegerType(rand.nextInt(50)));
+                    executeMapOperation(CRDT3, MapOpType.PUT, new IntegerType(rand.nextInt(10)), new IntegerType(rand.nextInt(1000)));
+                    break;
+                case 9:
+                    executeRegisterOperation(CRDT0, RegisterOpType.ASSIGN, new StringType(generateRandomString(payloadSize)));
+                    break;
+            }
         }
     }
 
@@ -395,6 +410,9 @@ public class CRDTApp extends GenericProtocol {
                 for (SerializableType key : keys)
                     logger.info("[CRDT-VAL] {}:{} {}", CRDT3, key, getMapping(CRDT3, key));
                 break;
+            case 9:
+                logger.info("[CRDT-VAL] {} {}", CRDT0, getRegisterValue(CRDT0));
+                break;
         }
     }
 
@@ -428,94 +446,18 @@ public class CRDTApp extends GenericProtocol {
         return list;
     }
 
-
-    /* --------------------------------- Unused Methods --------------------------------- */
-
-    private void executeOp1(int run) {
-        if(run == 0) {
-            executeCounterOperation(CRDT0, CounterOpType.INCREMENT, 1);
-        } else if(run == 1) {
-            executeRegisterOperation(CRDT1, RegisterOpType.ASSIGN, new IntegerType(rand.nextInt(10)));
-        } else if(run == 2) {
-            executeSetOperation(CRDT2, SetOpType.ADD, new IntegerType(rand.nextInt(10)));
-        } else if(run == 3) {
-            executeMapOperation(CRDT3, MapOpType.PUT, new ByteType((byte)rand.nextInt(2)), new IntegerType(rand.nextInt(10)));
-        } else if(run == 4) {
-            executeRegisterOperation(CRDT1, RegisterOpType.ASSIGN, new IntegerType(5));
-            executeRegisterOperation(CRDT2, RegisterOpType.ASSIGN, new LongType(5L));
-            executeRegisterOperation(CRDT3, RegisterOpType.ASSIGN, new ShortType((short)2));
-            executeRegisterOperation(CRDT4, RegisterOpType.ASSIGN, new FloatType(8f));
-            executeRegisterOperation(CRDT5, RegisterOpType.ASSIGN, new DoubleType(1.4));
-            executeRegisterOperation(CRDT6, RegisterOpType.ASSIGN, new StringType("Olá"));
-            executeRegisterOperation(CRDT7, RegisterOpType.ASSIGN, new BooleanType(true));
-            executeRegisterOperation(CRDT8, RegisterOpType.ASSIGN, new ByteType((byte)0));
-        } else if(run == 5) {
-            executeSetOperation(CRDT1, SetOpType.ADD, new IntegerType(1));
-            executeSetOperation(CRDT2, SetOpType.ADD, new LongType(5L));
-            executeSetOperation(CRDT3, SetOpType.ADD, new ShortType((short)2));
-            executeSetOperation(CRDT4, SetOpType.ADD, new FloatType(8f));
-            executeSetOperation(CRDT5, SetOpType.ADD, new DoubleType(1.4));
-            executeSetOperation(CRDT6, SetOpType.ADD, new StringType("Olá"));
-            executeSetOperation(CRDT7, SetOpType.ADD, new BooleanType(true));
-            executeSetOperation(CRDT8, SetOpType.ADD, new ByteType((byte)0));
-        } else if(run == 6) {
-            executeMapOperation(CRDT1, MapOpType.PUT, new ByteType((byte)1), new IntegerType(1));
-            executeMapOperation(CRDT2, MapOpType.PUT, new ByteType((byte)1), new ShortType((short)4));
-            executeMapOperation(CRDT3, MapOpType.PUT, new ByteType((byte)1), new LongType(5L));
-            executeMapOperation(CRDT4, MapOpType.PUT, new ByteType((byte)1), new FloatType(8f));
-            executeMapOperation(CRDT5, MapOpType.PUT, new ByteType((byte)1), new DoubleType(1.4));
-            executeMapOperation(CRDT6, MapOpType.PUT, new ByteType((byte)1), new BooleanType(true));
-            executeMapOperation(CRDT7, MapOpType.PUT, new ByteType((byte)1), new StringType("Olá, bom dia"));
-            executeMapOperation(CRDT8, MapOpType.PUT, new ByteType((byte)1), new ByteType((byte)0));
-        } else if(run == 7) {
-            executeCounterOperation(CRDT0, CounterOpType.INCREMENT, 1);
-            executeRegisterOperation(CRDT1, RegisterOpType.ASSIGN, new IntegerType(rand.nextInt(10)));
-            executeSetOperation(CRDT2, SetOpType.ADD, new IntegerType(rand.nextInt(10)));
-            executeMapOperation(CRDT3, MapOpType.PUT, new ByteType((byte)rand.nextInt(2)), new IntegerType(rand.nextInt(10)));
+    private String generateRandomString(int nChars) {
+        String alphabetsInUpperCase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        String alphabetsInLowerCase = "abcdefghijklmnopqrstuvwxyz";
+        String numbers = "0123456789";
+        // Create a super set of all characters
+        String allCharacters = alphabetsInLowerCase + alphabetsInUpperCase + numbers;
+        StringBuffer randomString = new StringBuffer();
+        for (int i = 0; i < nChars; i++) {
+            int randomIndex = rand.nextInt(allCharacters.length());
+            randomString.append(allCharacters.charAt(randomIndex));
         }
+        return randomString.toString();
     }
 
-    private void executeOp2(int run) {
-        if(run == 0) {
-            executeCounterOperation(CRDT0, CounterOpType.DECREMENT, 1);
-        } else if(run == 1) {
-            executeRegisterOperation(CRDT1, RegisterOpType.ASSIGN, new IntegerType(rand.nextInt(10)));
-        } else if(run == 2) {
-            executeSetOperation(CRDT2, SetOpType.REMOVE, new IntegerType(rand.nextInt(10)));
-        } else if(run == 3) {
-            executeMapOperation(CRDT3, MapOpType.DELETE, new ByteType((byte)rand.nextInt(2)), null);
-        } else if(run == 4) {
-            executeRegisterOperation(CRDT1, RegisterOpType.ASSIGN, new IntegerType(7));
-            executeRegisterOperation(CRDT2, RegisterOpType.ASSIGN, new LongType(8L));
-            executeRegisterOperation(CRDT3, RegisterOpType.ASSIGN, new ShortType((short)4));
-            executeRegisterOperation(CRDT4, RegisterOpType.ASSIGN, new FloatType(9f));
-            executeRegisterOperation(CRDT5, RegisterOpType.ASSIGN, new DoubleType(1.35));
-            executeRegisterOperation(CRDT6, RegisterOpType.ASSIGN, new StringType("Bom dia"));
-            executeRegisterOperation(CRDT7, RegisterOpType.ASSIGN, new BooleanType(false));
-            executeRegisterOperation(CRDT8, RegisterOpType.ASSIGN, new ByteType((byte)1));
-        } else if(run == 5) {
-            executeSetOperation(CRDT1, SetOpType.REMOVE, new IntegerType(1));
-            executeSetOperation(CRDT2, SetOpType.REMOVE, new LongType(5L));
-            executeSetOperation(CRDT3, SetOpType.REMOVE, new ShortType((short)2));
-            executeSetOperation(CRDT4, SetOpType.REMOVE, new FloatType(8f));
-            executeSetOperation(CRDT5, SetOpType.REMOVE, new DoubleType(1.4));
-            executeSetOperation(CRDT6, SetOpType.REMOVE, new StringType("Olá"));
-            executeSetOperation(CRDT7, SetOpType.REMOVE, new BooleanType(true));
-            executeSetOperation(CRDT8, SetOpType.REMOVE, new ByteType((byte)0));
-        } else if(run == 6) {
-            executeMapOperation(CRDT1, MapOpType.DELETE, new ByteType((byte)1), null);
-            executeMapOperation(CRDT2, MapOpType.DELETE, new ByteType((byte)1), null);
-            executeMapOperation(CRDT3, MapOpType.DELETE, new ByteType((byte)1), null);
-            executeMapOperation(CRDT4, MapOpType.DELETE, new ByteType((byte)1), null);
-            executeMapOperation(CRDT5, MapOpType.DELETE, new ByteType((byte)1), null);
-            executeMapOperation(CRDT6, MapOpType.DELETE, new ByteType((byte)1), null);
-            executeMapOperation(CRDT7, MapOpType.DELETE, new ByteType((byte)1), null);
-            executeMapOperation(CRDT8, MapOpType.DELETE, new ByteType((byte)1), null);
-        } else if(run == 7) {
-            executeCounterOperation(CRDT0, CounterOpType.DECREMENT, 1);
-            executeRegisterOperation(CRDT1, RegisterOpType.ASSIGN, new IntegerType(rand.nextInt(10)));
-            executeSetOperation(CRDT2, SetOpType.REMOVE, new IntegerType(rand.nextInt(10)));
-            executeMapOperation(CRDT3, MapOpType.DELETE, new ByteType((byte)rand.nextInt(2)), null);
-        }
-    }
 }

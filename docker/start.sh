@@ -2,11 +2,12 @@
 
 protocol=$1
 probability=$2
-warmup=$3
-runtime=$4
-cooldown=$5
-exppath=$6
-contactnode=$7
+payload=$3
+warmup=$4
+runtime=$5
+cooldown=$6
+exppath=$7
+contactnode=$8
 
 servernode=$(hostname)
 
@@ -41,7 +42,7 @@ if [ -z $exppath ]; then
 fi
 
 if [ -z $contactnode ]; then
-  java -Xmx1024M -DlogFilename=${exppath}/${servernode} -jar PlumtreeOpLogs.jar -conf config.properties interface=eth0 bcast_protocol=${protocol} op_probability=${probability} create_time=${warmup} run_time=${runtime} cooldown_time=${cooldown}
+  java -Xmx1024M -DlogFilename=${exppath}/${servernode} -jar PlumtreeOpLogs.jar -conf config.properties interface=eth0 bcast_protocol=${protocol} op_probability=${probability} payload_size=${payload} create_time=${warmup} run_time=${runtime} cooldown_time=${cooldown}
 else
-  java -Xmx1024M -DlogFilename=${exppath}/${servernode} -jar PlumtreeOpLogs.jar -conf config.properties interface=eth0 bcast_protocol=${protocol} op_probability=${probability} create_time=${warmup} run_time=${runtime} cooldown_time=${cooldown} contact=${contactnode}
+  java -Xmx1024M -DlogFilename=${exppath}/${servernode} -jar PlumtreeOpLogs.jar -conf config.properties interface=eth0 bcast_protocol=${protocol} op_probability=${probability} payload_size=${payload} create_time=${warmup} run_time=${runtime} cooldown_time=${cooldown} contact=${contactnode}
 fi

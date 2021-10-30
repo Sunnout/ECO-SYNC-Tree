@@ -101,13 +101,13 @@ warmup=$nnodes
 echo Warmup is $warmup
 echo Runtime is $runtime
 for protocol in "${protocolList[@]}"; do
-  echo Starting protocol $protocol
   if [[ "$protocol" == "flood" ]]; then
-    cooldown=nnodes + 400
+    cooldown=600
   else
-    cooldown=nnodes + 200
+    cooldown=400
   fi
   echo Cooldown is $cooldown
+  echo Starting protocol $protocol
 
   for payload in "${payloadList[@]}"; do
     echo Starting payload $payload
@@ -141,11 +141,11 @@ for protocol in "${protocolList[@]}"; do
           sleep 0.5
         done
 
-        sleep_time=$((warmup + runTime + cooldown))
+        sleep_time=$((warmup + runtime + cooldown))
         echo Sleeping $sleep_time seconds
-        sleep $sleep_time
-        finalTime=$(date -d "+$(sleep_time) seconds")
+        finalTime=$(date -d "+${sleep_time} seconds")
         echo This exp ends at $finalTime
+        sleep $sleep_time
       done #run
     done #probability
   done #payload

@@ -4,15 +4,17 @@ import sys
 import glob
 
 # results_file = "{}nodes_{}_{}prob_runs{}.csv"
-logs_folder_template = "/tmp/logs/{}nodes/{}/prob{}/{}runs"
+logs_folder_template = "/tmp/logs/{}nodes/{}/payload{}/prob{}/{}runs"
 # file_name = "logs/{}nodes/{}/prob{}/{}runs/node_{}.log"
 processes_arg = sys.argv[1]
 proto_arg = sys.argv[2]
-probs_arg = sys.argv[3]
-runs_arg = sys.argv[4]
+payload_arg = sys.argv[3]
+probs_arg = sys.argv[4]
+runs_arg = sys.argv[5]
 
 processes = processes_arg.split(",")
 protocols = proto_arg.split(",")
+payloads = payload_arg.split(",")
 probabilities = probs_arg.split(",")
 runs = runs_arg.split(",")
 
@@ -41,35 +43,36 @@ def process_file(file_name, file_path, results):
 
 for n_process in processes:
     for proto in protocols:
-        for prob in probabilities:
-            for run in runs:
-                wrong = []
-                results = {}
-                print(f"Starting to process {proto} with {n_process} nodes and probability {prob} (run {run})")
-                logs_folder = logs_folder_template.format(n_process, proto, prob, run)
-                all_files = glob.glob(f"{logs_folder}/node_*.log")
-                if len(all_files) == 0:
-                    print("No files found")
-                    exit(1)
-                counter = 0
-                for file_path in all_files:
-                    progressBar(counter, len(all_files))
-                    counter += 1
-                    file_name = os.path.basename(file_path)
-                    if os.path.isfile(file_path):
-                        process_file(file_name, file_path, results)
-                print(" ")
-                for c, r in results.items():
-                    print(str(c))
-                    if len(r) > 1:
-                        wrong.append(c)
-                    for state, nodes in r.items():
+        for payload in payloads:
+            for prob in probabilities:
+                for run in runs:
+                    wrong = []
+                    results = {}
+                    print(f"Starting to process {proto} with {n_process} nodes, payload {payload} and probability {prob} (run {run})")
+                    logs_folder = logs_folder_template.format(n_process, proto, payload, prob, run)
+                    all_files = glob.glob(f"{logs_folder}/node_*.log")
+                    if len(all_files) == 0:
+                        print("No files found")
+                        exit(1)
+                    counter = 0
+                    for file_path in all_files:
+                        progressBar(counter, len(all_files))
+                        counter += 1
+                        file_name = os.path.basename(file_path)
+                        if os.path.isfile(file_path):
+                            process_file(file_name, file_path, results)
+                    print(" ")
+                    for c, r in results.items():
+                        print(str(c))
                         if len(r) > 1:
-                            print(f"\t{len(nodes)}x -> {state} ({nodes})")
-                        else:
-                            print(f"\t{len(nodes)}x -> {state}")
-                    # print(" ")
-                if len(wrong) > 0:
-                    print(f"!!!!!!!!!!!!!!!!!!! Not converged, wrong protocols.replication.crdts {wrong}")
-                else:
-                    print("All ok!")
+                            wrong.append(c)
+                        for state, nodes in r.items():
+                            if len(r) > 1:
+                                print(f"\t{len(nodes)}x -> {state} ({nodes})")
+                            else:
+                                print(f"\t{len(nodes)}x -> {state}")
+                        # print(" ")
+                    if len(wrong) > 0:
+                        print(f"!!!!!!!!!!!!!!!!!!! Not converged, wrong CRDTs {wrong}")
+                    else:
+                        print("All ok!")

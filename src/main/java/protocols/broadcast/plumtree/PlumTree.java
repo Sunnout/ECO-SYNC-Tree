@@ -49,7 +49,7 @@ public class PlumTree extends CommunicationCostCalculator {
     private final long checkTreeMsgsTimeout; // Timeout to check if tree messages have been received recently
 
     private final long garbageCollectionTimeout; // Timeout to garbage collect old operations
-    private final long saveStateTimeout; // Timeout do compute new state
+    private final long saveStateTimeout; // Timeout to compute new state
     private StateAndVC stateAndVC; // Current state and corresponding VC
 
     private long sendTreeMsgTimer;

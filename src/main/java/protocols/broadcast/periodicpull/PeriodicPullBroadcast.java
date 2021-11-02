@@ -41,6 +41,8 @@ public class PeriodicPullBroadcast extends CommunicationCostCalculator {
     private final long reconnectTimeout;
     private final long pullTimeout;
 
+    private long periodicPullTimer;
+
     private final Set<Host> partialView;
     private final Set<Host> neighbours;
     private final Set<UUID> received;
@@ -140,8 +142,9 @@ public class PeriodicPullBroadcast extends CommunicationCostCalculator {
     }
 
     @Override
-    public void init(Properties props) throws HandlerRegistrationException, IOException {
-        setupTimer(new PeriodicPullTimeout(), pullTimeout);
+    public void init(Properties props) {
+        this.periodicPullTimer = setupTimer(new PeriodicPullTimeout(), pullTimeout);
+        logger.debug("SETUP timer {} init", this.periodicPullTimer);
     }
 
 
@@ -162,10 +165,10 @@ public class PeriodicPullBroadcast extends CommunicationCostCalculator {
 
         SynchronizationMessage synchronizationMsg = new SynchronizationMessage(msg.getMid(), null,
                 this.fileManager.readSyncOpsFromFile(msg.getVectorClock(), vectorClock));
-        sendMessage(synchronizationMsg, from);
+        sendMessage(synchronizationMsg, from, TCPChannel.CONNECTION_IN);
         sentSyncOps++;
         sentSyncPull += synchronizationMsg.getMsgs().size();
-        logger.debug("Sent {} to {}", msg, from);
+        logger.debug("Sent {} to {}", synchronizationMsg, from);
     }
 
     private void uponReceiveSynchronizationMsg(SynchronizationMessage msg, Host from, short sourceProto, int channelId) {
@@ -175,6 +178,8 @@ public class PeriodicPullBroadcast extends CommunicationCostCalculator {
         IncomingSync hostInfo = new IncomingSync(from, mid);
         if (!hostInfo.equals(incomingSync))
             return;
+
+        logger.debug("Received {} from {}", msg, from);
 
         try {
             for (byte[] serMsg : msg.getMsgs()) {
@@ -199,7 +204,8 @@ public class PeriodicPullBroadcast extends CommunicationCostCalculator {
         if(timeout < 0)
             timeout = 0;
         this.incomingSync = new IncomingSync(null, null);
-        setupTimer(new PeriodicPullTimeout(), timeout);
+        this.periodicPullTimer = setupTimer(new PeriodicPullTimeout(), timeout);
+        logger.debug("SETUP timer {} uponSyncMsgs", this.periodicPullTimer);
     }
 
     private void onMessageFailed(ProtoMessage protoMessage, Host host, short destProto, Throwable reason, int channel) {
@@ -220,6 +226,8 @@ public class PeriodicPullBroadcast extends CommunicationCostCalculator {
     }
 
     private void uponPeriodicPullTimeout(PeriodicPullTimeout timeout, long timerId) {
+        logger.debug("TIMEOUT {}", this.periodicPullTimer);
+
         Host h = getRandomNeighbour();
         if(h != null) {
             UUID mid = UUID.randomUUID();
@@ -229,8 +237,10 @@ public class PeriodicPullBroadcast extends CommunicationCostCalculator {
             sentVC++;
             logger.debug("Sent {} to {}", msg, h);
             this.startTime = System.currentTimeMillis();
-        } else
-            setupTimer(new PeriodicPullTimeout(), pullTimeout);
+        } else {
+            this.periodicPullTimer = setupTimer(new PeriodicPullTimeout(), pullTimeout);
+            logger.debug("SETUP timer {} uponTimer", this.periodicPullTimer);
+        }
     }
 
 
@@ -265,7 +275,8 @@ public class PeriodicPullBroadcast extends CommunicationCostCalculator {
 
         if(neighbour.equals(incomingSync.getHost())) {
             this.incomingSync = new IncomingSync(null, null);
-            setupTimer(new PeriodicPullTimeout(), pullTimeout);
+            this.periodicPullTimer = setupTimer(new PeriodicPullTimeout(), pullTimeout);
+            logger.debug("SETUP timer {} uponNeighDown", this.periodicPullTimer);
         }
     }
 

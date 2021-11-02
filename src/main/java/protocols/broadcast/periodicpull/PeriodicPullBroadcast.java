@@ -37,7 +37,6 @@ public class PeriodicPullBroadcast extends CommunicationCostCalculator {
     private final static int PORT_MAPPING = 1000;
     private final static int SECONDS_TO_MILLIS = 1000;
 
-
     private final long reconnectTimeout;
     private final long pullTimeout;
 

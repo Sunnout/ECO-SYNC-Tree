@@ -123,7 +123,6 @@ for protocol in "${protocolList[@]}"; do
         perHost=$((nnodes / serverNodes))
         if [[ "$perHost" -ne 50 ]]; then
           echo "perHost is $perHost (which is not 50)"
-          exit
         fi
 
         ### LAUNCHING NODES ###

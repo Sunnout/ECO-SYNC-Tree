@@ -141,7 +141,6 @@ for protocol in "${protocolList[@]}"; do
         perHost=$((nnodes / serverNodes))
         if [[ "$perHost" -ne 50 ]]; then
           echo "perHost is $perHost (which is not 50)"
-          exit
         fi
 
         ### LAUNCHING INITIAL NODES ###
@@ -162,10 +161,11 @@ for protocol in "${protocolList[@]}"; do
 
         ### WAITING UNTIL CATASTROPHE ###
         midExperiment=$((runtime/2))
+        echo Sleeping $midExperiment seconds
         sleep $midExperiment
 
         ### KILLING NODES ###
-        for ((dead = 0; dead < ndeadnodes; dead++)); do
+        for ((dead = 1; dead <= ndeadnodes; dead++)); do
           node=$((dead/perHost))
           echo Killing node_$dead
           oarsh -n ${hosts[node]} "docker exec -d node_${dead} killall java"

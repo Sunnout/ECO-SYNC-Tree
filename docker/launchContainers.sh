@@ -15,7 +15,7 @@ function cmd {
 }
 
 i=-1
-echo "Lauching containers...  off=$off mark=$mark"
+echo "Launching containers...  off=$off mark=$mark"
 while read -r ip
 do
   i=$((i+1))
@@ -27,6 +27,6 @@ do
   fi
 
   cmd "docker run --rm -v /lib/modules:/lib/modules -v ${vol}:/logs -d -t --cap-add=NET_ADMIN --net $net --ip $ip --name node_$i -h node_$i $image $i $bandwidth $latencyMap"
-  echo "${i}. Container node_$i with ip $ip lauched"
+  echo "${i}. Container node_$i with ip $ip launched"
 
 done < "$config"

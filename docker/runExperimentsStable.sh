@@ -113,7 +113,6 @@ for protocol in "${protocolList[@]}"; do
       for run in "${runsList[@]}"; do
         echo Starting run $run
         exp_path="/logs/${nnodes}nodes/${protocol}/payload${payload}/prob${probability}/${run}runs"
-        echo Exp_path is $exp_path
 
         for node in $(oarprint host); do
           oarsh $node "mkdir -p /tmp${exp_path}"
@@ -128,6 +127,7 @@ for protocol in "${protocolList[@]}"; do
         fi
 
         ### LAUNCHING NODES ###
+        echo node 0 host ${hosts[0]}
         docker exec -d node_0 ./start.sh $protocol $probability $payload $warmup $runtime $cooldown $exp_path
         sleep 0.5
         contactnode="node_0:5000"

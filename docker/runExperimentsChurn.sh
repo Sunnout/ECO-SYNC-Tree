@@ -131,7 +131,6 @@ for protocol in "${protocolList[@]}"; do
       for run in "${runsList[@]}"; do
         echo Starting run $run
         exp_path="/logs/${nnodes}nodes/${protocol}/payload${payload}/prob${probability}/${run}runs"
-        echo Exp_path is $exp_path
 
         for node in $(oarprint host); do
           oarsh $node "mkdir -p /tmp${exp_path}"
@@ -149,6 +148,7 @@ for protocol in "${protocolList[@]}"; do
         initNodes=$((nnodes - nnewnodes))
         echo Starting $initNodes initial nodes
 
+        echo node 0 host ${hosts[0]}
         docker exec -d node_0 ./start.sh $protocol $probability $payload $warmup $runtime $cooldown $exp_path
         sleep 0.5
         contactnode="node_0:5000"
@@ -156,12 +156,13 @@ for protocol in "${protocolList[@]}"; do
         for ((nodeNumber = 1; nodeNumber < initNodes; nodeNumber++)); do
           node=$((nodeNumber/perHost))
           echo node $nodeNumber host ${hosts[node]}
-          oarsh -n ${hosts[node]} "docker exec -d node_${nodeNumber} ./start.sh $protocol $probability $warmup $runtime $cooldown $exp_path ${contactnode}:5000"
+          oarsh -n ${hosts[node]} "docker exec -d node_${nodeNumber} ./start.sh $protocol $probability $payload $warmup $runtime $cooldown $exp_path ${contactnode}"
           sleep 0.5
         done
 
         ### WAITING UNTIL CATASTROPHE ###
         midExperiment=$((runtime/2))
+        echo Sleeping $midExperiment seconds
         sleep $midExperiment
 
         ### KILLING NODES ###

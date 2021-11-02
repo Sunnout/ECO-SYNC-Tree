@@ -1,7 +1,8 @@
 #!/bin/bash
 
 ### USAGE ###
-# ./runExperimentsStable.sh --expname test1 --nnodes 50,100,150,200 --protocols plumtree,flood --payloads 128,256,512,1024 --probs 1,0.5,0.3 --nruns 1,2,3 --runtime 900
+# ./runExperimentsStable.sh --expname test1 --nnodes 50,100,150,200 --nnewnodes 20 --ndeadnodes 10
+# --protocols plumtree,flood --payloads 128,256,512,1024 --probs 1,0.5,0.3 --nruns 1,2,3 --runtime 900
 
 POSITIONAL=()
 while [[ $# -gt 0 ]]; do
@@ -24,6 +25,16 @@ while [[ $# -gt 0 ]]; do
     ;;
   --nnodes)
     nnodes="$2"
+    shift # past argument
+    shift # past value
+    ;;
+  --nnewnodes)
+    nnewnodes="$2"
+    shift # past argument
+    shift # past value
+    ;;
+  --ndeadnodes)
+    ndeadnodes="$2"
     shift # past argument
     shift # past value
     ;;
@@ -66,16 +77,23 @@ if [[ -z "${nnodes}" ]]; then
   echo "nnodes not set"
   exit
 fi
+if [[ -z "${nnewnodes}" ]]; then
+  nnewnodes="0"
+fi
+if [[ -z "${ndeadnodes}" ]]; then
+  ndeadnodes="0"
+fi
 if [[ -z "${protocols}" ]]; then
   echo "protocols not set"
   exit
 fi
-if [[ -z "${probs}" ]]; then
-  probs="1"
-fi
 if [[ -z "${payloads}" ]]; then
   payloads="128"
 fi
+if [[ -z "${probs}" ]]; then
+  probs="1"
+fi
+
 
 IFS=', ' read -r -a runsList <<<"$nruns"
 IFS=', ' read -r -a protocolList <<<"$protocols"
@@ -127,18 +145,43 @@ for protocol in "${protocolList[@]}"; do
           exit
         fi
 
+        initNodes=$((nnodes - nnewnodes))
+        echo Starting $initNodes initial nodes
+
         docker exec -d node_0 ./start.sh $protocol $probability $payload $warmup $runtime $cooldown $exp_path
         sleep 0.5
         contactnode="node_0:5000"
 
-        for ((nodeNumber = 1; nodeNumber < nnodes; nodeNumber++)); do
+        for ((nodeNumber = 1; nodeNumber < initNodes; nodeNumber++)); do
           node=$((nodeNumber/perHost))
           echo node $nodeNumber host ${hosts[node]}
-          oarsh -n ${hosts[node]} "docker exec -d node_${nodeNumber} ./start.sh $protocol $probability $payload $warmup $runtime $cooldown $exp_path ${contactnode}"
+          oarsh -n ${hosts[node]} "docker exec -d node_${nodeNumber} ./start.sh $protocol $probability $warmup $runtime $cooldown $exp_path ${contactnode}:5000"
           sleep 0.5
         done
 
-        sleep_time=$((warmup + runtime + cooldown))
+        midExperiment=$((runtime/2))
+        sleep $midExperiment
+
+        ### KILLING NODES ###
+        for ((dead = 0; dead < ndeadnodes; dead++)); do
+          node=$((dead/perHost))
+          echo Killing node_$dead
+          oarsh -n ${hosts[node]} "docker exec -d node_${dead} killall java"
+        done
+
+        ### LAUNCHING NODES ###
+        newWarmup=2
+        newRuntime=$((runtime - midExperiment + warmup - newWarmup))
+        echo New runtime is $newRuntime
+        for ((new = 1; new < nnewnodes; new++)); do
+          node=$((new/perHost))
+          echo node $new host ${hosts[node]}
+          oarsh -n ${hosts[node]} "docker exec -d node_${new} ./start.sh $protocol $probability $payload $newWarmup $newRuntime $cooldown $exp_path ${contactnode}"
+          sleep 0.5
+        done
+
+        launchTime=$((nnewnodes/2))
+        sleep_time=$((warmup + runtime + cooldown - midExperiment - launchTime))
         echo Sleeping $sleep_time seconds
         finalTime=$(date -d "+${sleep_time} seconds")
         echo Run $run ends at $finalTime

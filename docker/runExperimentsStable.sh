@@ -127,6 +127,7 @@ for protocol in "${protocolList[@]}"; do
           exit
         fi
 
+        ### LAUNCHING NODES ###
         docker exec -d node_0 ./start.sh $protocol $probability $payload $warmup $runtime $cooldown $exp_path
         sleep 0.5
         contactnode="node_0:5000"
@@ -138,6 +139,7 @@ for protocol in "${protocolList[@]}"; do
           sleep 0.5
         done
 
+        ### WAITING UNTIL END ###
         sleep_time=$((warmup + runtime + cooldown))
         echo Sleeping $sleep_time seconds
         finalTime=$(date -d "+${sleep_time} seconds")
@@ -154,7 +156,6 @@ done
 sleep 15
 
 ### COMPRESSING LOGS ###
-
 for n in $(oarprint host); do
     oarsh -n $n "$HOME/PlumtreeOpLogs/docker/compressLogs.sh $expname $n" &
 done

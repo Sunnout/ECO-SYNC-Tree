@@ -145,6 +145,7 @@ for protocol in "${protocolList[@]}"; do
           exit
         fi
 
+        ### LAUNCHING INITIAL NODES ###
         initNodes=$((nnodes - nnewnodes))
         echo Starting $initNodes initial nodes
 
@@ -159,6 +160,7 @@ for protocol in "${protocolList[@]}"; do
           sleep 0.5
         done
 
+        ### WAITING UNTIL CATASTROPHE ###
         midExperiment=$((runtime/2))
         sleep $midExperiment
 
@@ -169,17 +171,18 @@ for protocol in "${protocolList[@]}"; do
           oarsh -n ${hosts[node]} "docker exec -d node_${dead} killall java"
         done
 
-        ### LAUNCHING NODES ###
-        newWarmup=2
+        ### LAUNCHING NEW NODES ###
+        newWarmup=5
         newRuntime=$((runtime - midExperiment + warmup - newWarmup))
         echo New runtime is $newRuntime
-        for ((new = 1; new < nnewnodes; new++)); do
+        for ((new = nodeNumber; new < nnodes; new++)); do
           node=$((new/perHost))
           echo node $new host ${hosts[node]}
           oarsh -n ${hosts[node]} "docker exec -d node_${new} ./start.sh $protocol $probability $payload $newWarmup $newRuntime $cooldown $exp_path ${contactnode}"
           sleep 0.5
         done
 
+        ### WAITING UNTIL END ###
         launchTime=$((nnewnodes/2))
         sleep_time=$((warmup + runtime + cooldown - midExperiment - launchTime))
         echo Sleeping $sleep_time seconds
@@ -197,7 +200,6 @@ done
 sleep 15
 
 ### COMPRESSING LOGS ###
-
 for n in $(oarprint host); do
     oarsh -n $n "$HOME/PlumtreeOpLogs/docker/compressLogs.sh $expname $n" &
 done

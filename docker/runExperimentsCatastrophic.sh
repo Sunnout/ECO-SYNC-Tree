@@ -159,7 +159,7 @@ for protocol in "${protocolList[@]}"; do
           node=$((nodeNumber/perHost))
           echo node $nodeNumber host ${hosts[node]}
           oarsh -n ${hosts[node]} "docker exec -d node_${nodeNumber} ./start.sh $protocol $probability $payload $warmup $runtime $cooldown $exp_path $port $turn ${contactnode}"
-          if [[ $nodeNumber -eq $((nnodes - 1)) ]]; then
+          if [[ $nodeNumber -eq $((initNodes - 1)) ]]; then
             echo "LAST_NODE $(date -u)" | sudo-g5k tee -a $output
           fi
           sleep 0.5

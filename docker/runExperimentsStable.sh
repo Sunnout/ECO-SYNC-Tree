@@ -167,4 +167,10 @@ for n in $(oarprint host); do
 done
 wait
 
+### DELETING LOGS ###
+for n in $(oarprint host); do
+    oarsh -n $n "sudo-g5k rm -rf /tmp/logs" &
+done
+wait
+
 exit

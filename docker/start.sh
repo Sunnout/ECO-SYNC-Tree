@@ -7,7 +7,9 @@ warmup=$4
 runtime=$5
 cooldown=$6
 exppath=$7
-contactnode=$8
+port=$8
+turn=$9
+contactnode=${10}
 
 servernode=$(hostname)
 
@@ -41,10 +43,22 @@ if [ -z $exppath ]; then
   exit
 fi
 
+if [ -z $port ]; then
+  echo "Pls specify port"
+  exit
+fi
+
+if [ -z $turn ]; then
+  echo "Pls specify turn"
+  exit
+fi
+
+bcast_port=$((port + 1000))
+
 if [ -z $contactnode ]; then
-  java -Xmx1024M -DlogFilename=${exppath}/${servernode} -jar PlumtreeOpLogs.jar -conf config.properties interface=eth0 bcast_protocol=${protocol} op_probability=${probability} payload_size=${payload} create_time=${warmup} run_time=${runtime} cooldown_time=${cooldown}
+  java -Xmx1024M -DlogFilename=${exppath}/${servernode}_${turn} -jar PlumtreeOpLogs.jar -conf config.properties interface=eth0 bcast_protocol=${protocol} op_probability=${probability} payload_size=${payload} create_time=${warmup} run_time=${runtime} cooldown_time=${cooldown}
 else
-  java -Xmx1024M -DlogFilename=${exppath}/${servernode} -jar PlumtreeOpLogs.jar -conf config.properties interface=eth0 bcast_protocol=${protocol} op_probability=${probability} payload_size=${payload} create_time=${warmup} run_time=${runtime} cooldown_time=${cooldown} contact=${contactnode}
+  java -Xmx1024M -DlogFilename=${exppath}/${servernode}_${turn} -jar PlumtreeOpLogs.jar -conf config.properties port=${port} bcast_port=${bcast_port} interface=eth0 bcast_protocol=${protocol} op_probability=${probability} payload_size=${payload} create_time=${warmup} run_time=${runtime} cooldown_time=${cooldown} contact=${contactnode}
 fi
 
 ### REMOVING THE OPERATION FILES ###

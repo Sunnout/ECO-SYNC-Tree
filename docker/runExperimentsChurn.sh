@@ -161,15 +161,15 @@ for protocol in "${protocolList[@]}"; do
         done
 
         ### WAITING UNTIL LAST NODE WARMS UP ###
-        timeToChurn=$((warmup))
-        echo Sleeping $timeToChurn seconds
-        sleep $timeToChurn
+        echo Sleeping $warmup seconds
+        sleep $warmup
 
         ### CHURN STEP ###
         nChanges=$((runtime/interval))
         startTime=$(date +%s)
         for ((change = 0; change < nChanges; change++)); do
           echo Change number $((change+1))
+          echo $(date +%s)
 
           ### KILLING NODES AND REVIVING THEM WITH DIFFERENT PORT ###
           for ((deadAndNew = 0; deadAndNew < ndeadandnewnodes; deadAndNew++)); do
@@ -187,7 +187,7 @@ for protocol in "${protocolList[@]}"; do
             ### REVIVING NODES WITH DIFFERENT PORT AND LOG FILE ###
             newWarmup=5
             timePassed=$((startTime - $(date +%s)))
-            newRuntime=$((runtime - timeToChurn - timePassed + warmup - newWarmup))
+            newRuntime=$((runtime - timePassed - newWarmup))
             echo New runtime is $newRuntime
             echo node $nodeNumber port $port host ${hosts[node]}
             oarsh -n ${hosts[node]} "docker exec -d node_${nodeNumber} ./start.sh $protocol $probability $payload $newWarmup $newRuntime $cooldown $exp_path $port $turn ${contactnode}"
@@ -202,7 +202,7 @@ for protocol in "${protocolList[@]}"; do
         done #change
 
         ### WAITING UNTIL END ###
-        sleep_time=$((warmup + runtime + cooldown - timeToChurn + startTime - $(date +%s)))
+        sleep_time=$((runtime + cooldown + startTime - $(date +%s)))
         echo Sleeping $sleep_time seconds
         finalTime=$(date -d "+${sleep_time} seconds")
         echo Run $run ends at $finalTime

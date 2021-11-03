@@ -129,6 +129,7 @@ for protocol in "${protocolList[@]}"; do
       for run in "${runsList[@]}"; do
         echo Starting run $run
         exp_path="/logs/${nnodes}nodes/${protocol}/payload${payload}/prob${probability}/${run}runs"
+        output="/tmp/logs/${nnodes}nodes/${protocol}/payload${payload}/prob${probability}/${run}runs/output.txt"
 
         for node in $(oarprint host); do
           oarsh $node "mkdir -p /tmp${exp_path}"
@@ -150,6 +151,7 @@ for protocol in "${protocolList[@]}"; do
 
         echo node 0 host ${hosts[0]}
         docker exec -d node_0 ./start.sh $protocol $probability $payload $warmup $runtime $cooldown $exp_path $port $turn
+        echo "FIRST_NODE $(date -u)" | sudo-g5k tee $output
         sleep 0.5
         contactnode="node_0:5000"
 
@@ -157,6 +159,9 @@ for protocol in "${protocolList[@]}"; do
           node=$((nodeNumber/perHost))
           echo node $nodeNumber host ${hosts[node]}
           oarsh -n ${hosts[node]} "docker exec -d node_${nodeNumber} ./start.sh $protocol $probability $payload $warmup $runtime $cooldown $exp_path $port $turn ${contactnode}"
+          if [[ $nodeNumber -eq $((nnodes - 1)) ]]; then
+            echo "LAST_NODE $(date -u)" | sudo-g5k tee -a $output
+          fi
           sleep 0.5
         done
 
@@ -165,6 +170,7 @@ for protocol in "${protocolList[@]}"; do
         echo Sleeping $midExperiment seconds
         sleep $midExperiment
 
+        echo "START_CATASTROPHE $(date -u)" | sudo-g5k tee -a $output
         ### KILLING NODES ###
         for ((dead = 1; dead <= ndeadnodes; dead++)); do
           node=$((dead/perHost))
@@ -174,27 +180,23 @@ for protocol in "${protocolList[@]}"; do
 
         ### LAUNCHING NEW NODES ###
         newWarmup=5
-        timePassed=0
-        increment=1
+        startTime=$(date +%s)
         for ((new = nodeNumber; new < nnodes; new++)); do
+          timePassed=$(($(date +%s) - startTime))
           newRuntime=$((runtime - midExperiment - timePassed + warmup - newWarmup))
           echo New runtime is $newRuntime
           node=$((new/perHost))
           echo node $new host ${hosts[node]}
           oarsh -n ${hosts[node]} "docker exec -d node_${new} ./start.sh $protocol $probability $payload $newWarmup $newRuntime $cooldown $exp_path $port $turn ${contactnode}"
-          if [[ $((increment % 2)) -eq 0 ]]; then
-            timePassed=$((timePassed + 1))
-            echo Time passed is $timePassed
-          fi
-          increment=$((increment + 1))
           sleep 0.5
         done
 
         ### WAITING UNTIL END ###
-        launchTime=$((nnewnodes/2))
-        sleep_time=$((warmup + runtime + cooldown - midExperiment - launchTime))
+        exit_time=20
+        launchTime=$(($(date +%s) - startTime))
+        sleep_time=$((warmup + runtime + cooldown - midExperiment - launchTime + exit_time))
         echo Sleeping $sleep_time seconds
-        finalTime=$(date -d "+${sleep_time} seconds")
+        finalTime=$(date -u -d "+${sleep_time} seconds")
         echo Run $run ends at $finalTime
         sleep $sleep_time
       done #run

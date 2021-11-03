@@ -112,6 +112,7 @@ for protocol in "${protocolList[@]}"; do
       for run in "${runsList[@]}"; do
         echo Starting run $run
         exp_path="/logs/${nnodes}nodes/${protocol}/payload${payload}/prob${probability}/${run}runs"
+        output="/tmp/logs/${nnodes}nodes/${protocol}/payload${payload}/prob${probability}/${run}runs/output.txt"
 
         for node in $(oarprint host); do
           oarsh $node "mkdir -p /tmp${exp_path}"
@@ -129,6 +130,7 @@ for protocol in "${protocolList[@]}"; do
         turn=0
         echo node 0 host ${hosts[0]}
         docker exec -d node_0 ./start.sh $protocol $probability $payload $warmup $runtime $cooldown $exp_path $port $turn
+        echo "FIRST_NODE $(date -u)" | sudo-g5k tee $output
         sleep 0.5
         contactnode="node_0:5000"
 
@@ -136,13 +138,17 @@ for protocol in "${protocolList[@]}"; do
           node=$((nodeNumber/perHost))
           echo node $nodeNumber host ${hosts[node]}
           oarsh -n ${hosts[node]} "docker exec -d node_${nodeNumber} ./start.sh $protocol $probability $payload $warmup $runtime $cooldown $exp_path $port $turn ${contactnode}"
+          if [[ $nodeNumber -eq $((nnodes - 1)) ]]; then
+            echo "LAST_NODE $(date -u)" | sudo-g5k tee -a $output
+          fi
           sleep 0.5
         done
 
         ### WAITING UNTIL END ###
-        sleep_time=$((warmup + runtime + cooldown))
+        exit_time=20
+        sleep_time=$((warmup + runtime + cooldown + exit_time))
         echo Sleeping $sleep_time seconds
-        finalTime=$(date -d "+${sleep_time} seconds")
+        finalTime=$(date -u -d "+${sleep_time} seconds")
         echo Run $run ends at $finalTime
         sleep $sleep_time
       done #run

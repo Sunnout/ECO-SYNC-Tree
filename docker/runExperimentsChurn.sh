@@ -167,7 +167,7 @@ for protocol in "${protocolList[@]}"; do
 
         ### CHURN STEP ###
         nChanges=$((runtime/interval))
-        timePassed=0
+        startTime=$(date +%s)
         for ((change = 0; change < nChanges; change++)); do
           echo Change number $((change+1))
 
@@ -186,6 +186,7 @@ for protocol in "${protocolList[@]}"; do
 
             ### REVIVING NODES WITH DIFFERENT PORT AND LOG FILE ###
             newWarmup=5
+            timePassed=$((startTime - $(date +%s)))
             newRuntime=$((runtime - timeToChurn - timePassed + warmup - newWarmup))
             echo New runtime is $newRuntime
             echo node $nodeNumber port $port host ${hosts[node]}
@@ -194,13 +195,14 @@ for protocol in "${protocolList[@]}"; do
             nodeNumber=$((nodeNumber + 1))
           done #killing and reviving nodes
 
-          timePassed=$((timePassed + interval))
-          echo Sleeping $interval seconds before next change
-          sleep $interval
+          sleepUntil=$((startTime + (change + 1) * interval))
+          sleepTime=$((sleepUntil - $(date +%s)))
+          echo Sleeping $sleepTime seconds before next change
+          sleep $sleepTime
         done #change
 
         ### WAITING UNTIL END ###
-        sleep_time=$((warmup + runtime + cooldown - timeToChurn - timePassed))
+        sleep_time=$((warmup + runtime + cooldown - timeToChurn + startTime - $(date +%s)))
         echo Sleeping $sleep_time seconds
         finalTime=$(date -d "+${sleep_time} seconds")
         echo Run $run ends at $finalTime

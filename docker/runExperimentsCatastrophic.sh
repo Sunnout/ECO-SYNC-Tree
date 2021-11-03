@@ -94,13 +94,10 @@ if [[ -z "${probs}" ]]; then
   probs="1"
 fi
 
-
 IFS=', ' read -r -a runsList <<<"$nruns"
 IFS=', ' read -r -a protocolList <<<"$protocols"
 IFS=', ' read -r -a probabilityList <<<"$probs"
 IFS=', ' read -r -a payloadList <<<"$payloads"
-
-### START OF EXPERIMENTS ###
 
 echo "Killing previous existing containers"
 for n in $(oarprint host); do
@@ -122,6 +119,7 @@ echo Warmup is $warmup
 echo Runtime is $runtime
 echo Cooldown is $cooldown
 
+### START OF EXPERIMENTS ###
 for protocol in "${protocolList[@]}"; do
   echo Starting protocol $protocol
   for payload in "${payloadList[@]}"; do
@@ -139,6 +137,7 @@ for protocol in "${protocolList[@]}"; do
         mapfile -t hosts < <(uniq $OAR_FILE_NODES)
         serverNodes=$(uniq $OAR_FILE_NODES | wc -l)
         perHost=$((nnodes / serverNodes))
+
         if [[ "$perHost" -ne 50 ]]; then
           echo "perHost is $perHost (which is not 50)"
         fi
@@ -173,12 +172,19 @@ for protocol in "${protocolList[@]}"; do
 
         ### LAUNCHING NEW NODES ###
         newWarmup=5
-        newRuntime=$((runtime - midExperiment + warmup - newWarmup))
-        echo New runtime is $newRuntime
+        timePassed=0
+        increment=1
         for ((new = nodeNumber; new < nnodes; new++)); do
+          newRuntime=$((runtime - midExperiment - timePassed + warmup - newWarmup))
+          echo New runtime is $newRuntime
           node=$((new/perHost))
           echo node $new host ${hosts[node]}
-          oarsh -n ${hosts[node]} "docker exec -d node_${nodeNumber} ./start.sh $protocol $probability $payload $newWarmup $newRuntime $cooldown $exp_path ${contactnode}"
+          oarsh -n ${hosts[node]} "docker exec -d node_${new} ./start.sh $protocol $probability $payload $newWarmup $newRuntime $cooldown $exp_path ${contactnode}"
+          if [[ $((increment % 2)) -eq 0 ]]; then
+            timePassed=$((timePassed + 1))
+            echo Time passed is $timePassed
+          fi
+          increment=$((increment + 1))
           sleep 0.5
         done
 

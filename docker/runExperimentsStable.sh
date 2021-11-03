@@ -82,8 +82,6 @@ IFS=', ' read -r -a protocolList <<<"$protocols"
 IFS=', ' read -r -a probabilityList <<<"$probs"
 IFS=', ' read -r -a payloadList <<<"$payloads"
 
-### START OF EXPERIMENTS ###
-
 echo "Killing previous existing containers"
 for n in $(oarprint host); do
   oarsh -n $n 'docker kill $(docker ps -aq)';
@@ -104,6 +102,7 @@ echo Warmup is $warmup
 echo Runtime is $runtime
 echo Cooldown is $cooldown
 
+### START OF EXPERIMENTS ###
 for protocol in "${protocolList[@]}"; do
   echo Starting protocol $protocol
   for payload in "${payloadList[@]}"; do

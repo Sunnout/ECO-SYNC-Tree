@@ -14,12 +14,12 @@ def parse_logs(file_name):
         line = i.split(" ")
 
         #END TIME
-        if line[5] == "ENDED\n":
+        if line[3] == "ENDED_SYNC":
             end_time_obj = dt.datetime.strptime(line[1], '%d/%m/%Y-%H:%M:%S,%f').time()
             sync_end_time[line[4]] = end_time_obj
 
         #START TIME
-        elif line[5] == "STARTED\n":
+        elif line[3] == "STARTED_SYNC":
             start_time_obj = dt.datetime.strptime(line[1], '%d/%m/%Y-%H:%M:%S,%f').time()
             sync_start_time[line[4]] = start_time_obj
 

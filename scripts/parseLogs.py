@@ -3,7 +3,6 @@ import numpy as np
 
 def parse_logs(start_name, n_processes, runs, protocol, probability, interval):
     n_runs=len(runs)
-    i = 0
     for i in range(len(runs)):
         runs[i] = int(runs[i])
 

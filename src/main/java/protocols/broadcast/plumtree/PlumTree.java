@@ -52,8 +52,9 @@ public class PlumTree extends CommunicationCostCalculator {
     private final long saveStateTimeout; // Timeout to compute new state
     private StateAndVC stateAndVC; // Current state and corresponding VC
 
-    private long sendTreeMsgTimer;
-    private int treeMsgsFromSmallerHost;
+    private long sendTreeMsgTimer; // Timer to send tree messages
+    private int treeMsgsFromSmallerHost; // Number of tree messages received from relevant
+    // peers since the last timer expired
 
     private final Set<Host> partialView;
     private final Map<Host, VectorClock> eager;
@@ -448,7 +449,7 @@ public class PlumTree extends CommunicationCostCalculator {
         else
             executeSyncOps(msg, from);
 
-        logger.debug("Sync {} ENDED", msg.getMid());
+        logger.info("ENDED_SYNC {}",msg.getMid());
         tryNextIncomingSync();
     }
 
@@ -700,8 +701,8 @@ public class PlumTree extends CommunicationCostCalculator {
             outgoingSyncs.add(os);
             UUID mid = UUID.randomUUID();
             SendVectorClockMessage msg = new SendVectorClockMessage(mid);
+            logger.info("STARTED_SYNC {}", mid);
             sendMessage(msg, neighbour);
-            logger.debug("Sync {} STARTED", mid);
             stats.incrementSentSendVC();
             logger.debug("Sent {} to {}", msg, neighbour);
             sb.append(String.format("Added %s to outgoingSyncs; ", neighbour));

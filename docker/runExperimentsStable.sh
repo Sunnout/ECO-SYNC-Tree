@@ -115,8 +115,9 @@ for protocol in "${protocolList[@]}"; do
         output="/tmp/logs/${nnodes}nodes/${protocol}/payload${payload}/prob${probability}/${run}runs/output.txt"
 
         for node in $(oarprint host); do
-          oarsh $node "mkdir -p /tmp${exp_path}"
+          oarsh $node "sudo-g5k mkdir -p /tmp${exp_path}"
         done
+        sudo-g5k touch ${output}
 
         mapfile -t hosts < <(uniq $OAR_FILE_NODES)
         serverNodes=$(uniq $OAR_FILE_NODES | wc -l)
@@ -162,10 +163,14 @@ done
 sleep 15
 
 ### COMPRESSING LOGS ###
-for n in $(oarprint host); do
-    oarsh -n $n "$HOME/PlumtreeOpLogs/docker/compressLogs.sh $expname $n" &
+sudo-g5k chown -R evieira:g5k-users /tmp/logs
+nodes=$(uniq "$OAR_NODEFILE" | sed -n '1!p')
+for n in $nodes; do
+  oarsh -n $n "sudo-g5k chown -R evieira:g5k-users /tmp/logs"
+  rsync -e 'oarsh' -arzP $n:/tmp/logs/* /tmp/logs &
 done
 wait
+tar -czvf $HOME/$expname.tar.gz /tmp/logs
 
 ### DELETING LOGS ###
 for n in $(oarprint host); do

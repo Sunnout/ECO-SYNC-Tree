@@ -93,7 +93,7 @@ public class Main {
                 break;
 
             case "periodicpullsmallertimer":
-                props.setProperty("pull_timeout", "1000");
+                props.setProperty("pull_timeout", "200");
                 crdtApp = new CRDTApp(props, myself, ReplicationKernel.PROTOCOL_ID, PeriodicPullBroadcast.PROTOCOL_ID);
                 replicationKernel = new ReplicationKernel(myself, PeriodicPullBroadcast.PROTOCOL_ID);
                 broadcast = new PeriodicPullBroadcast(props, myself);

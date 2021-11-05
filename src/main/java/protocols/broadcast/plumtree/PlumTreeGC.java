@@ -203,7 +203,7 @@ public class PlumTreeGC extends CommunicationCostCalculator {
         UUID mid = request.getMsgId();
         byte[] content = request.getMsg();
         logger.info("SENT {}", mid);
-        triggerNotification(new DeliverNotification(mid, myself, content, false));
+        triggerNotification(new DeliverNotification(mid, content));
         GossipMessage msg = new GossipMessage(mid, myself, ++seqNumber, content);
         logger.debug("Accepted my op {}-{}: {}", myself, seqNumber, mid);
         handleGossipMessage(msg, myself);
@@ -272,7 +272,7 @@ public class PlumTreeGC extends CommunicationCostCalculator {
             if (vectorClock.getHostClock(h) == clock - 1) {
                 logger.debug("[{}] Accepted op {}-{} : {} from {}, Clock {}", false,
                         h, clock, mid, from, vectorClock.getHostClock(h));
-                triggerNotification(new DeliverNotification(mid, from, msg.getContent(), false));
+                triggerNotification(new DeliverNotification(mid, msg.getContent()));
                 handleGossipMessage(msg, from);
             } else if (vectorClock.getHostClock(h) < clock - 1) {
                 logger.error("[{}] Out-of-order op {}-{} : {} from {}, Clock {}", false,
@@ -861,7 +861,7 @@ public class PlumTreeGC extends CommunicationCostCalculator {
                 if (myClock == msgClock - 1) {
                     logger.debug("[{}] Accepted op {}-{} : {} from {}, Clock {}", true, h, msgClock, mid,
                             from, myClock);
-                    triggerNotification(new DeliverNotification(mid, from, gossipMessage.getContent(), true));
+                    triggerNotification(new DeliverNotification(mid, gossipMessage.getContent()));
                     handleGossipMessage(gossipMessage, from);
                     nExecutedSyncOps++;
                 } else if (myClock < msgClock - 1) {
@@ -894,7 +894,7 @@ public class PlumTreeGC extends CommunicationCostCalculator {
                     if (myClock == msgClock - 1) {
                         logger.debug("[{}] Accepted op {}-{} : {} from {}, Clock {}", true,
                                 h, msgClock, mid, from, myClock);
-                        triggerNotification(new DeliverNotification(mid, from, gossipMessage.getContent(), true));
+                        triggerNotification(new DeliverNotification(mid, gossipMessage.getContent()));
                         handleGossipMessage(gossipMessage, from);
                     } else if (myClock < msgClock - 1) {
                         logger.error("[{}] Out-of-order op {}-{} : {} from {}, Clock {}", true,
@@ -921,7 +921,7 @@ public class PlumTreeGC extends CommunicationCostCalculator {
             UUID mid = msg.getMid();
             vectorClock.incrementClock(myself);
             logger.debug("Reexecuting {}-{} : {}", msg.getOriginalSender(), msg.getSenderClock(), mid);
-            triggerNotification(new DeliverNotification(mid, myself, msg.getContent(), false));
+            triggerNotification(new DeliverNotification(mid, msg.getContent()));
         }
     }
 }

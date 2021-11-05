@@ -329,7 +329,7 @@ public class PeriodicPullBroadcast extends CommunicationCostCalculator {
 
         logger.debug("Received {} from {}", mid, from);
         logger.info("RECEIVED {}", mid);
-        triggerNotification(new DeliverNotification(mid, sender, msg.getContent(), fromSync));
+        triggerNotification(new DeliverNotification(mid, msg.getContent()));
     }
 
     private Host getRandomNeighbour() {

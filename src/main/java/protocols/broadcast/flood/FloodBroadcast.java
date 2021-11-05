@@ -364,7 +364,7 @@ public class FloodBroadcast extends CommunicationCostCalculator {
 
         UUID mid = msg.getMid();
         logger.info("RECEIVED {}", mid);
-        triggerNotification(new DeliverNotification(mid, sender, msg.getContent(), fromSync));
+        triggerNotification(new DeliverNotification(mid, msg.getContent()));
         forwardGossipMessage(msg, from);
     }
 

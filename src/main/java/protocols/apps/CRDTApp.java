@@ -5,6 +5,7 @@ import java.util.*;
 import protocols.broadcast.flood.FloodBroadcast;
 import protocols.broadcast.flood.utils.FloodStats;
 import protocols.broadcast.periodicpull.utils.PeriodicPullStats;
+import protocols.broadcast.plumtree.PlumTreeGC;
 import protocols.replication.crdts.interfaces.*;
 import protocols.broadcast.periodicpull.PeriodicPullBroadcast;
 import protocols.broadcast.plumtree.PlumTree;
@@ -274,6 +275,36 @@ public class CRDTApp extends GenericProtocol {
             // Plumtree
             case PlumTree.PROTOCOL_ID:
                 logger.info("Final vector clock: {}", PlumTree.vectorClock);
+
+                logger.info("Number of sent operations: {}", PlumtreeStats.sentOps);
+                logger.info("Number of received operations: {}", PlumtreeStats.receivedOps);
+                logger.warn("Number of executed operations: {}", PlumtreeStats.executedOps);
+
+                logger.info("sentGossip: {}", PlumtreeStats.sentGossip);
+                logger.info("sentIHave: {}", PlumtreeStats.sentIHave);
+                logger.info("sentGraft: {}", PlumtreeStats.sentGraft);
+                logger.info("sentPrune: {}", PlumtreeStats.sentPrune);
+                logger.info("sentReversePrune: {}", PlumtreeStats.sentReversePrune);
+                logger.info("sentSendVC: {}", PlumtreeStats.sentSendVC);
+                logger.info("sentVC: {}", PlumtreeStats.sentVC);
+                logger.info("sentSyncOps: {}", PlumtreeStats.sentSyncOps);
+                logger.info("sentSyncGossip: {}", PlumtreeStats.sentSyncGossip);
+
+                logger.info("receivedGossip: {}", PlumtreeStats.receivedGossip);
+                logger.info("receivedDupesGossip: {}", PlumtreeStats.receivedDupesGossip);
+                logger.info("receivedIHave: {}", PlumtreeStats.receivedIHave);
+                logger.info("receivedGraft: {}", PlumtreeStats.receivedGraft);
+                logger.info("receivedPrune: {}", PlumtreeStats.receivedPrune);
+                logger.info("receivedReversePrune: {}", PlumtreeStats.receivedReversePrune);
+                logger.info("receivedSendVC: {}", PlumtreeStats.receivedSendVC);
+                logger.info("receivedVC: {}", PlumtreeStats.receivedVC);
+                logger.info("receivedSyncOps: {}", PlumtreeStats.receivedSyncOps);
+                logger.info("receivedSyncGossip: {}", PlumtreeStats.receivedSyncGossip);
+                logger.info("receivedDupesSyncGossip: {}", PlumtreeStats.receivedDupesSyncGossip);
+                break;
+            // PlumtreeGC
+            case PlumTreeGC.PROTOCOL_ID:
+                logger.info("Final vector clock: {}", PlumTreeGC.vectorClock);
 
                 logger.info("Number of sent operations: {}", PlumtreeStats.sentOps);
                 logger.info("Number of received operations: {}", PlumtreeStats.receivedOps);

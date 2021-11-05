@@ -4,6 +4,7 @@ import java.util.*;
 
 import protocols.broadcast.flood.FloodBroadcast;
 import protocols.broadcast.flood.utils.FloodStats;
+import protocols.broadcast.periodicpull.utils.PeriodicPullStats;
 import protocols.replication.crdts.interfaces.*;
 import protocols.broadcast.periodicpull.PeriodicPullBroadcast;
 import protocols.broadcast.plumtree.PlumTree;
@@ -282,6 +283,7 @@ public class CRDTApp extends GenericProtocol {
                 logger.info("sentIHave: {}", PlumtreeStats.sentIHave);
                 logger.info("sentGraft: {}", PlumtreeStats.sentGraft);
                 logger.info("sentPrune: {}", PlumtreeStats.sentPrune);
+                logger.info("sentReversePrune: {}", PlumtreeStats.sentReversePrune);
                 logger.info("sentSendVC: {}", PlumtreeStats.sentSendVC);
                 logger.info("sentVC: {}", PlumtreeStats.sentVC);
                 logger.info("sentSyncOps: {}", PlumtreeStats.sentSyncOps);
@@ -292,6 +294,7 @@ public class CRDTApp extends GenericProtocol {
                 logger.info("receivedIHave: {}", PlumtreeStats.receivedIHave);
                 logger.info("receivedGraft: {}", PlumtreeStats.receivedGraft);
                 logger.info("receivedPrune: {}", PlumtreeStats.receivedPrune);
+                logger.info("receivedReversePrune: {}", PlumtreeStats.receivedReversePrune);
                 logger.info("receivedSendVC: {}", PlumtreeStats.receivedSendVC);
                 logger.info("receivedVC: {}", PlumtreeStats.receivedVC);
                 logger.info("receivedSyncOps: {}", PlumtreeStats.receivedSyncOps);
@@ -320,14 +323,14 @@ public class CRDTApp extends GenericProtocol {
             case PeriodicPullBroadcast.PROTOCOL_ID:
                 logger.info("Final vector clock: {}", PeriodicPullBroadcast.vectorClock);
 
-                logger.info("sentVC: {}", PeriodicPullBroadcast.sentVC);
-                logger.info("sentSyncOps: {}", PeriodicPullBroadcast.sentSyncOps);
-                logger.info("sentSyncPull: {}", PeriodicPullBroadcast.sentSyncPull);
+                logger.info("sentVC: {}", PeriodicPullStats.sentVC);
+                logger.info("sentSyncOps: {}", PeriodicPullStats.sentSyncOps);
+                logger.info("sentSyncPull: {}", PeriodicPullStats.sentSyncPull);
 
-                logger.info("receivedVC: {}", PeriodicPullBroadcast.receivedVC);
-                logger.info("receivedSyncOps: {}", PeriodicPullBroadcast.receivedSyncOps);
-                logger.info("receivedSyncPull: {}", PeriodicPullBroadcast.receivedSyncPull);
-                logger.info("receivedDupes: {}", PeriodicPullBroadcast.receivedDupes);
+                logger.info("receivedVC: {}", PeriodicPullStats.receivedVC);
+                logger.info("receivedSyncOps: {}", PeriodicPullStats.receivedSyncOps);
+                logger.info("receivedSyncPull: {}", PeriodicPullStats.receivedSyncPull);
+                logger.info("receivedDupes: {}", PeriodicPullStats.receivedDupes);
                 break;
         }
     }
@@ -446,7 +449,7 @@ public class CRDTApp extends GenericProtocol {
         String alphabetsInUpperCase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
         String alphabetsInLowerCase = "abcdefghijklmnopqrstuvwxyz";
         String numbers = "0123456789";
-        String others = "!?&$%+*#=<>?@~^";
+        String others = "!?&$%+*#=<>?@~";
         // Create a super set of all characters
         String allCharacters = alphabetsInLowerCase + alphabetsInUpperCase + numbers + others;
         StringBuffer randomString = new StringBuffer();

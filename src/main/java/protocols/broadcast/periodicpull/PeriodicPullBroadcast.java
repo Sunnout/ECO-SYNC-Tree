@@ -12,6 +12,7 @@ import protocols.broadcast.common.utils.CommunicationCostCalculator;
 import protocols.broadcast.common.utils.MultiFileManager;
 import protocols.broadcast.common.utils.VectorClock;
 import protocols.broadcast.periodicpull.timers.PeriodicPullTimeout;
+import protocols.broadcast.periodicpull.utils.PeriodicPullStats;
 import protocols.broadcast.plumtree.utils.IncomingSync;
 import protocols.membership.common.notifications.NeighbourDown;
 import protocols.membership.common.notifications.NeighbourUp;
@@ -56,16 +57,7 @@ public class PeriodicPullBroadcast extends CommunicationCostCalculator {
 
     private final MultiFileManager fileManager;
 
-    /*** Stats ***/
-    public static int sentVC;
-    public static int sentSyncOps;
-    public static int sentSyncPull;
-
-    public static int receivedVC;
-    public static int receivedSyncOps;
-    public static int receivedSyncPull;
-    public static int receivedDupes;
-
+    private final PeriodicPullStats stats;
 
 
     /*--------------------------------- Initialization ---------------------------------------- */
@@ -93,6 +85,8 @@ public class PeriodicPullBroadcast extends CommunicationCostCalculator {
 
         int indexSpacing = Integer.parseInt(properties.getProperty("index_spacing", "100"));
         this.fileManager = new MultiFileManager(garbageCollectionTimeout, garbageCollectionTTL, indexSpacing, myself);
+
+        this.stats = new PeriodicPullStats();
 
         String cMetricsInterval = properties.getProperty("bcast_channel_metrics_interval", "10000"); // 10 seconds
 
@@ -159,20 +153,18 @@ public class PeriodicPullBroadcast extends CommunicationCostCalculator {
     /*--------------------------------- Messages ---------------------------------------- */
 
     private void uponReceiveVectorClockMsg(VectorClockMessage msg, Host from, short sourceProto, int channelId) {
-        receivedVC++;
+        this.stats.incrementReceivedVC();
         logger.debug("Received {} from {}", msg, from);
-
         SynchronizationMessage synchronizationMsg = new SynchronizationMessage(msg.getMid(), null,
                 this.fileManager.readSyncOpsFromFile(msg.getVectorClock(), vectorClock));
         sendMessage(synchronizationMsg, from, TCPChannel.CONNECTION_IN);
-        sentSyncOps++;
-        sentSyncPull += synchronizationMsg.getMsgs().size();
+        this.stats.incrementSentSyncOps();
+        this.stats.incrementSentSyncPullBy(synchronizationMsg.getMsgs().size());
         logger.debug("Sent {} to {}", synchronizationMsg, from);
     }
 
     private void uponReceiveSynchronizationMsg(SynchronizationMessage msg, Host from, short sourceProto, int channelId) {
-        receivedSyncOps++;
-
+        this.stats.incrementReceivedSyncOps();
         UUID mid = msg.getMid();
         IncomingSync hostInfo = new IncomingSync(from, mid);
         if (!hostInfo.equals(incomingSync))
@@ -182,8 +174,7 @@ public class PeriodicPullBroadcast extends CommunicationCostCalculator {
 
         try {
             for (byte[] serMsg : msg.getMsgs()) {
-                receivedSyncPull++;
-
+                this.stats.incrementReceivedSyncPull();
                 DataInputStream dis = new DataInputStream(new ByteArrayInputStream(serMsg));
                 GossipMessage gossipMessage = GossipMessage.deserialize(dis);
 
@@ -191,7 +182,7 @@ public class PeriodicPullBroadcast extends CommunicationCostCalculator {
                     handleGossipMessage(gossipMessage, from, true);
                 }  else {
                     logger.info("DUPLICATE from {}", from);
-                    receivedDupes++;
+                    this.stats.incrementReceivedDupes();
                 }
 
             }
@@ -233,7 +224,7 @@ public class PeriodicPullBroadcast extends CommunicationCostCalculator {
             this.incomingSync = new IncomingSync(h, mid);
             VectorClockMessage msg = new VectorClockMessage(mid, new VectorClock(vectorClock.getClock()));
             sendMessage(msg, h);
-            sentVC++;
+            this.stats.incrementSentVC();
             logger.debug("Sent {} to {}", msg, h);
             this.startTime = System.currentTimeMillis();
         } else {

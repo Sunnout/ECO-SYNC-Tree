@@ -146,7 +146,7 @@ def parse_logs_plumtree(timer, n_nodes, runs, payload, probability):
             f"/home/evieira/finalResults/dupes_by_interval_{n_nodes}nodes_{protocol}_{probability}_{n_runs}runs.csv",
             np.array(dupes_per_interval), delimiter=",", fmt='%s')
 
-        # BROADCAST LATENCY
+    # BROADCAST LATENCY
     latency = []
 
     for run in range(n_runs):

@@ -7,7 +7,7 @@ patterns = ["//", "\\", "|", "-", "+", "x", "o", "O", ".", "*"]
 black_and_white = ['black', 'white', 'white', 'white']
 colored = ['#009E73', '#E69F00', '#9400D3', '#56B4E9']
 node_labels = ('50 nós', '100 nós', '150 nós', '200 nós')
-proto_labels = ("Plumtree Causal", "Inundação Causal", "Sincronização Periódica")
+proto_labels = ("Causal Plumtree", "Causal Flood", "Periodic Pull 1", "Periodic Pull 2")
 
 
 def create_bytes_graph(probability, nbytes, grey_scale):
@@ -318,10 +318,10 @@ for prob in probs:
             total_dupes_pull[prob][node] = results[prob]["periodicpull"][node][10]
             percent_dupes_pull[prob][node] = (total_dupes_pull[prob][node] / total_received_pull[prob][node]) * 100
 
-        if "periodicpullsmallertimeout" in protocols:
+        if "periodicpullsmallertimer" in protocols:
             # PULL SMALLER TIMEOUT (1s)
-            total_received_pull_smaller_timeout[prob][node] = results[prob]["periodicpullsmallertimeout"][node][9]
-            total_dupes_pull_smaller_timeout[prob][node] = results[prob]["periodicpullsmallertimeout"][node][10]
+            total_received_pull_smaller_timeout[prob][node] = results[prob]["periodicpullsmallertimer"][node][9]
+            total_dupes_pull_smaller_timeout[prob][node] = results[prob]["periodicpullsmallertimer"][node][10]
             percent_dupes_pull_smaller_timeout[prob][node] = (total_dupes_pull_smaller_timeout[prob][node] /
                                                               total_received_pull_smaller_timeout[prob][node]) * 100
 

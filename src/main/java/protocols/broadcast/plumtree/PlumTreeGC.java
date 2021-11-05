@@ -157,7 +157,7 @@ public class PlumTreeGC extends CommunicationCostCalculator {
         registerMessageSerializer(channelId, TreeMessage.MSG_ID, TreeMessage.serializer);
         registerMessageSerializer(channelId, GossipMessage.MSG_ID, GossipMessage.serializer);
         registerMessageSerializer(channelId, PruneMessage.MSG_ID, PruneMessage.serializer);
-        registerMessageSerializer(channelId, ReversePruneMessage.MSG_ID, ReversePruneMessage.serializer);
+//        registerMessageSerializer(channelId, ReversePruneMessage.MSG_ID, ReversePruneMessage.serializer);
         registerMessageSerializer(channelId, GraftMessage.MSG_ID, GraftMessage.serializer);
         registerMessageSerializer(channelId, IHaveMessage.MSG_ID, IHaveMessage.serializer);
 

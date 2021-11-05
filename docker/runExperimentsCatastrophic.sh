@@ -152,6 +152,8 @@ for protocol in "${protocolList[@]}"; do
         echo node 0 host ${hosts[0]}
         docker exec -d node_0 ./start.sh $protocol $probability $payload $warmup $runtime $cooldown $exp_path $port $turn
         echo "FIRST_NODE $(date -u)" | sudo-g5k tee $output
+        firstDeadTime=$(date -u -d "+$((warmup + runtime + cooldown)) seconds")
+        echo FIRST_DEAD $firstDeadTime | sudo-g5k tee -a $output
         sleep 0.5
         contactnode="node_0:5000"
 

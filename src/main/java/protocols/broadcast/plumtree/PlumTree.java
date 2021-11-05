@@ -43,6 +43,7 @@ public class PlumTree extends CommunicationCostCalculator {
     private final static int SECONDS_TO_MILLIS = 1000;
 
     private final long reconnectTimeout;
+    private final long diskUsageTimeout;
 
     private final long iHaveTimeout; // Timeout to send announcements
     private final long treeMsgTimeout; // Timeout to send tree message
@@ -84,6 +85,7 @@ public class PlumTree extends CommunicationCostCalculator {
         this.myself = myself;
 
         this.reconnectTimeout = Long.parseLong(properties.getProperty("reconnect_timeout", "500"));
+        this.diskUsageTimeout = Long.parseLong(properties.getProperty("disk_usage_timeout", "1000"));
 
         this.iHaveTimeout = Long.parseLong(properties.getProperty("i_have_timeout", "1000"));
         this.treeMsgTimeout = Long.parseLong(properties.getProperty("tree_msg_timeout", "100"));
@@ -137,6 +139,7 @@ public class PlumTree extends CommunicationCostCalculator {
         registerTimerHandler(ReconnectTimeout.TIMER_ID, this::uponReconnectTimeout);
         registerTimerHandler(GarbageCollectionTimeout.TIMER_ID, this::uponGarbageCollectionTimeout);
         registerTimerHandler(SaveStateTimeout.TIMER_ID, this::uponSaveStateTimeout);
+        registerTimerHandler(PrintDiskUsageTimeout.TIMER_ID, this::uponPrintDiskUsageTimeout);
 
         /*--------------------- Register Request Handlers ----------------------------- */
         registerRequestHandler(BroadcastRequest.REQUEST_ID, this::uponBroadcastRequest);
@@ -180,10 +183,11 @@ public class PlumTree extends CommunicationCostCalculator {
     }
 
     @Override
-    public void init(Properties props) throws HandlerRegistrationException, IOException {
+    public void init(Properties props) {
         setupPeriodicTimer(new CheckReceivedTreeMessagesTimeout(), checkTreeMsgsTimeout, checkTreeMsgsTimeout);
         setupPeriodicTimer(new GarbageCollectionTimeout(), garbageCollectionTimeout, garbageCollectionTimeout);
         setupPeriodicTimer(new SaveStateTimeout(), saveStateTimeout, saveStateTimeout);
+        setupPeriodicTimer(new PrintDiskUsageTimeout(),0, diskUsageTimeout);
     }
 
 
@@ -509,6 +513,10 @@ public class PlumTree extends CommunicationCostCalculator {
         } else {
             logger.debug("Not reconnecting because {} is down", neighbour);
         }
+    }
+
+    private void uponPrintDiskUsageTimeout(PrintDiskUsageTimeout timeout, long timerId) {
+        logger.info("DiskUsage={}", this.fileManager.getCurrentDiskUsage());
     }
 
 

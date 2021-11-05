@@ -136,6 +136,10 @@ public class MultiFileWorker {
         return this.firstVC;
     }
 
+    public long getNBytes() {
+        return this.nBytes;
+    }
+
     private NavigableMap<Integer, Pair<Long, Integer>> treeMapWithDefaultEntry() {
         NavigableMap<Integer, Pair<Long, Integer>> map = new TreeMap<>();
         map.put(0, Pair.of(0L, 0));

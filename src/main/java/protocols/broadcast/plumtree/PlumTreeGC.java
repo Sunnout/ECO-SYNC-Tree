@@ -169,7 +169,7 @@ public class PlumTreeGC extends CommunicationCostCalculator {
         registerMessageHandler(channelId, TreeMessage.MSG_ID, this::uponReceiveTreeMsg, this::onMessageFailed);
         registerMessageHandler(channelId, GossipMessage.MSG_ID, this::uponReceiveGossipMsg, this::onMessageFailed);
         registerMessageHandler(channelId, PruneMessage.MSG_ID, this::uponReceivePruneMsg, this::onMessageFailed);
-        registerMessageHandler(channelId, ReversePruneMessage.MSG_ID, this::uponReceiveReversePruneMsg, this::onMessageFailed);
+//        registerMessageHandler(channelId, ReversePruneMessage.MSG_ID, this::uponReceiveReversePruneMsg, this::onMessageFailed);
         registerMessageHandler(channelId, GraftMessage.MSG_ID, this::uponReceiveGraftMsg, this::onMessageFailed);
         registerMessageHandler(channelId, IHaveMessage.MSG_ID, this::uponReceiveIHaveMsg, this::onMessageFailed);
 
@@ -298,14 +298,14 @@ public class PlumTreeGC extends CommunicationCostCalculator {
             print = true;
             sb.append(String.format("Removed %s from eager; ", from));
 
-            if (outgoingSyncs.remove(new OutgoingSync(from))) {
-                logger.debug("Removed {} from outgoingSyncs due to prune", from);
-                sb.append(String.format("Removed %s from outgoingSyncs; ", from));
-
-                logger.debug("Sent ReversePruneMessage to {}", from);
-                sendMessage(new ReversePruneMessage(), from);
-                stats.incrementSentReversePrune();
-            }
+//            if (outgoingSyncs.remove(new OutgoingSync(from))) {
+//                logger.debug("Removed {} from outgoingSyncs due to prune", from);
+//                sb.append(String.format("Removed %s from outgoingSyncs; ", from));
+//
+//                logger.debug("Sent ReversePruneMessage to {}", from);
+//                sendMessage(new ReversePruneMessage(), from);
+//                stats.incrementSentReversePrune();
+//            }
 
             if (lazy.add(from)) {
                 logger.debug("Added {} to lazy due to prune {}", from, lazy);
@@ -332,25 +332,25 @@ public class PlumTreeGC extends CommunicationCostCalculator {
         }
     }
 
-    private void uponReceiveReversePruneMsg(ReversePruneMessage msg, Host from, short sourceProto, int channelId) {
-        stats.incrementReceivedReversePrune();
-        logger.debug("Received {} from {}", msg, from);
-        StringBuilder sb = new StringBuilder(String.format("[PEER %s] VIS-REVERSEPRUNE: ", from));
-
-        if (removeFromPendingIncomingSyncs(from)) {
-            logger.debug("Removed {} from pendingIncomingSyncs due to reverse prune {}", from, pendingIncomingSyncs);
-            sb.append(String.format("Removed %s from pendingIncomingSyncs; ", from));
-        }
-
-        if (from.equals(incomingSync.getHost())) {
-            logger.debug("Removed {} from incomingSync due to reverse prune", from);
-            sb.append(String.format("Removed %s from incomingSync; ", from));
-            tryNextIncomingSync();
-        }
-
-        sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager.keySet(), lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
-        logger.info(sb);
-    }
+//    private void uponReceiveReversePruneMsg(ReversePruneMessage msg, Host from, short sourceProto, int channelId) {
+//        stats.incrementReceivedReversePrune();
+//        logger.debug("Received {} from {}", msg, from);
+//        StringBuilder sb = new StringBuilder(String.format("[PEER %s] VIS-REVERSEPRUNE: ", from));
+//
+//        if (removeFromPendingIncomingSyncs(from)) {
+//            logger.debug("Removed {} from pendingIncomingSyncs due to reverse prune {}", from, pendingIncomingSyncs);
+//            sb.append(String.format("Removed %s from pendingIncomingSyncs; ", from));
+//        }
+//
+//        if (from.equals(incomingSync.getHost())) {
+//            logger.debug("Removed {} from incomingSync due to reverse prune", from);
+//            sb.append(String.format("Removed %s from incomingSync; ", from));
+//            tryNextIncomingSync();
+//        }
+//
+//        sb.append(String.format("VIEWS: eager %s lazy %s incomingSync %s pendingIncomingSyncs %s outgoingSyncs %s", eager.keySet(), lazy, incomingSync.getHost(), pendingIncomingSyncs, outgoingSyncs));
+//        logger.info(sb);
+//    }
 
     private void uponReceiveGraftMsg(GraftMessage msg, Host from, short sourceProto, int channelId) {
         stats.incrementReceivedGraft();

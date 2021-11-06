@@ -3,10 +3,7 @@
 import sys
 from glob import glob
 import os
-from parsePlumtree import parse_logs_plumtree
-from parseFlood import parse_logs_flood
-from parsePeriodicPull import parse_logs_periodic_pull
-
+from parseCommonLogs import parse_common_logs
 
 file_name = "../results/{}_{}_{}_{}_{}_{}runs.parsed"
 path = "/Volumes/SSD_Pedro/tmp/logs/"
@@ -24,14 +21,7 @@ for node_number_folder in glob(base_path + "/*"):
                 runs = glob(prob_folder + "/*")
 
                 print(f"Processing {exp_name}: {proto} with {node_number}, {payload} and {prob} ({len(runs)} runs)")
-
-                if proto == "plumtree" or proto == "plumtreegc":
-                    res = parse_logs_plumtree(runs)
-                elif proto == "flood":
-                    res = parse_logs_flood(runs)
-                elif proto == "periodicpull" or proto == "periodicpullsmallertimer":
-                    res = parse_logs_periodic_pull(runs)
-
+                res = parse_common_logs(runs)
                 with open(file_name.format(exp_name, node_number, proto, payload, prob, len(runs)), 'w') as fp:
                     for key, value in res.items():
                         if type(value) is list:

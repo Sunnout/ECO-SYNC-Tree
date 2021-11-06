@@ -9,13 +9,13 @@ public abstract class CommunicationCostCalculator extends GenericProtocol {
 
     private static final Logger logger = LogManager.getLogger(CommunicationCostCalculator.class);
 
-    private long lastReceived;
-    private long lastSent;
+    private long lastTotalReceived;
+    private long lastTotalSent;
 
     public CommunicationCostCalculator(String protoName, short protoId) {
         super(protoName, protoId);
-        this.lastReceived = 0;
-        this.lastSent = 0;
+        this.lastTotalReceived = 0;
+        this.lastTotalSent = 0;
     }
 
     /**
@@ -26,36 +26,36 @@ public abstract class CommunicationCostCalculator extends GenericProtocol {
      */
     protected void uponChannelMetrics(ChannelMetrics event, int channelId) {
         StringBuilder sb = new StringBuilder("Channel Metrics: ");
-        long bytesSent = 0;
-        long bytesReceived = 0;
+        long totalBytesSent = 0;
+        long totalBytesReceived = 0;
 
         for(ChannelMetrics.ConnectionMetrics c: event.getOutConnections()){
-            bytesSent += c.getSentAppBytes();
-            bytesReceived += c.getReceivedAppBytes();
+            totalBytesSent += c.getSentAppBytes();
+            totalBytesReceived += c.getReceivedAppBytes();
         }
 
         for(ChannelMetrics.ConnectionMetrics c: event.getOldOutConnections()){
-            bytesSent += c.getSentAppBytes();
-            bytesReceived += c.getReceivedAppBytes();
+            totalBytesSent += c.getSentAppBytes();
+            totalBytesReceived += c.getReceivedAppBytes();
         }
 
         for(ChannelMetrics.ConnectionMetrics c: event.getInConnections()){
-            bytesSent += c.getSentAppBytes();
-            bytesReceived += c.getReceivedAppBytes();
+            totalBytesSent += c.getSentAppBytes();
+            totalBytesReceived += c.getReceivedAppBytes();
         }
 
         for(ChannelMetrics.ConnectionMetrics c: event.getOldInConnections()){
-            bytesSent += c.getSentAppBytes();
-            bytesReceived += c.getReceivedAppBytes();
+            totalBytesSent += c.getSentAppBytes();
+            totalBytesReceived += c.getReceivedAppBytes();
         }
 
-        bytesSent -= lastSent;
-        bytesReceived -= lastReceived;
-        lastReceived = bytesReceived;
-        lastSent = bytesSent;
+        long bytesReceivedSinceLast = totalBytesReceived - lastTotalReceived;
+        long bytesSentSinceLast = totalBytesSent - lastTotalSent;
+        lastTotalSent = totalBytesSent;
+        lastTotalReceived = totalBytesReceived;
 
-        sb.append(String.format("BytesSent=%s ", bytesSent));
-        sb.append(String.format("BytesReceived=%s", bytesReceived));
+        sb.append(String.format("BytesSent=%s ", bytesSentSinceLast));
+        sb.append(String.format("BytesReceived=%s", bytesReceivedSinceLast));
         logger.info(sb);
     }
 }

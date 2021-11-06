@@ -128,8 +128,8 @@ for protocol in "${protocolList[@]}"; do
       echo Starting probability $probability
       for run in "${runsList[@]}"; do
         echo Starting run $run
-        exp_path="/logs/${nnodes}nodes/${protocol}/payload${payload}/prob${probability}/${run}runs"
-        output="/tmp/logs/${nnodes}nodes/${protocol}/payload${payload}/prob${probability}/${run}runs/output.txt"
+        exp_path="/logs/${expname}/${nnodes}nodes/${protocol}/payload${payload}/prob${probability}/${run}runs"
+        output="/tmp/logs/${expname}/${nnodes}nodes/${protocol}/payload${payload}/prob${probability}/${run}runs/output.txt"
 
         for node in $(oarprint host); do
           oarsh $node "sudo-g5k mkdir -p /tmp${exp_path}"

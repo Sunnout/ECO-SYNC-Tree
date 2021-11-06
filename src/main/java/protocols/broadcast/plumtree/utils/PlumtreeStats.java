@@ -11,7 +11,6 @@ public class PlumtreeStats {
     public static int sentIHave;
     public static int sentGraft;
     public static int sentPrune;
-    public static int sentReversePrune;
     public static int sentSendVC;
     public static int sentVC;
     public static int sentSyncOps;
@@ -24,7 +23,6 @@ public class PlumtreeStats {
     public static int receivedIHave;
     public static int receivedGraft;
     public static int receivedPrune;
-    public static int receivedReversePrune;
     public static int receivedSendVC;
     public static int receivedVC;
     public static int receivedSyncOps;
@@ -63,10 +61,6 @@ public class PlumtreeStats {
 
     public void incrementSentPrune() {
         sentPrune++;
-    }
-
-    public void incrementSentReversePrune() {
-        sentReversePrune++;
     }
 
     public void incrementSentSendVC() {
@@ -111,10 +105,6 @@ public class PlumtreeStats {
 
     public void incrementReceivedPrune() {
         receivedPrune++;
-    }
-
-    public void incrementReceivedReversePrune() {
-        receivedReversePrune++;
     }
 
     public void incrementReceivedSendVC() {

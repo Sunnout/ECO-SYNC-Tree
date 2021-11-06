@@ -284,7 +284,6 @@ public class CRDTApp extends GenericProtocol {
                 logger.info("sentIHave: {}", PlumtreeStats.sentIHave);
                 logger.info("sentGraft: {}", PlumtreeStats.sentGraft);
                 logger.info("sentPrune: {}", PlumtreeStats.sentPrune);
-                logger.info("sentReversePrune: {}", PlumtreeStats.sentReversePrune);
                 logger.info("sentSendVC: {}", PlumtreeStats.sentSendVC);
                 logger.info("sentVC: {}", PlumtreeStats.sentVC);
                 logger.info("sentSyncOps: {}", PlumtreeStats.sentSyncOps);
@@ -295,7 +294,6 @@ public class CRDTApp extends GenericProtocol {
                 logger.info("receivedIHave: {}", PlumtreeStats.receivedIHave);
                 logger.info("receivedGraft: {}", PlumtreeStats.receivedGraft);
                 logger.info("receivedPrune: {}", PlumtreeStats.receivedPrune);
-                logger.info("receivedReversePrune: {}", PlumtreeStats.receivedReversePrune);
                 logger.info("receivedSendVC: {}", PlumtreeStats.receivedSendVC);
                 logger.info("receivedVC: {}", PlumtreeStats.receivedVC);
                 logger.info("receivedSyncOps: {}", PlumtreeStats.receivedSyncOps);
@@ -314,7 +312,6 @@ public class CRDTApp extends GenericProtocol {
                 logger.info("sentIHave: {}", PlumtreeStats.sentIHave);
                 logger.info("sentGraft: {}", PlumtreeStats.sentGraft);
                 logger.info("sentPrune: {}", PlumtreeStats.sentPrune);
-                logger.info("sentReversePrune: {}", PlumtreeStats.sentReversePrune);
                 logger.info("sentSendVC: {}", PlumtreeStats.sentSendVC);
                 logger.info("sentVC: {}", PlumtreeStats.sentVC);
                 logger.info("sentSyncOps: {}", PlumtreeStats.sentSyncOps);
@@ -325,7 +322,6 @@ public class CRDTApp extends GenericProtocol {
                 logger.info("receivedIHave: {}", PlumtreeStats.receivedIHave);
                 logger.info("receivedGraft: {}", PlumtreeStats.receivedGraft);
                 logger.info("receivedPrune: {}", PlumtreeStats.receivedPrune);
-                logger.info("receivedReversePrune: {}", PlumtreeStats.receivedReversePrune);
                 logger.info("receivedSendVC: {}", PlumtreeStats.receivedSendVC);
                 logger.info("receivedVC: {}", PlumtreeStats.receivedVC);
                 logger.info("receivedSyncOps: {}", PlumtreeStats.receivedSyncOps);

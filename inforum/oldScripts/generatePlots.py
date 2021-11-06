@@ -341,5 +341,5 @@ for prob in probs:
 for proto in protocols:
     for prob in probs:
         for node in nodes:
-            ys = open(f"../newResults/dupes_by_interval_{node}nodes_{proto}_{prob}_3runs.csv", "r")
+            ys = open(f"../inforum/newResults/dupes_by_interval_{node}nodes_{proto}_{prob}_3runs.csv", "r")
             create_dupes_per_interval(prob, proto, node, 0.1, ys, False)

@@ -32,33 +32,23 @@ payloads = sys.argv[4]
 probs = sys.argv[5]
 runs = sys.argv[6]
 
-nodes = nodes.split(",")
 protos = protos.split(",")
 
 latencies = {}
 for proto in protos:
-    latencies[proto] = []
-    for node in nodes:
-        latencies[proto].append(
-            float(getValueByKey(file_name.format(exp_name, node, proto, payloads, probs, runs), "AVG_BCAST_LATENCY")))
+    lat_list = getValueByKey(file_name.format(exp_name, nodes, proto, payloads, probs, runs), "AVG_LATENCIES_PER_SECOND").split(", ")
+    latencies[proto] = list(map(float, lat_list))
 
-x = np.arange(len(nodes))
-width = 0.1
 plt.rcParams.update({'font.size': 14})
 fig = plt.figure()
-ax = fig.add_subplot()
-ax.set_xticks(x)
-ax.set_xticklabels(map(lambda a: a + " nodes", nodes))
+x = np.arange(len(lat_list))
+plt.xlabel('Time (seconds)')
 plt.ylabel('Average Broadcast Latency (seconds)')
 
-space = width * len(protos)
-idx = 0
 for proto in protos:
-    ax.bar(x - (space / 2) + idx * width + width / 2, latencies[proto], width, label=alg_mapper[proto],
-           color=color_mapper[proto], edgecolor="black")
-    idx += 1
+    plt.plot(x, latencies[proto], label=alg_mapper[proto], color=color_mapper[proto])
 
 plt.tight_layout()
-ax.legend()
-plt.savefig('../plots/latency.pdf', format='pdf')
+plt.legend()
+plt.savefig('../plots/latency_per_second.pdf', format='pdf')
 plt.close(fig)

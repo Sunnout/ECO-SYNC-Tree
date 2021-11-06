@@ -23,7 +23,8 @@ alg_mapper = {"plumtree": "Causal Plumtree",
 color_mapper = {"plumtree": '#009E73',
                 "flood": '#E69F00',
                 "periodicpull": '#9400D3',
-                "periodicpullsmallertimer": '#56B4E9'}
+                "periodicpullsmallertimer": '#56B4E9',
+                "plumtreegc": "black"}
 
 exp_name = sys.argv[1]
 nodes = sys.argv[2]
@@ -32,33 +33,26 @@ payloads = sys.argv[4]
 probs = sys.argv[5]
 runs = sys.argv[6]
 
-nodes = nodes.split(",")
 protos = protos.split(",")
 
-latencies = {}
+syncs = {}
 for proto in protos:
-    latencies[proto] = []
-    for node in nodes:
-        latencies[proto].append(
-            float(getValueByKey(file_name.format(exp_name, node, proto, payloads, probs, runs), "AVG_BCAST_LATENCY")))
+    catastrophe_start = float(getValueByKey(file_name.format(exp_name, nodes, proto, payloads, probs, runs), "START_CATASTROPHE"))
+    stabilization_time = float(getValueByKey(file_name.format(exp_name, nodes, proto, payloads, probs, runs), "TREE_STABILIZATION_TIME"))
+    sync_list = getValueByKey(file_name.format(exp_name, nodes, proto, payloads, probs, runs), "AVG_N_SYNCS_PER_SECOND").split(", ")
+    syncs[proto] = list(map(float, sync_list))
 
-x = np.arange(len(nodes))
-width = 0.1
 plt.rcParams.update({'font.size': 14})
 fig = plt.figure()
-ax = fig.add_subplot()
-ax.set_xticks(x)
-ax.set_xticklabels(map(lambda a: a + " nodes", nodes))
-plt.ylabel('Average Broadcast Latency (seconds)')
+x = np.arange(len(sync_list))
+plt.xlim(right=catastrophe_start + stabilization_time + 20)
+plt.xlabel('Time (seconds)')
+plt.ylabel('Number of Synchronizations')
 
-space = width * len(protos)
-idx = 0
 for proto in protos:
-    ax.bar(x - (space / 2) + idx * width + width / 2, latencies[proto], width, label=alg_mapper[proto],
-           color=color_mapper[proto], edgecolor="black")
-    idx += 1
+    plt.plot(x, syncs[proto], label=alg_mapper[proto], color=color_mapper[proto])
 
 plt.tight_layout()
-ax.legend()
-plt.savefig('../plots/latency.pdf', format='pdf')
+plt.legend()
+plt.savefig('../plots/nsyncs_per_second.pdf', format='pdf')
 plt.close(fig)

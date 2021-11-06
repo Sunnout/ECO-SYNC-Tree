@@ -4,6 +4,8 @@ import datetime as dt
 def parse_output(exp_path):
     run_start_time = -1
     first_dead_time = -1
+    first_cooldown_time = -1
+    first_message_time = -1
     last_start_time = -1
     catastrophe_start_time = -1
     churn_start_time = -1
@@ -22,6 +24,18 @@ def parse_output(exp_path):
                 print("Error in run start time")
                 exit()
             first_dead_time = dt.datetime.strptime(line[1].strip(), '%a %d %b %Y %I:%M:%S %p %Z').timestamp() - run_start_time
+
+        elif line[0] == "FIRST_COOLDOWN":
+            if run_start_time == -1:
+                print("Error in run start time")
+                exit()
+            first_cooldown_time = dt.datetime.strptime(line[1].strip(), '%a %d %b %Y %I:%M:%S %p %Z').timestamp() - run_start_time
+
+        elif line[0] == "FIRST_MESSAGE":
+            if run_start_time == -1:
+                print("Error in run start time")
+                exit()
+            first_message_time = dt.datetime.strptime(line[1].strip(), '%a %d %b %Y %I:%M:%S %p %Z').timestamp() - run_start_time
 
         elif line[0] == "LAST_NODE":
             if run_start_time == -1:
@@ -48,4 +62,4 @@ def parse_output(exp_path):
                 exit()
             churn_end_time = dt.datetime.strptime(line[1].strip(), '%a %d %b %Y %I:%M:%S %p %Z').timestamp() - run_start_time
 
-    return run_start_time, first_dead_time, last_start_time, catastrophe_start_time, churn_start_time, churn_end_time
+    return run_start_time, first_dead_time, first_cooldown_time, first_message_time, last_start_time, catastrophe_start_time, churn_start_time, churn_end_time

@@ -29,7 +29,7 @@ def parse_common_logs(run_paths):
         send_times = {}
         reception_times = {}
 
-        run_start_time, first_dead_time, last_start_time, catastrophe_start_time, \
+        run_start_time, first_dead_time, first_cooldown_time, first_message_time, last_start_time, catastrophe_start_time, \
             churn_start_time, churn_end_time = parse_output(run_path)
 
         if len(bytes_per_second) == 0:
@@ -49,7 +49,7 @@ def parse_common_logs(run_paths):
             for i in file:
                 line = i.split(" ")
 
-                if line[3] == "Hello":
+                if "Hello" in line[3]:
                     start_time = dt.datetime.strptime(line[1], '%d/%m/%Y-%H:%M:%S,%f').timestamp() - run_start_time
 
                 # BROADCAST LATENCY
@@ -168,7 +168,10 @@ def parse_common_logs(run_paths):
             avg_sync_time_per_second.append(sync_time_sec / n_sync_sec)
         avg_n_syncs_per_second.append(n_sync_sec / len(run_paths))
 
-    avg_sync_time = total_sync_time / n_syncs
+    if n_syncs > 0:
+        avg_sync_time = total_sync_time / n_syncs
+    else:
+        avg_sync_time = -1
     total_sync_time = total_sync_time / len(run_paths)
     n_syncs = n_syncs / len(run_paths)
 
@@ -203,6 +206,8 @@ def parse_common_logs(run_paths):
             "AVG_DISK_USAGE_PER_SECOND": avg_disk_usage_per_second,
             "TREE_STABILIZATION_TIME": tree_stabilization_time,
             "FIRST_NODE_DEAD": first_dead_time,
+            "FIRST_NODE_COOLDOWN": first_cooldown_time,
+            "FIRST_MESSAGE": first_message_time,
             "LAST_NODE_START": last_start_time,
             "START_CATASTROPHE": catastrophe_start_time,
             "START_CHURN": churn_start_time,

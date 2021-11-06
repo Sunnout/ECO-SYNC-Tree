@@ -13,7 +13,7 @@
       <sourceFolder url="file://$MODULE_DIR$/src/test/java" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
-    <orderEntry type="inheritedJdk" />
+    <orderEntry type="jdk" jdkName="Python 3.9 (PlumtreeOpLogs)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="Maven: com.github.pfouto:babel-core:0.4.45" level="project" />
     <orderEntry type="library" name="Maven: com.github.pfouto:network-layer:2.0.39" level="project" />

@@ -8,6 +8,7 @@ import math
 def parse_logs_plumtree(run_paths):
     bcast_latencies_per_run = {}
     bytes_per_second = []
+    dupes_per_second = []
 
     for run_path in run_paths:  # RUNS
         node_files = glob(run_path + "/*.log")
@@ -21,7 +22,8 @@ def parse_logs_plumtree(run_paths):
 
         if len(bytes_per_second) == 0:
             for _ in range(math.ceil(first_dead_time)):
-                bytes_per_second.append((0, 0))
+                bytes_per_second.append(0)
+                dupes_per_second.append(0)
 
         for node_file in node_files:  # NODES
             file = open(node_file, "r")
@@ -46,10 +48,16 @@ def parse_logs_plumtree(run_paths):
                     reception_times[msg_id].append((start_time, reception_time))
 
                 # BYTES
-                elif final_bytes_received == 0 and len(line) >= 6 and "BytesSent" in line[5]:
-                    send_times[line[4]] = dt.datetime.strptime(line[1],
-                                                               '%d/%m/%Y-%H:%M:%S,%f').timestamp() - run_start_time
+                elif len(line) > 6 and "BytesSent" in line[5]:
+                    bytes_time = dt.datetime.strptime(line[1], '%d/%m/%Y-%H:%M:%S,%f').timestamp() - run_start_time
+                    if bytes_time < first_dead_time:
+                        bytes_per_second[math.floor(bytes_time)] += int(line[5].split("=")[1])
 
+                # DUPLICATES
+                elif line[3] == "DUPLICATE":
+                    dupe_time = dt.datetime.strptime(line[1], '%d/%m/%Y-%H:%M:%S,%f').timestamp() - run_start_time
+                    if dupe_time < first_dead_time:
+                        dupes_per_second[math.floor(dupe_time)] += 1
 
         # AFTER NODES
         broadcast_latencies = []
@@ -91,7 +99,27 @@ def parse_logs_plumtree(run_paths):
         else:
             avg_latencies_per_second.append(bcast_latency_sec/n_ops_sec)
 
-    return {"AVG_BCAST_LATENCY": avg_broadcast_latency, "AGV_LATENCIES_PER_SECOND": avg_latencies_per_second,
-               "FIRST_NODE_DEAD": first_dead_time, "LAST_NODE_START": last_start_time,
-               "START_CATASTROPHE": catastrophe_start_time, "START_CHURN": churn_start_time,
-               "END_CHURN": churn_end_time}
+    # BYTES
+    total_bytes_per_second = []
+    for bytes_sec in bytes_per_second:
+        total_bytes_per_second.append(bytes_sec/len(run_paths))
+    total_bytes = sum(total_bytes_per_second) / len(run_paths)
+
+    # DUPLICATES
+    total_dupes_per_second = []
+    for dupes_sec in dupes_per_second:
+        total_dupes_per_second.append(dupes_sec / len(run_paths))
+    total_dupes = sum(total_dupes_per_second) / len(run_paths)
+
+
+    return {"AVG_BCAST_LATENCY": avg_broadcast_latency,
+            "AVG_LATENCIES_PER_SECOND": avg_latencies_per_second,
+            "TOTAL_BYTES": total_bytes,
+            "TOTAL_BYTES_PER_SECOND": total_bytes_per_second,
+            "TOTAL_DUPES": total_dupes,
+            "TOTAL_DUPES_PER_SECOND": total_dupes_per_second,
+            "FIRST_NODE_DEAD": first_dead_time,
+            "LAST_NODE_START": last_start_time,
+            "START_CATASTROPHE": catastrophe_start_time,
+            "START_CHURN": churn_start_time,
+            "END_CHURN": churn_end_time}

@@ -4,13 +4,15 @@ import sys
 import glob
 
 # results_file = "{}nodes_{}_{}prob_runs{}.csv"
-logs_folder_template = "/tmp/logs/{}nodes/{}/payload{}/prob{}/{}runs"
+logs_folder_template = "/tmp/logs/{}/{}nodes/{}/payload{}/prob{}/{}runs"
 # file_name = "logs/{}nodes/{}/prob{}/{}runs/node_{}.log"
-processes_arg = sys.argv[1]
-proto_arg = sys.argv[2]
-payload_arg = sys.argv[3]
-probs_arg = sys.argv[4]
-runs_arg = sys.argv[5]
+
+exp_name = sys.argv[1]
+processes_arg = sys.argv[2]
+proto_arg = sys.argv[3]
+payload_arg = sys.argv[4]
+probs_arg = sys.argv[5]
+runs_arg = sys.argv[6]
 
 processes = processes_arg.split(",")
 protocols = proto_arg.split(",")
@@ -48,8 +50,8 @@ for n_process in processes:
                 for run in runs:
                     wrong = []
                     results = {}
-                    print(f"Starting to process {proto} with {n_process} nodes, payload {payload} and probability {prob} (run {run})")
-                    logs_folder = logs_folder_template.format(n_process, proto, payload, prob, run)
+                    print(f"Starting to process {exp_name} : {proto} with {n_process} nodes, payload {payload} and probability {prob} (run {run})")
+                    logs_folder = logs_folder_template.format(exp_name, n_process, proto, payload, prob, run)
                     all_files = glob.glob(f"{logs_folder}/node_*.log")
                     if len(all_files) == 0:
                         print("No files found")

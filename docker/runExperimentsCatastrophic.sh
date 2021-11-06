@@ -220,7 +220,7 @@ for n in $nodes; do
   rsync -e 'oarsh' -arzP $n:/tmp/logs/* /tmp/logs &
 done
 wait
-tar -czvf $HOME/$expname.tar.gz /tmp/logs
+tar -czvf $HOME/$expname$nnodes.tar.gz /tmp/logs
 
 ### DELETING LOGS ###
 for n in $(oarprint host); do

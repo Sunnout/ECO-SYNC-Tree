@@ -5,6 +5,14 @@ from parseOutputFile import parse_output
 import math
 
 
+def progressBar(current, total, barLength = 20):
+    percent = float(current) * 100 / total
+    arrow = '-' * int(percent/100 * barLength - 1) + '>'
+    spaces = ' ' * (barLength - len(arrow))
+
+    print('Progress: [%s%s] %d %%' % (arrow, spaces, percent), end='\r')
+
+
 def parse_common_logs(run_paths):
     bcast_latencies_per_run = {}
     bytes_per_second = []
@@ -31,7 +39,10 @@ def parse_common_logs(run_paths):
                 sync_time_per_second.append((0, 0))
                 disk_usage_per_second.append((0, 0))
 
+        idx = 0
         for node_file in node_files:  # NODES
+            progressBar(idx, len(node_files))
+            idx += 1
             file = open(node_file, "r")
             start_time = -1
 
@@ -45,6 +56,9 @@ def parse_common_logs(run_paths):
                 elif line[3] == "SENT":
                     send_times[line[4]] = dt.datetime.strptime(line[1],
                                                                '%d/%m/%Y-%H:%M:%S,%f').timestamp() - run_start_time
+                    if send_times[line[4]] > first_dead_time:
+                        print(f"Erro não convergiu {line[4]}: send time {send_times[line[4]]}; first dead {first_dead_time}")
+                        exit()
 
                 elif line[3] == "RECEIVED":
                     reception_time = dt.datetime.strptime(line[1], '%d/%m/%Y-%H:%M:%S,%f').timestamp() - run_start_time

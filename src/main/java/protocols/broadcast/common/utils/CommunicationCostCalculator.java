@@ -9,8 +9,13 @@ public abstract class CommunicationCostCalculator extends GenericProtocol {
 
     private static final Logger logger = LogManager.getLogger(CommunicationCostCalculator.class);
 
+    private long lastReceived;
+    private long lastSent;
+
     public CommunicationCostCalculator(String protoName, short protoId) {
         super(protoName, protoId);
+        this.lastReceived = 0;
+        this.lastSent = 0;
     }
 
     /**
@@ -43,6 +48,11 @@ public abstract class CommunicationCostCalculator extends GenericProtocol {
             bytesSent += c.getSentAppBytes();
             bytesReceived += c.getReceivedAppBytes();
         }
+
+        bytesSent -= lastSent;
+        bytesReceived -= lastReceived;
+        lastReceived = bytesReceived;
+        lastSent = bytesSent;
 
         sb.append(String.format("BytesSent=%s ", bytesSent));
         sb.append(String.format("BytesReceived=%s", bytesReceived));

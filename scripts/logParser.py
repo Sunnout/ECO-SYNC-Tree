@@ -32,6 +32,9 @@ for node_number_folder in glob(base_path + "/*"):
                 elif proto == "periodicpull" or proto == "periodicpullsmallertimer":
                     res = parse_logs_periodic_pull(runs)
 
-                # with open(file_name.format(exp_name, node_number, proto, payload, prob, len(runs)), 'w') as fp:
-                #     for key, value in res.items():
-                #         fp.write(key + ":" + value)
+                with open(file_name.format(exp_name, node_number, proto, payload, prob, len(runs)), 'w') as fp:
+                    for key, value in res.items():
+                        if type(value) is list:
+                            fp.write(key + ":" + str(value)[1:-1] + "\n")
+                        else:
+                            fp.write(key + ":" + str(value) + "\n")

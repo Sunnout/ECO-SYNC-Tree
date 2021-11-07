@@ -17,8 +17,9 @@ alg_mapper = {"plumtree": "Causal Plumtree",
               "periodicpull": "Periodic Pull (1000 ms)",
               "periodicpullsmallertimer": "Periodic Pull (200 ms)",
               "plumtreegc": "Causal PlumtreeGC"}
-color_mapper = {"plumtree": '#009E73',
-                "flood": '#E69F00',
-                "periodicpull": '#9400D3',
-                "periodicpullsmallertimer": '#56B4E9',
-                "plumtreegc": "black"}
+
+color_mapper = {"plumtree": 'dodgerblue',
+                "flood": 'darkgreen',
+                "periodicpull": 'crimson',
+                "periodicpullsmallertimer": 'orange',
+                "plumtreegc": "navy"}

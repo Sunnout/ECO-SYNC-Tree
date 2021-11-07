@@ -22,4 +22,4 @@ color_mapper = {"plumtree": 'dodgerblue',
                 "flood": 'darkgreen',
                 "periodicpull": 'crimson',
                 "periodicpullsmallertimer": 'orange',
-                "plumtreegc": "navy"}
+                "plumtreegc": "deeppink"}

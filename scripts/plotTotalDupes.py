@@ -22,13 +22,14 @@ for proto in protos:
             float(get_value_by_key(file_name.format(exp_name, node, proto, payloads, probs, runs), "TOTAL_DUPES")))
 
 x = np.arange(len(nodes))
-width = 0.1
+width = 0.15
 plt.rcParams.update({'font.size': 14})
 fig = plt.figure()
 ax = fig.add_subplot()
 ax.set_xticks(x)
 ax.set_xticklabels(map(lambda a: a + " nodes", nodes))
-plt.ylabel('Total Number of Duplicate Gossips Messages Received')
+plt.ylabel('Total Duplicate Messages Received')
+plt.yscale("log")
 
 space = width * len(protos)
 idx = 0
@@ -39,5 +40,5 @@ for proto in protos:
 
 plt.tight_layout()
 ax.legend()
-plt.savefig('../plots/dupes.pdf', format='pdf')
+plt.savefig(f'../plots/dupes_{exp_name}_{nodes}_{protos}_{payloads}_{probs}_{runs}.pdf', format='pdf')
 plt.close(fig)

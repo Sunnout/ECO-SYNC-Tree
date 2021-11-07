@@ -22,7 +22,7 @@ for proto in protos:
             float(get_value_by_key(file_name.format(exp_name, node, proto, payloads, probs, runs), "TOTAL_BYTES")) * 1e-9)
 
 x = np.arange(len(nodes))
-width = 0.1
+width = 0.15
 plt.rcParams.update({'font.size': 14})
 fig = plt.figure()
 ax = fig.add_subplot()
@@ -39,5 +39,5 @@ for proto in protos:
 
 plt.tight_layout()
 ax.legend()
-plt.savefig('../plots/total_gbytes.pdf', format='pdf')
+plt.savefig(f'../plots/total_gbytes_{exp_name}_{nodes}_{protos}_{payloads}_{probs}_{runs}.pdf', format='pdf')
 plt.close(fig)

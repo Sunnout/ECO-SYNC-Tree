@@ -16,15 +16,17 @@ protos = protos.split(",")
 dupes = {}
 for proto in protos:
     first_node_cooldown = float(get_value_by_key(file_name.format(exp_name, nodes, proto, payloads, probs, runs), "FIRST_NODE_COOLDOWN"))
+    first_node_dead = float(get_value_by_key(file_name.format(exp_name, nodes, proto, payloads, probs, runs), "FIRST_NODE_DEAD"))
     dupe_list = get_value_by_key(file_name.format(exp_name, nodes, proto, payloads, probs, runs), "TOTAL_DUPES_PER_SECOND").split(", ")
     dupes[proto] = list(map(float, dupe_list))
 
 plt.rcParams.update({'font.size': 14})
-fig = plt.figure()
+fig = plt.figure(figsize=(10,5))
 x = np.arange(len(dupe_list))
-plt.xlim(right=first_node_cooldown)
+plt.xlim(right=first_node_dead)
 plt.xlabel('Time (seconds)')
-plt.ylabel('Number of Duplicate Gossip Messages Received')
+plt.ylabel('Duplicate Gossip Messages Received')
+plt.yscale("log")
 
 for proto in protos:
     plt.plot(x, dupes[proto], label=alg_mapper[proto], color=color_mapper[proto])

@@ -15,16 +15,16 @@ protos = protos.split(",")
 
 disk_usage = {}
 for proto in protos:
-    first_node_cooldown = float(get_value_by_key(file_name.format(exp_name, nodes, proto, payloads, probs, runs), "FIRST_NODE_COOLDOWN"))
+    first_node_dead = float(get_value_by_key(file_name.format(exp_name, nodes, proto, payloads, probs, runs), "FIRST_NODE_DEAD"))
     usage_list = get_value_by_key(file_name.format(exp_name, nodes, proto, payloads, probs, runs), "AVG_DISK_USAGE_PER_SECOND").split(", ")
-    disk_usage[proto] = list(map(lambda a: float(a) * 1e-9, usage_list))
+    disk_usage[proto] = list(map(lambda a: float(a) * 1e-6, usage_list))
 
 plt.rcParams.update({'font.size': 14})
 fig = plt.figure()
 x = np.arange(len(usage_list))
-plt.xlim(right=first_node_cooldown)
+plt.xlim(right=first_node_dead)
 plt.xlabel('Time (seconds)')
-plt.ylabel('Average Disk Usage (GBytes)')
+plt.ylabel('Average Disk Usage (MBytes)')
 
 for proto in protos:
     plt.plot(x, disk_usage[proto], label=alg_mapper[proto], color=color_mapper[proto])

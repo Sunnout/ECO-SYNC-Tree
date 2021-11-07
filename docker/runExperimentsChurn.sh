@@ -152,10 +152,11 @@ for protocol in "${protocolList[@]}"; do
 
         echo node 0 port $port host ${hosts[0]}
         docker exec -d node_0 ./start.sh $protocol $probability $payload $warmup $runtime $cooldown $exp_path $port $turn
-        echo "FIRST_NODE $(date -u)" | sudo-g5k tee $output
-        firstDeadTime=$(date -u -d "+$((warmup + runtime + cooldown)) seconds")
-        firstCooldownTime=$(date -u -d "+$((warmup + runtime)) seconds")
-        firstMessage=$(date -u -d "+$((warmup)) seconds")
+        startDate=$(date -u)
+        echo "FIRST_NODE $startDate" | sudo-g5k tee $output
+        firstDeadTime=$(date -u -d "$startDate +$((warmup + runtime + cooldown)) seconds")
+        firstCooldownTime=$(date -u -d "$startDate +$((warmup + runtime)) seconds")
+        firstMessage=$(date -u -d "$startDate +$((warmup)) seconds")
         echo FIRST_DEAD $firstDeadTime | sudo-g5k tee -a $output
         echo FIRST_COOLDOWN $firstCooldownTime | sudo-g5k tee -a $output
         echo FIRST_MESSAGE $firstMessage | sudo-g5k tee -a $output

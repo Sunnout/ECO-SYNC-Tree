@@ -15,15 +15,14 @@ protos = protos.split(",")
 
 syncs = {}
 for proto in protos:
-    catastrophe_start = float(get_value_by_key(file_name.format(exp_name, nodes, proto, payloads, probs, runs), "START_CATASTROPHE"))
-    stabilization_time = float(get_value_by_key(file_name.format(exp_name, nodes, proto, payloads, probs, runs), "TREE_STABILIZATION_TIME"))
+    first_node_cooldown = float(get_value_by_key(file_name.format(exp_name, nodes, proto, payloads, probs, runs), "FIRST_NODE_COOLDOWN"))
     sync_list = get_value_by_key(file_name.format(exp_name, nodes, proto, payloads, probs, runs), "AVG_N_SYNCS_PER_SECOND").split(", ")
     syncs[proto] = list(map(float, sync_list))
 
 plt.rcParams.update({'font.size': 14})
 fig = plt.figure()
 x = np.arange(len(sync_list))
-plt.xlim(right=catastrophe_start + stabilization_time + 20)
+plt.xlim(right=first_node_cooldown)
 plt.xlabel('Time (seconds)')
 plt.ylabel('Number of Synchronizations')
 

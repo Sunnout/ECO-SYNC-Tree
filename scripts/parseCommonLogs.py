@@ -33,7 +33,7 @@ def parse_common_logs(run_paths):
             churn_start_time, churn_end_time = parse_output(run_path)
 
         if len(bytes_per_second) == 0:
-            for _ in range(math.ceil(first_dead_time)+1):
+            for _ in range(math.ceil(first_dead_time)):
                 bytes_per_second.append(0)
                 dupes_per_second.append(0)
                 sync_time_per_second.append((0, 0))

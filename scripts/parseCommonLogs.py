@@ -100,13 +100,14 @@ def parse_common_logs(run_paths):
         # BROADCAST LATENCY
         broadcast_latencies = []
         for msg_id, send_time in send_times.items():
-            last_reception = -1
+            if msg_id in reception_times:
+                last_reception = -1
 
-            for start_time, reception_time in reception_times[msg_id]:
-                if start_time < send_time and reception_time > last_reception:
-                    last_reception = reception_time
+                for start_time, reception_time in reception_times[msg_id]:
+                    if start_time < send_time and reception_time > last_reception:
+                        last_reception = reception_time
 
-            broadcast_latencies.append((send_time, last_reception - send_time))
+                broadcast_latencies.append((send_time, last_reception - send_time))
 
         bcast_latencies_per_run[run_path] = broadcast_latencies
 

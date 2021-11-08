@@ -466,7 +466,7 @@ public class PlumTreeGC extends CommunicationCostCalculator {
 
     private void uponSaveStateTimeout(SaveStateTimeout timeout, long timerId) {
         VectorClock newVC = new VectorClock(vectorClock.getClock());
-        newVC.setHostClock(myself, seqNumber);
+        newVC.setHostClock(myself, seqNumber); //TODO: não é necessário pq a minha pos no vc esta updated
         triggerNotification(new SendStateNotification(UUID.randomUUID(), newVC));
     }
 

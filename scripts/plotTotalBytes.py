@@ -22,7 +22,7 @@ for proto in protos:
             float(get_value_by_key(file_name.format(exp_name, node, proto, payloads, probs, runs), "TOTAL_BYTES")) * 1e-9)
 
 x = np.arange(len(nodes))
-width = 0.15
+width = 0.12
 plt.rcParams.update({'font.size': 14})
 fig = plt.figure()
 ax = fig.add_subplot()

@@ -186,7 +186,7 @@ public class PeriodicPullBroadcast extends CommunicationCostCalculator {
                 }
 
             }
-            logger.info("Received sync ops. Sync {} ENDED", mid);
+            logger.debug("Received sync ops. Sync {} ENDED", mid);
         } catch (IOException e) {
             logger.error("Sync message handling error", e);
         }

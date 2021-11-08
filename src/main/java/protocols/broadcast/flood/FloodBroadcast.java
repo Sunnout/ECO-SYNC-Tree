@@ -216,7 +216,7 @@ public class FloodBroadcast extends CommunicationCostCalculator {
                     this.stats.incrementReceivedDupesSyncFlood();
                 }
             }
-            logger.info("Received sync ops. Sync {} ENDED", msg.getMid());
+            logger.debug("Received sync ops. Sync {} ENDED", msg.getMid());
             tryNextIncomingSync();
         } catch (IOException e) {
             logger.error("Sync message handling error", e);

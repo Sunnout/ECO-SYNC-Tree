@@ -1,7 +1,7 @@
 //import protocols.replication.LWWRegisterCRDT;
-//import crdts.operations.Operation;
-//import crdts.operations.RegisterOperation;
-//import datatypes.StringType;
+//import protocols.replication.crdts.operations.Operation;
+//import protocols.replication.crdts.operations.RegisterOperation;
+//import protocols.replication.crdts.datatypes.StringType;
 //
 //public class TestRegister {
 //

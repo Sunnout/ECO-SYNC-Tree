@@ -2,17 +2,19 @@ package protocols.apps;
 
 import java.util.*;
 
-import crdts.interfaces.GenericCRDT;
 import protocols.broadcast.flood.FloodBroadcast;
+import protocols.broadcast.flood.utils.FloodStats;
+import protocols.broadcast.periodicpull.utils.PeriodicPullStats;
+import protocols.broadcast.plumtree.PlumTreeGC;
+import protocols.replication.crdts.interfaces.*;
 import protocols.broadcast.periodicpull.PeriodicPullBroadcast;
-import protocols.broadcast.periodicpull.PeriodicPullDupesBroadcast;
 import protocols.broadcast.plumtree.PlumTree;
-import protocols.replication.*;
+import protocols.broadcast.plumtree.utils.PlumtreeStats;
 import protocols.replication.OpCounterCRDT.CounterOpType;
 import protocols.replication.LWWRegisterCRDT.RegisterOpType;
 import protocols.replication.ORSetCRDT.SetOpType;
 import protocols.replication.ORMapCRDT.MapOpType;
-import datatypes.*;
+import protocols.replication.crdts.datatypes.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -26,14 +28,16 @@ import pt.unl.fct.di.novasys.network.data.Host;
 public class CRDTApp extends GenericProtocol {
 
     private static final Logger logger = LogManager.getLogger(CRDTApp.class);
+
+    //Protocol information, to register in babel
+    public static final String PROTO_NAME = "CRDTApp";
+    public static final short PROTO_ID = 300;
+
     private static final int TO_MILLIS = 1000;
-
     //RUN = 0 --> counter; 1 --> register; 2 --> set; 3 --> map; 4 --> 8 registers;
-    //5 --> 8 sets; 6 --> 8 maps; 7 --> 1 of each CRDT
-    private static final int RUN = 8;
-
-    //True for several periodic ops, false for 1 op per crdt from each app
-    private static final boolean PERIODIC_OPS = true;
+    //5 --> 8 sets; 6 --> 8 maps; 7 --> 1 of each CRDT; 8 --> counter + register + set + map
+    //9 --> 1 register de strings
+    private static final int RUN = 9;
 
     private static final String COUNTER = "counter";
     private static final String LWW_REGISTER = "lww_register";
@@ -50,19 +54,11 @@ public class CRDTApp extends GenericProtocol {
     private static final String CRDT7 = "CRDT7";
     private static final String CRDT8 = "CRDT8";
 
-    //Protocol information, to register in babel
-    public static final String PROTO_NAME = "CRDTApp";
-    public static final short PROTO_ID = 300;
-
     private final short replicationKernelId;
     private final short broadcastId;
     private final Host self;
 
-
-    //Time to wait until releasing crdts
-    private final int releaseTime;
-
-    //Time to wait until creating crdts
+    //Time to wait until creating protocols.replication.crdts
     private final int createTime;
     //Time to run before stopping sending messages
     private final int runTime;
@@ -71,22 +67,17 @@ public class CRDTApp extends GenericProtocol {
     //Time to wait until shut down
     private final int exitTime;
 
+    private final int payloadSize;
+
     private final float prob;
 
+    private final int sendOpsTimeout;
+    private long sendOpsTimer;
 
-    //Interval between each increment
-    private final int ops1Interval;
-    //Interval between each decrement
-    private final int ops2Interval;
+    private final Random rand;
 
-    //Increment(By), decrement(By) and value periodic timers
-    private long ops1Timer;
-    private long ops2Timer;
+    private final Map<String, GenericCRDT> myCRDTs;
 
-    //Map of crdtId to GenericCRDT
-    private Map<String, GenericCRDT> myCRDTs;
-
-    private Random rand;
 
     public CRDTApp(Properties properties, Host self, short replicationKernelId, short broadcastId) throws HandlerRegistrationException {
         super(PROTO_NAME, PROTO_ID);
@@ -97,23 +88,18 @@ public class CRDTApp extends GenericProtocol {
 
         //Read configurations
         this.createTime = Integer.parseInt(properties.getProperty("create_time"));
-        this.releaseTime = Integer.parseInt(properties.getProperty("release_time"));
         this.runTime = Integer.parseInt(properties.getProperty("run_time"));
         this.cooldownTime = Integer.parseInt(properties.getProperty("cooldown_time"));
         this.exitTime = Integer.parseInt(properties.getProperty("exit_time"));
-        this.ops1Interval = Integer.parseInt(properties.getProperty("ops1"));
-        this.ops2Interval = Integer.parseInt(properties.getProperty("ops2"));
+        this.payloadSize = Integer.parseInt(properties.getProperty("payload_size"));
+        this.sendOpsTimeout = Integer.parseInt(properties.getProperty("send_ops_timeout"));
         this.prob = Float.parseFloat(properties.getProperty("op_probability", "1"));
 
         this.rand = new Random();
 
         /*--------------------- Register Timer Handlers ----------------------------- */
-        registerTimerHandler(ExecuteOps1Timer.TIMER_ID, this::uponExecuteOps1Timer);
-        registerTimerHandler(ExecuteOps2Timer.TIMER_ID, this::uponExecuteOps2Timer);
-        registerTimerHandler(SingleOpTimer.TIMER_ID, this::uponExecuteSingleOpTimer);
+        registerTimerHandler(SendOpsTimer.TIMER_ID, this::uponSendOpsTimer);
         registerTimerHandler(CreateCRDTsTimer.TIMER_ID, this::uponCreateCRDTsTimer);
-        registerTimerHandler(StartTimer.TIMER_ID, this::uponStartTimer);
-        registerTimerHandler(ReleaseCrdtTimer.TIMER_ID, this::uponReleaseCrdtTimer);
         registerTimerHandler(StopTimer.TIMER_ID, this::uponStopTimer);
         registerTimerHandler(PrintValuesTimer.TIMER_ID, this::uponPrintValuesTimer);
         registerTimerHandler(ExitTimer.TIMER_ID, this::uponExitTimer);
@@ -126,596 +112,32 @@ public class CRDTApp extends GenericProtocol {
 
     @Override
     public void init(Properties props) {
-        //Wait before creating crdts
+        //Wait before creating CRDTs
         logger.info("Waiting...");
-        setupTimer(new CreateCRDTsTimer(), createTime * TO_MILLIS);
+        setupTimer(new CreateCRDTsTimer(), (long) createTime * TO_MILLIS);
     }
 
-    /* --------------------------------- Methods --------------------------------- */
 
-    private void getCRDTs(int run) {
-        if(run == 0) {
-            getCRDT(COUNTER, new String[]{"int"}, CRDT0);
-        } else if(run == 1) {
-            getCRDT(LWW_REGISTER, new String[]{"int"}, CRDT1);
-        } else if(run == 2) {
-            getCRDT(OR_SET, new String[]{"int"}, CRDT2);
-        } else if(run == 3) {
-            getCRDT(OR_MAP, new String[]{"byte", "int"}, CRDT3);
-        } else if(run == 4) {
-            getCRDT(LWW_REGISTER, new String[]{"int"}, CRDT1);
-            getCRDT(LWW_REGISTER, new String[]{"long"}, CRDT2);
-            getCRDT(LWW_REGISTER, new String[]{"short"}, CRDT3);
-            getCRDT(LWW_REGISTER, new String[]{"float"}, CRDT4);
-            getCRDT(LWW_REGISTER, new String[]{"double"}, CRDT5);
-            getCRDT(LWW_REGISTER, new String[]{"string"}, CRDT6);
-            getCRDT(LWW_REGISTER, new String[]{"boolean"}, CRDT7);
-            getCRDT(LWW_REGISTER, new String[]{"byte"}, CRDT8);
-        } else if(run == 5) {
-            getCRDT(OR_SET, new String[]{"int"}, CRDT1);
-            getCRDT(OR_SET, new String[]{"long"}, CRDT2);
-            getCRDT(OR_SET, new String[]{"short"}, CRDT3);
-            getCRDT(OR_SET, new String[]{"float"}, CRDT4);
-            getCRDT(OR_SET, new String[]{"double"}, CRDT5);
-            getCRDT(OR_SET, new String[]{"string"}, CRDT6);
-            getCRDT(OR_SET, new String[]{"boolean"}, CRDT7);
-            getCRDT(OR_SET, new String[]{"byte"}, CRDT8);
-        } else if(run == 6) {
-            getCRDT(OR_MAP, new String[]{"byte", "int"}, CRDT1);
-            getCRDT(OR_MAP, new String[]{"byte", "short"}, CRDT2);
-            getCRDT(OR_MAP, new String[]{"byte", "long"}, CRDT3);
-            getCRDT(OR_MAP, new String[]{"byte", "float"}, CRDT4);
-            getCRDT(OR_MAP, new String[]{"byte", "double"}, CRDT5);
-            getCRDT(OR_MAP, new String[]{"byte", "boolean"}, CRDT6);
-            getCRDT(OR_MAP, new String[]{"byte", "string"}, CRDT7);
-            getCRDT(OR_MAP, new String[]{"byte", "byte"}, CRDT8);
-        } else if(run == 7) {
-            getCRDT(COUNTER, new String[]{"int"}, CRDT0);
-            getCRDT(LWW_REGISTER, new String[]{"int"}, CRDT1);
-            getCRDT(OR_SET, new String[]{"int"}, CRDT2);
-            getCRDT(OR_MAP, new String[]{"byte", "int"}, CRDT3);
-        } else if(run == 8) {
-            getCRDT(COUNTER, new String[]{"int"}, CRDT0);
-            getCRDT(LWW_REGISTER, new String[]{"int"}, CRDT1);
-        }
-    }
-
-    private void executeOp1(int run) {
-        if(run == 0) {
-            executeCounterOperation(CRDT0, CounterOpType.INCREMENT);
-        } else if(run == 1) {
-            executeRegisterOperation(CRDT1, RegisterOpType.ASSIGN, new IntegerType(rand.nextInt(10)));
-        } else if(run == 2) {
-            executeSetOperation(CRDT2, SetOpType.ADD, new IntegerType(rand.nextInt(10)));
-        } else if(run == 3) {
-            executeMapOperation(CRDT3, MapOpType.PUT, new ByteType((byte)rand.nextInt(2)), new IntegerType(rand.nextInt(10)));
-        } else if(run == 4) {
-            executeRegisterOperation(CRDT1, RegisterOpType.ASSIGN, new IntegerType(5));
-            executeRegisterOperation(CRDT2, RegisterOpType.ASSIGN, new LongType(5L));
-            executeRegisterOperation(CRDT3, RegisterOpType.ASSIGN, new ShortType((short)2));
-            executeRegisterOperation(CRDT4, RegisterOpType.ASSIGN, new FloatType(8f));
-            executeRegisterOperation(CRDT5, RegisterOpType.ASSIGN, new DoubleType(1.4));
-            executeRegisterOperation(CRDT6, RegisterOpType.ASSIGN, new StringType("Olá"));
-            executeRegisterOperation(CRDT7, RegisterOpType.ASSIGN, new BooleanType(true));
-            executeRegisterOperation(CRDT8, RegisterOpType.ASSIGN, new ByteType((byte)0));
-        } else if(run == 5) {
-            executeSetOperation(CRDT1, SetOpType.ADD, new IntegerType(1));
-            executeSetOperation(CRDT2, SetOpType.ADD, new LongType(5L));
-            executeSetOperation(CRDT3, SetOpType.ADD, new ShortType((short)2));
-            executeSetOperation(CRDT4, SetOpType.ADD, new FloatType(8f));
-            executeSetOperation(CRDT5, SetOpType.ADD, new DoubleType(1.4));
-            executeSetOperation(CRDT6, SetOpType.ADD, new StringType("Olá"));
-            executeSetOperation(CRDT7, SetOpType.ADD, new BooleanType(true));
-            executeSetOperation(CRDT8, SetOpType.ADD, new ByteType((byte)0));
-        } else if(run == 6) {
-            executeMapOperation(CRDT1, MapOpType.PUT, new ByteType((byte)1), new IntegerType(1));
-            executeMapOperation(CRDT2, MapOpType.PUT, new ByteType((byte)1), new ShortType((short)4));
-            executeMapOperation(CRDT3, MapOpType.PUT, new ByteType((byte)1), new LongType(5L));
-            executeMapOperation(CRDT4, MapOpType.PUT, new ByteType((byte)1), new FloatType(8f));
-            executeMapOperation(CRDT5, MapOpType.PUT, new ByteType((byte)1), new DoubleType(1.4));
-            executeMapOperation(CRDT6, MapOpType.PUT, new ByteType((byte)1), new BooleanType(true));
-            executeMapOperation(CRDT7, MapOpType.PUT, new ByteType((byte)1), new StringType("Olá, bom dia"));
-            executeMapOperation(CRDT8, MapOpType.PUT, new ByteType((byte)1), new ByteType((byte)0));
-        } else if(run == 7) {
-            executeCounterOperation(CRDT0, CounterOpType.INCREMENT);
-            executeRegisterOperation(CRDT1, RegisterOpType.ASSIGN, new IntegerType(rand.nextInt(10)));
-            executeSetOperation(CRDT2, SetOpType.ADD, new IntegerType(rand.nextInt(10)));
-            executeMapOperation(CRDT3, MapOpType.PUT, new ByteType((byte)rand.nextInt(2)), new IntegerType(rand.nextInt(10)));
-        }
-    }
-
-    private void executeOp2(int run) {
-        if(run == 0) {
-            executeCounterOperation(CRDT0, CounterOpType.DECREMENT);
-        } else if(run == 1) {
-            executeRegisterOperation(CRDT1, RegisterOpType.ASSIGN, new IntegerType(rand.nextInt(10)));
-        } else if(run == 2) {
-            executeSetOperation(CRDT2, SetOpType.REMOVE, new IntegerType(rand.nextInt(10)));
-        } else if(run == 3) {
-            executeMapOperation(CRDT3, MapOpType.DELETE, new ByteType((byte)rand.nextInt(2)), null);
-        } else if(run == 4) {
-            executeRegisterOperation(CRDT1, RegisterOpType.ASSIGN, new IntegerType(7));
-            executeRegisterOperation(CRDT2, RegisterOpType.ASSIGN, new LongType(8L));
-            executeRegisterOperation(CRDT3, RegisterOpType.ASSIGN, new ShortType((short)4));
-            executeRegisterOperation(CRDT4, RegisterOpType.ASSIGN, new FloatType(9f));
-            executeRegisterOperation(CRDT5, RegisterOpType.ASSIGN, new DoubleType(1.35));
-            executeRegisterOperation(CRDT6, RegisterOpType.ASSIGN, new StringType("Bom dia"));
-            executeRegisterOperation(CRDT7, RegisterOpType.ASSIGN, new BooleanType(false));
-            executeRegisterOperation(CRDT8, RegisterOpType.ASSIGN, new ByteType((byte)1));
-        } else if(run == 5) {
-            executeSetOperation(CRDT1, SetOpType.REMOVE, new IntegerType(1));
-            executeSetOperation(CRDT2, SetOpType.REMOVE, new LongType(5L));
-            executeSetOperation(CRDT3, SetOpType.REMOVE, new ShortType((short)2));
-            executeSetOperation(CRDT4, SetOpType.REMOVE, new FloatType(8f));
-            executeSetOperation(CRDT5, SetOpType.REMOVE, new DoubleType(1.4));
-            executeSetOperation(CRDT6, SetOpType.REMOVE, new StringType("Olá"));
-            executeSetOperation(CRDT7, SetOpType.REMOVE, new BooleanType(true));
-            executeSetOperation(CRDT8, SetOpType.REMOVE, new ByteType((byte)0));
-        } else if(run == 6) {
-            executeMapOperation(CRDT1, MapOpType.DELETE, new ByteType((byte)1), null);
-            executeMapOperation(CRDT2, MapOpType.DELETE, new ByteType((byte)1), null);
-            executeMapOperation(CRDT3, MapOpType.DELETE, new ByteType((byte)1), null);
-            executeMapOperation(CRDT4, MapOpType.DELETE, new ByteType((byte)1), null);
-            executeMapOperation(CRDT5, MapOpType.DELETE, new ByteType((byte)1), null);
-            executeMapOperation(CRDT6, MapOpType.DELETE, new ByteType((byte)1), null);
-            executeMapOperation(CRDT7, MapOpType.DELETE, new ByteType((byte)1), null);
-            executeMapOperation(CRDT8, MapOpType.DELETE, new ByteType((byte)1), null);
-        } else if(run == 7) {
-            executeCounterOperation(CRDT0, CounterOpType.DECREMENT);
-            executeRegisterOperation(CRDT1, RegisterOpType.ASSIGN, new IntegerType(rand.nextInt(10)));
-            executeSetOperation(CRDT2, SetOpType.REMOVE, new IntegerType(rand.nextInt(10)));
-            executeMapOperation(CRDT3, MapOpType.DELETE, new ByteType((byte)rand.nextInt(2)), null);
-        }
-    }
-
-    private void execute(int run, double prob) {
-        if(Math.random() <= prob) {
-            executeCounterOperation(CRDT0, CounterOpType.INCREMENT);
-            executeRegisterOperation(CRDT1, RegisterOpType.ASSIGN, new IntegerType(rand.nextInt(20)));
-        }
-    }
-
-    private void printFinalValues(int run) {
-        logger.warn("RESULTS:");
-        if(replicationKernelId == 600) {
-            logger.info("Final vector clock: {}", ReplicationKernel.vectorClock);
-        } else {
-            logger.info("Final vector clock: {}", ReplicationKernelVCs.vectorClock);
-        }
-
-        if(run == 0) {
-            logger.info("Integer value of {}: {}", CRDT0, getCounterValue(CRDT0));
-        } else if(run == 1) {
-            logger.info("Integer value of {}: {}", CRDT1, getRegisterValue(CRDT1));
-        } else if(run == 2) {
-            logger.info("Value of {}: {}", CRDT2, getSetValue(CRDT2));
-        } else if(run == 3) {
-            Set<SerializableType> keys = getMapKeys(CRDT3);
-            for(SerializableType key : keys) {
-                logger.info("{} key {} : {}", CRDT3, key, getMapping(CRDT3, key));
-            }
-            logger.info("Values of {}: {}", CRDT3, getMapValues(CRDT3));
-        } else if(run == 4) {
-            logger.info("Integer value of {}: {}", CRDT1, getRegisterValue(CRDT1));
-            logger.info("Long value of {}: {}", CRDT2, getRegisterValue(CRDT2));
-            logger.info("Short value of {}: {}", CRDT3, getRegisterValue(CRDT3));
-            logger.info("Float value of {}: {}", CRDT4, getRegisterValue(CRDT4));
-            logger.info("Double value of {}: {}", CRDT5, getRegisterValue(CRDT5));
-            logger.info("String value of {}: {}", CRDT6, getRegisterValue(CRDT6));
-            logger.info("Boolean value of {}: {}", CRDT7, getRegisterValue(CRDT7));
-            logger.info("Byte value of {}: {}", CRDT8, getRegisterValue(CRDT8));
-        } else if(run == 5) {
-            logger.info("Value of {}: {}", CRDT1, getSetValue(CRDT1));
-            logger.info("Value of {}: {}", CRDT2, getSetValue(CRDT2));
-            logger.info("Value of {}: {}", CRDT3, getSetValue(CRDT3));
-            logger.info("Value of {}: {}", CRDT4, getSetValue(CRDT4));
-            logger.info("Value of {}: {}", CRDT5, getSetValue(CRDT5));
-            logger.info("Value of {}: {}", CRDT6, getSetValue(CRDT6));
-            logger.info("Value of {}: {}", CRDT7, getSetValue(CRDT7));
-            logger.info("Value of {}: {}", CRDT8, getSetValue(CRDT8));
-        } else if(run == 6) {
-            logger.info("Keys of {}: {}", CRDT1, getMapKeys(CRDT1));
-            logger.info("Values of {}: {}", CRDT1, getMapValues(CRDT1));
-            logger.info("Keys of {}: {}", CRDT2, getMapKeys(CRDT2));
-            logger.info("Values of {}: {}", CRDT2, getMapValues(CRDT2));
-            logger.info("Keys of {}: {}", CRDT3, getMapKeys(CRDT3));
-            logger.info("Values of {}: {}", CRDT3, getMapValues(CRDT3));
-            logger.info("Keys of {}: {}", CRDT4, getMapKeys(CRDT4));
-            logger.info("Values of {}: {}", CRDT4, getMapValues(CRDT4));
-            logger.info("Keys of {}: {}", CRDT5, getMapKeys(CRDT5));
-            logger.info("Values of {}: {}", CRDT5, getMapValues(CRDT5));
-            logger.info("Keys of {}: {}", CRDT6, getMapKeys(CRDT6));
-            logger.info("Values of {}: {}", CRDT6, getMapValues(CRDT6));
-            logger.info("Keys of {}: {}", CRDT7, getMapKeys(CRDT7));
-            logger.info("Values of {}: {}", CRDT7, getMapValues(CRDT7));
-            logger.info("Keys of {}: {}", CRDT8, getMapKeys(CRDT8));
-            logger.info("Values of {}: {}", CRDT8, getMapValues(CRDT8));
-        } else if(run == 7) {
-            logger.info("Integer value of {}: {}", CRDT0, getCounterValue(CRDT0));
-            logger.info("Integer value of {}: {}", CRDT1, getRegisterValue(CRDT1));
-            logger.info("Value of {}: {}", CRDT2, getSetValue(CRDT2));
-            Set<SerializableType> keys = getMapKeys(CRDT3);
-            for(SerializableType key : keys) {
-                logger.info("{} key {} : {}", CRDT3, key, getMapping(CRDT3, key));
-            }
-            logger.info("Values of {}: {}", CRDT3, getMapValues(CRDT3));
-        } else if(run == 8) {
-            logger.info("Integer value of {}: {}", CRDT0, getCounterValue(CRDT0));
-            logger.info("Integer value of {}: {}", CRDT1, getRegisterValue(CRDT1));
-        }
-
-        if(replicationKernelId == 600) {
-            logger.info("Number of sent operations: {}", ReplicationKernel.sentOps);
-            logger.info("Number of received operations: {}", ReplicationKernel.receivedOps);
-            logger.warn("Number of executed operations: {}", ReplicationKernel.executedOps);
-        } else {
-            logger.info("Number of sent operations: {}", ReplicationKernelVCs.sentOps);
-            logger.info("Number of received operations: {}", ReplicationKernelVCs.receivedOps);
-            logger.warn("Number of executed operations: {}", ReplicationKernelVCs.executedOps);
-        }
-    }
-
-    private void printStats() {
-        //Plumtree
-        if(broadcastId == PlumTree.PROTOCOL_ID) {
-            logger.info("sentGossip: {}", PlumTree.sentGossip);
-            logger.info("sentIHave: {}", PlumTree.sentIHave);
-            logger.info("sentGraft: {}", PlumTree.sentGraft);
-            logger.info("sentPrune: {}", PlumTree.sentPrune);
-            logger.info("sentSendVC: {}", PlumTree.sentSendVC);
-            logger.info("sentVC: {}", PlumTree.sentVC);
-            logger.info("sentSyncOps: {}", PlumTree.sentSyncOps);
-            logger.info("sentSyncGossip: {}", PlumTree.sentSyncGossip);
-
-            logger.info("receivedGossip: {}", PlumTree.receivedGossip);
-            logger.info("receivedDupesGossip: {}", PlumTree.receivedDupesGossip);
-            logger.info("receivedIHave: {}", PlumTree.receivedIHave);
-            logger.info("receivedGraft: {}", PlumTree.receivedGraft);
-            logger.info("receivedPrune: {}", PlumTree.receivedPrune);
-            logger.info("receivedSendVC: {}", PlumTree.receivedSendVC);
-            logger.info("receivedVC: {}", PlumTree.receivedVC);
-            logger.info("receivedSyncOps: {}", PlumTree.receivedSyncOps);
-            logger.info("receivedSyncGossip: {}", PlumTree.receivedSyncGossip);
-            logger.info("receivedDupesSyncGossip: {}", PlumTree.receivedDupesSyncGossip);
-        }
-
-        //Flood
-        else if(broadcastId == FloodBroadcast.PROTOCOL_ID) {
-            logger.info("sentFlood: {}", FloodBroadcast.sentFlood);
-            logger.info("sentSendVC: {}", FloodBroadcast.sentSendVC);
-            logger.info("sentVC: {}", FloodBroadcast.sentVC);
-            logger.info("sentSyncOps: {}", FloodBroadcast.sentSyncOps);
-            logger.info("sentSyncFlood: {}", FloodBroadcast.sentSyncFlood);
-
-            logger.info("receivedFlood: {}", FloodBroadcast.receivedFlood);
-            logger.info("receivedDupesFlood: {}", FloodBroadcast.receivedDupesFlood);
-            logger.info("receivedSendVC: {}", FloodBroadcast.receivedSendVC);
-            logger.info("receivedVC: {}", FloodBroadcast.receivedVC);
-            logger.info("receivedSyncOps: {}", FloodBroadcast.receivedSyncOps);
-            logger.info("receivedSyncFlood: {}", FloodBroadcast.receivedSyncFlood);
-            logger.info("receivedDupesSyncFlood: {}", FloodBroadcast.receivedDupesSyncFlood);
-        }
-
-        //Periodic Pull
-        else if(broadcastId == PeriodicPullBroadcast.PROTOCOL_ID) {
-            logger.info("sentVC: {}", PeriodicPullBroadcast.sentVC);
-            logger.info("sentSyncOps: {}", PeriodicPullBroadcast.sentSyncOps);
-            logger.info("sentSyncPull: {}", PeriodicPullBroadcast.sentSyncPull);
-
-            logger.info("receivedVC: {}", PeriodicPullBroadcast.receivedVC);
-            logger.info("receivedSyncOps: {}", PeriodicPullBroadcast.receivedSyncOps);
-            logger.info("receivedSyncPull: {}", PeriodicPullBroadcast.receivedSyncPull);
-            logger.info("receivedDupes: {}", PeriodicPullBroadcast.receivedDupes);
-        }
-
-        //Periodic Pull Dupes
-        else if(broadcastId == PeriodicPullDupesBroadcast.PROTOCOL_ID) {
-            logger.info("sentVC: {}", PeriodicPullDupesBroadcast.sentVC);
-            logger.info("sentSyncOps: {}", PeriodicPullDupesBroadcast.sentSyncOps);
-            logger.info("sentSyncPull: {}", PeriodicPullDupesBroadcast.sentSyncPull);
-
-            logger.info("receivedVC: {}", PeriodicPullDupesBroadcast.receivedVC);
-            logger.info("receivedSyncOps: {}", PeriodicPullDupesBroadcast.receivedSyncOps);
-            logger.info("receivedSyncPull: {}", PeriodicPullDupesBroadcast.receivedSyncPull);
-            logger.info("receivedDupes: {}", PeriodicPullDupesBroadcast.receivedDupes);
-        }
-    }
+    /* --------------------------------- Requests --------------------------------- */
 
     private void getCRDT(String crdtType, String[] dataType, String crdtId) {
-        //Creating new CRDT by asking the replication kernel for it
-        sendRequest(new GetCRDTRequest(UUID.randomUUID(), self, crdtType, dataType, crdtId), replicationKernelId);
-    }
-
-    private void releaseCRDT(String crdtId) {
-        //Removing local copy of CRDT
-        if(myCRDTs.remove(crdtId) != null) {
-            sendRequest(new ReleaseCRDTRequest(UUID.randomUUID(), self, crdtId), replicationKernelId);
-        } else {
-            //No CRDT with crdtId
-        }
-    }
-
-    private void executeCounterOperation(String crdtId, CounterOpType opType) {
-        GenericCRDT crdt = myCRDTs.get(crdtId);
-        if(crdt != null) {
-            if(crdt instanceof OpCounterCRDT) {
-                switch(opType) {
-                    case INCREMENT:
-                        ((OpCounterCRDT) crdt).increment(self);
-                        break;
-                    case DECREMENT:
-                        ((OpCounterCRDT) crdt).decrement(self);
-                        break;
-                    default:
-                        //No other ops
-                        break;
-                }
-
-            } else {
-                //CRDT with crdtId is not a counterCRDT
-            }
-        } else {
-            //No CRDT with crdtId
-        }
+        sendRequest(new GetCRDTRequest(UUID.randomUUID(), crdtType, dataType, crdtId), replicationKernelId);
     }
 
     private void executeCounterOperation(String crdtId, CounterOpType opType, int value) {
-        GenericCRDT crdt = myCRDTs.get(crdtId);
-
-        if(crdt != null) {
-            if(crdt instanceof OpCounterCRDT) {
-                switch(opType) {
-                    case INCREMENT_BY:
-                        ((OpCounterCRDT) crdt).incrementBy(self, value);
-                        break;
-                    case DECREMENT_BY:
-                        ((OpCounterCRDT) crdt).decrementBy(self, value);
-                        break;
-                    default:
-                        //No other ops
-                        break;
-                }
-
-            } else {
-                //CRDT with crdtId is not a counterCRDT
-            }
-        } else {
-            //No CRDT with crdtId
-        }
+        sendRequest(new CounterOperationRequest(crdtId, opType, value), replicationKernelId);
     }
 
     private void executeRegisterOperation(String crdtId, RegisterOpType opType, SerializableType value) {
-        GenericCRDT crdt = myCRDTs.get(crdtId);
-
-        if(crdt != null) {
-            if(crdt instanceof LWWRegisterCRDT) {
-                switch(opType) {
-                    case ASSIGN:
-                        ((LWWRegisterCRDT) crdt).assign(self, value);
-                        break;
-                    default:
-                        //No other ops
-                        break;
-                }
-
-            } else {
-                //CRDT with crdtId is not a counterCRDT
-            }
-        } else {
-            //No CRDT with crdtId
-        }
+        sendRequest(new RegisterOperationRequest(crdtId, opType, value), replicationKernelId);
     }
 
     private void executeSetOperation(String crdtId, SetOpType opType, SerializableType value) {
-        GenericCRDT crdt = myCRDTs.get(crdtId);
-
-        if(crdt != null) {
-            if(crdt instanceof ORSetCRDT) {
-                switch(opType) {
-                    case ADD:
-                        ((ORSetCRDT) crdt).add(self, value);
-                        break;
-                    case REMOVE:
-                        ((ORSetCRDT) crdt).remove(self, value);
-                        break;
-                    default:
-                        //No other ops
-                        break;
-                }
-
-            } else {
-                //CRDT with crdtId is not a orsetsCRDT
-            }
-        } else {
-            //No CRDT with crdtId
-        }
+        sendRequest(new SetOperationRequest(crdtId, opType, value), replicationKernelId);
     }
 
     private void executeMapOperation(String crdtId, MapOpType opType, SerializableType key, SerializableType value) {
-        GenericCRDT crdt = myCRDTs.get(crdtId);
-
-        if(crdt != null) {
-            if(crdt instanceof ORMapCRDT) {
-                switch(opType) {
-                    case PUT:
-                        ((ORMapCRDT) crdt).put(self, key, value);
-                        break;
-                    case DELETE:
-                        ((ORMapCRDT) crdt).delete(self, key);
-                        break;
-                    default:
-                        //No other ops
-                        break;
-                }
-
-            } else {
-                //CRDT with crdtId is not a orsetsCRDT
-            }
-        } else {
-            //No CRDT with crdtId
-        }
-    }
-
-    private int getCounterValue(String crdtId) {
-        GenericCRDT crdt = myCRDTs.get(crdtId);
-        if(crdt != null) {
-            if(crdt instanceof OpCounterCRDT) {
-                return ((OpCounterCRDT) crdt).value();
-            } else {
-                return 0;
-                //CRDT with crdtId is not a counterCRDT
-            }
-        } else {
-            return 0;
-            //No CRDT with crdtId
-        }
-    }
-
-    private Object getRegisterValue(String crdtId) {
-        GenericCRDT crdt = myCRDTs.get(crdtId);
-        if(crdt != null) {
-            if(crdt instanceof LWWRegisterCRDT) {
-                return ((LWWRegisterCRDT) crdt).value();
-            } else {
-                return null;
-                //CRDT with crdtId is not a counterCRDT
-            }
-        } else {
-            return null;
-            //No CRDT with crdtId
-        }
-    }
-
-    private Object getSetValue(String crdtId) {
-        GenericCRDT crdt = myCRDTs.get(crdtId);
-        if(crdt != null) {
-            if(crdt instanceof ORSetCRDT) {
-                return ((ORSetCRDT) crdt).elements();
-            } else {
-                return null;
-                //CRDT with crdtId is not a orsetCRDT
-            }
-        } else {
-            return null;
-            //No CRDT with crdtId
-        }
-    }
-
-    private Set<SerializableType> getMapKeys(String crdtId) {
-        GenericCRDT crdt = myCRDTs.get(crdtId);
-        if(crdt != null) {
-            if(crdt instanceof ORMapCRDT) {
-                return ((ORMapCRDT) crdt).keys();
-            } else {
-                return null;
-                //CRDT with crdtId is not a ormapCRDT
-            }
-        } else {
-            return null;
-            //No CRDT with crdtId
-        }
-    }
-
-    private List<SerializableType> getMapValues(String crdtId) {
-        GenericCRDT crdt = myCRDTs.get(crdtId);
-        if(crdt != null) {
-            if(crdt instanceof ORMapCRDT) {
-                return ((ORMapCRDT) crdt).values();
-            } else {
-                return null;
-                //CRDT with crdtId is not a ormapCRDT
-            }
-        } else {
-            return null;
-            //No CRDT with crdtId
-        }
-    }
-
-    private Set<SerializableType> getMapping(String crdtId, SerializableType key) {
-        GenericCRDT crdt = myCRDTs.get(crdtId);
-        if(crdt != null) {
-            if(crdt instanceof ORMapCRDT) {
-                return ((ORMapCRDT) crdt).get(key);
-            } else {
-                return null;
-                //CRDT with crdtId is not a ormapCRDT
-            }
-        } else {
-            return null;
-            //No CRDT with crdtId
-        }
-    }
-
-    private void createCRDTs() {
-        //Creating CRDTs
-        logger.info("Creating crdts...");
-        getCRDTs(RUN);
-        startOperations();
-//        setupTimer(new StartTimer(), prepareTime * TO_MILLIS);
-    }
-
-    private void startOperations() {
-        logger.warn("Starting operations...");
-
-        if(PERIODIC_OPS) {
-            ops1Timer = setupPeriodicTimer(new ExecuteOps1Timer(), 0, ops1Interval);
-//            ops2Timer = setupPeriodicTimer(new ExecuteOps2Timer(), 0, ops2Interval);
-        } else {
-            setupTimer(new SingleOpTimer(), ops1Interval);
-        }
-
-        //Release CRDTs
-//        setupTimer(new ReleaseCrdtTimer(), releaseTime * TO_MILLIS);
-
-        //And setup single timers
-        setupTimer(new StopTimer(), runTime * TO_MILLIS);
-    }
-
-    /* --------------------------------- Timers --------------------------------- */
-
-    private void uponCreateCRDTsTimer(CreateCRDTsTimer timer, long timerId) {
-        createCRDTs();
-    }
-
-    private void uponStartTimer(StartTimer startTimer, long timerId) {
-        startOperations();
-    }
-
-    private void uponReleaseCrdtTimer(ReleaseCrdtTimer releaseCrdtTimer, long timerId) {
-        releaseCRDT(CRDT0);
-    }
-
-    private void uponExecuteOps1Timer(ExecuteOps1Timer incTimer, long timerId) {
-        execute(RUN, prob);
-    }
-
-    private void uponExecuteOps2Timer(ExecuteOps2Timer decTimer, long timerId) {
-        executeOp2(RUN);
-    }
-
-    private void uponExecuteSingleOpTimer(SingleOpTimer timer, long timerId) {
-        executeOp1(RUN);
-    }
-
-    private void uponStopTimer(StopTimer stopTimer, long timerId) {
-        logger.warn("Stopping broadcasts");
-        //Stop executing operations
-        this.cancelTimer(ops1Timer);
-        this.cancelTimer(ops2Timer);
-
-        setupTimer(new PrintValuesTimer(), cooldownTime * TO_MILLIS);
-    }
-
-    private void uponPrintValuesTimer(PrintValuesTimer printValuesTimer, long timerId) {
-        printFinalValues(RUN);
-        printStats();
-        setupTimer(new ExitTimer(), exitTime * TO_MILLIS);
-    }
-
-    private void uponExitTimer(ExitTimer exitTimer, long timerId) {
-        logger.warn("Exiting...");
-        //Shutting down
-        System.exit(0);
+        sendRequest(new MapOperationRequest(crdtId, opType, key, value), replicationKernelId);
     }
 
 
@@ -724,13 +146,345 @@ public class CRDTApp extends GenericProtocol {
     private void uponReturnCRDTNotification(ReturnCRDTNotification notification, short sourceProto) {
         GenericCRDT crdt = notification.getCrdt();
         String crdtId = crdt.getCrdtId();
-        logger.info("CRDT {} was created by {}", crdtId, self);
-        //Saving crdt in local map
+        logger.debug("CRDT {} was created by {} - {}", crdtId, self, notification.getMsgId());
         myCRDTs.put(crdtId, crdt);
     }
 
     private void uponCRDTAlreadyExistsNotification(CRDTAlreadyExistsNotification notification, short sourceProto) {
-        logger.info("CRDT {} already exists for {}", notification.getCrdtId(), self);
+        logger.debug("CRDT {} already exists for {}", notification.getCrdtId(), self);
+    }
+
+
+    /* --------------------------------- Timers --------------------------------- */
+
+    private void uponCreateCRDTsTimer(CreateCRDTsTimer timer, long timerId) {
+        logger.warn("Creating CRDTs...");
+        getCRDTs();
+        logger.warn("Starting operations...");
+        sendOpsTimer = setupPeriodicTimer(new SendOpsTimer(), 0, sendOpsTimeout);
+        setupTimer(new StopTimer(), (long) runTime * TO_MILLIS);
+    }
+
+    private void uponSendOpsTimer(SendOpsTimer timer, long timerId) {
+        executeWithProbability(prob);
+    }
+
+    private void uponStopTimer(StopTimer stopTimer, long timerId) {
+        logger.warn("Stopping broadcasts");
+        //Stop executing operations
+        this.cancelTimer(sendOpsTimer);
+        setupTimer(new PrintValuesTimer(), (long) cooldownTime * TO_MILLIS);
+    }
+
+    private void uponPrintValuesTimer(PrintValuesTimer printValuesTimer, long timerId) {
+        printFinalValues();
+        setupTimer(new ExitTimer(), (long) exitTime * TO_MILLIS);
+    }
+
+    private void uponExitTimer(ExitTimer exitTimer, long timerId) {
+        logger.warn("Exiting...");
+        System.exit(0);
+    }
+
+
+    /* --------------------------------- Auxiliary Methods --------------------------------- */
+
+    private void getCRDTs() {
+        switch(CRDTApp.RUN) {
+            case 0:
+                getCRDT(COUNTER, new String[]{"int"}, CRDT0);
+                break;
+            case  1:
+                getCRDT(LWW_REGISTER, new String[]{"int"}, CRDT1);
+                break;
+            case  2:
+                getCRDT(OR_SET, new String[]{"int"}, CRDT2);
+                break;
+            case  3:
+                getCRDT(OR_MAP, new String[]{"byte", "int"}, CRDT3);
+                break;
+            case  4:
+                getCRDT(LWW_REGISTER, new String[]{"int"}, CRDT1);
+                getCRDT(LWW_REGISTER, new String[]{"long"}, CRDT2);
+                getCRDT(LWW_REGISTER, new String[]{"short"}, CRDT3);
+                getCRDT(LWW_REGISTER, new String[]{"float"}, CRDT4);
+                getCRDT(LWW_REGISTER, new String[]{"double"}, CRDT5);
+                getCRDT(LWW_REGISTER, new String[]{"string"}, CRDT6);
+                getCRDT(LWW_REGISTER, new String[]{"boolean"}, CRDT7);
+                getCRDT(LWW_REGISTER, new String[]{"byte"}, CRDT8);
+                break;
+            case  5:
+                getCRDT(OR_SET, new String[]{"int"}, CRDT1);
+                getCRDT(OR_SET, new String[]{"long"}, CRDT2);
+                getCRDT(OR_SET, new String[]{"short"}, CRDT3);
+                getCRDT(OR_SET, new String[]{"float"}, CRDT4);
+                getCRDT(OR_SET, new String[]{"double"}, CRDT5);
+                getCRDT(OR_SET, new String[]{"string"}, CRDT6);
+                getCRDT(OR_SET, new String[]{"boolean"}, CRDT7);
+                getCRDT(OR_SET, new String[]{"byte"}, CRDT8);
+                break;
+            case  6:
+                getCRDT(OR_MAP, new String[]{"byte", "int"}, CRDT1);
+                getCRDT(OR_MAP, new String[]{"byte", "short"}, CRDT2);
+                getCRDT(OR_MAP, new String[]{"byte", "long"}, CRDT3);
+                getCRDT(OR_MAP, new String[]{"byte", "float"}, CRDT4);
+                getCRDT(OR_MAP, new String[]{"byte", "double"}, CRDT5);
+                getCRDT(OR_MAP, new String[]{"byte", "boolean"}, CRDT6);
+                getCRDT(OR_MAP, new String[]{"byte", "string"}, CRDT7);
+                getCRDT(OR_MAP, new String[]{"byte", "byte"}, CRDT8);
+                break;
+            case  7:
+                getCRDT(COUNTER, new String[]{"int"}, CRDT0);
+                getCRDT(LWW_REGISTER, new String[]{"int"}, CRDT1);
+                getCRDT(OR_SET, new String[]{"int"}, CRDT2);
+                getCRDT(OR_MAP, new String[]{"byte", "int"}, CRDT3);
+                break;
+            case  8:
+                getCRDT(COUNTER, new String[]{"int"}, CRDT0);
+                getCRDT(LWW_REGISTER, new String[]{"int"}, CRDT1);
+                getCRDT(OR_SET, new String[]{"int"}, CRDT2);
+                getCRDT(OR_MAP, new String[]{"int", "int"}, CRDT3);
+                break;
+            case  9:
+                getCRDT(LWW_REGISTER, new String[]{"string"}, CRDT0);
+                break;
+        }
+    }
+
+    private void executeWithProbability(double prob) {
+        if(Math.random() <= prob) {
+            switch (CRDTApp.RUN) {
+                case 8:
+                    executeCounterOperation(CRDT0, CounterOpType.INCREMENT, 1);
+                    executeRegisterOperation(CRDT1, RegisterOpType.ASSIGN, new IntegerType(rand.nextInt(1000)));
+                    executeSetOperation(CRDT2, Math.random() > 0.5 ? SetOpType.ADD : SetOpType.REMOVE, new IntegerType(rand.nextInt(50)));
+                    executeMapOperation(CRDT3, MapOpType.PUT, new IntegerType(rand.nextInt(10)), new IntegerType(rand.nextInt(1000)));
+                    break;
+                case 9:
+                    executeRegisterOperation(CRDT0, RegisterOpType.ASSIGN, new StringType(generateRandomString(payloadSize)));
+                    break;
+            }
+        }
+    }
+
+    private void printFinalValues() {
+        logger.warn("RESULTS:");
+        printCRDTs();
+
+        switch (broadcastId) {
+            // Plumtree
+            case PlumTree.PROTOCOL_ID:
+                logger.info("Final vector clock: {}", PlumTree.vectorClock);
+
+                logger.info("Number of sent operations: {}", PlumtreeStats.sentOps);
+                logger.info("Number of received operations: {}", PlumtreeStats.receivedOps);
+                logger.warn("Number of executed operations: {}", PlumtreeStats.executedOps);
+
+                logger.info("sentGossip: {}", PlumtreeStats.sentGossip);
+                logger.info("sentIHave: {}", PlumtreeStats.sentIHave);
+                logger.info("sentGraft: {}", PlumtreeStats.sentGraft);
+                logger.info("sentPrune: {}", PlumtreeStats.sentPrune);
+                logger.info("sentSendVC: {}", PlumtreeStats.sentSendVC);
+                logger.info("sentVC: {}", PlumtreeStats.sentVC);
+                logger.info("sentSyncOps: {}", PlumtreeStats.sentSyncOps);
+                logger.info("sentSyncGossip: {}", PlumtreeStats.sentSyncGossip);
+
+                logger.info("receivedGossip: {}", PlumtreeStats.receivedGossip);
+                logger.info("receivedDupesGossip: {}", PlumtreeStats.receivedDupesGossip);
+                logger.info("receivedIHave: {}", PlumtreeStats.receivedIHave);
+                logger.info("receivedGraft: {}", PlumtreeStats.receivedGraft);
+                logger.info("receivedPrune: {}", PlumtreeStats.receivedPrune);
+                logger.info("receivedSendVC: {}", PlumtreeStats.receivedSendVC);
+                logger.info("receivedVC: {}", PlumtreeStats.receivedVC);
+                logger.info("receivedSyncOps: {}", PlumtreeStats.receivedSyncOps);
+                logger.info("receivedSyncGossip: {}", PlumtreeStats.receivedSyncGossip);
+                logger.info("receivedDupesSyncGossip: {}", PlumtreeStats.receivedDupesSyncGossip);
+                break;
+            // PlumtreeGC
+            case PlumTreeGC.PROTOCOL_ID:
+                logger.info("Final vector clock: {}", PlumTreeGC.vectorClock);
+
+                logger.info("Number of sent operations: {}", PlumtreeStats.sentOps);
+                logger.info("Number of received operations: {}", PlumtreeStats.receivedOps);
+                logger.warn("Number of executed operations: {}", PlumtreeStats.executedOps);
+
+                logger.info("sentGossip: {}", PlumtreeStats.sentGossip);
+                logger.info("sentIHave: {}", PlumtreeStats.sentIHave);
+                logger.info("sentGraft: {}", PlumtreeStats.sentGraft);
+                logger.info("sentPrune: {}", PlumtreeStats.sentPrune);
+                logger.info("sentSendVC: {}", PlumtreeStats.sentSendVC);
+                logger.info("sentVC: {}", PlumtreeStats.sentVC);
+                logger.info("sentSyncOps: {}", PlumtreeStats.sentSyncOps);
+                logger.info("sentSyncGossip: {}", PlumtreeStats.sentSyncGossip);
+
+                logger.info("receivedGossip: {}", PlumtreeStats.receivedGossip);
+                logger.info("receivedDupesGossip: {}", PlumtreeStats.receivedDupesGossip);
+                logger.info("receivedIHave: {}", PlumtreeStats.receivedIHave);
+                logger.info("receivedGraft: {}", PlumtreeStats.receivedGraft);
+                logger.info("receivedPrune: {}", PlumtreeStats.receivedPrune);
+                logger.info("receivedSendVC: {}", PlumtreeStats.receivedSendVC);
+                logger.info("receivedVC: {}", PlumtreeStats.receivedVC);
+                logger.info("receivedSyncOps: {}", PlumtreeStats.receivedSyncOps);
+                logger.info("receivedSyncGossip: {}", PlumtreeStats.receivedSyncGossip);
+                logger.info("receivedDupesSyncGossip: {}", PlumtreeStats.receivedDupesSyncGossip);
+                break;
+            // Flood
+            case FloodBroadcast.PROTOCOL_ID:
+                logger.info("Final vector clock: {}", FloodBroadcast.vectorClock);
+
+                logger.info("sentFlood: {}", FloodStats.sentFlood);
+                logger.info("sentSendVC: {}", FloodStats.sentSendVC);
+                logger.info("sentVC: {}", FloodStats.sentVC);
+                logger.info("sentSyncOps: {}", FloodStats.sentSyncOps);
+                logger.info("sentSyncFlood: {}", FloodStats.sentSyncFlood);
+
+                logger.info("receivedFlood: {}", FloodStats.receivedFlood);
+                logger.info("receivedDupesFlood: {}", FloodStats.receivedDupesFlood);
+                logger.info("receivedSendVC: {}", FloodStats.receivedSendVC);
+                logger.info("receivedVC: {}", FloodStats.receivedVC);
+                logger.info("receivedSyncOps: {}", FloodStats.receivedSyncOps);
+                logger.info("receivedSyncFlood: {}", FloodStats.receivedSyncFlood);
+                logger.info("receivedDupesSyncFlood: {}", FloodStats.receivedDupesSyncFlood);
+                break;
+            // Periodic Pull
+            case PeriodicPullBroadcast.PROTOCOL_ID:
+                logger.info("Final vector clock: {}", PeriodicPullBroadcast.vectorClock);
+
+                logger.info("sentVC: {}", PeriodicPullStats.sentVC);
+                logger.info("sentSyncOps: {}", PeriodicPullStats.sentSyncOps);
+                logger.info("sentSyncPull: {}", PeriodicPullStats.sentSyncPull);
+
+                logger.info("receivedVC: {}", PeriodicPullStats.receivedVC);
+                logger.info("receivedSyncOps: {}", PeriodicPullStats.receivedSyncOps);
+                logger.info("receivedSyncPull: {}", PeriodicPullStats.receivedSyncPull);
+                logger.info("receivedDupes: {}", PeriodicPullStats.receivedDupes);
+                break;
+        }
+    }
+
+    private void printCRDTs() {
+        Set<SerializableType> keys;
+        switch(CRDTApp.RUN) {
+            case 0:
+                logger.info("Integer value of {}: {}", CRDT0, getCounterValue(CRDT0));
+                break;
+            case 1:
+                logger.info("Integer value of {}: {}", CRDT1, getRegisterValue(CRDT1));
+                break;
+            case 2:
+                logger.info("Value of {}: {}", CRDT2, getSetValue(CRDT2));
+                break;
+            case 3:
+                keys = getMapKeys(CRDT3);
+                for (SerializableType key : keys) {
+                    logger.info("{} key {} : {}", CRDT3, key, getMapping(CRDT3, key));
+                }
+                logger.info("Values of {}: {}", CRDT3, getMapValues(CRDT3));
+                break;
+            case 4:
+                logger.info("Integer value of {}: {}", CRDT1, getRegisterValue(CRDT1));
+                logger.info("Long value of {}: {}", CRDT2, getRegisterValue(CRDT2));
+                logger.info("Short value of {}: {}", CRDT3, getRegisterValue(CRDT3));
+                logger.info("Float value of {}: {}", CRDT4, getRegisterValue(CRDT4));
+                logger.info("Double value of {}: {}", CRDT5, getRegisterValue(CRDT5));
+                logger.info("String value of {}: {}", CRDT6, getRegisterValue(CRDT6));
+                logger.info("Boolean value of {}: {}", CRDT7, getRegisterValue(CRDT7));
+                logger.info("Byte value of {}: {}", CRDT8, getRegisterValue(CRDT8));
+                break;
+            case 5:
+                logger.info("Value of {}: {}", CRDT1, getSetValue(CRDT1));
+                logger.info("Value of {}: {}", CRDT2, getSetValue(CRDT2));
+                logger.info("Value of {}: {}", CRDT3, getSetValue(CRDT3));
+                logger.info("Value of {}: {}", CRDT4, getSetValue(CRDT4));
+                logger.info("Value of {}: {}", CRDT5, getSetValue(CRDT5));
+                logger.info("Value of {}: {}", CRDT6, getSetValue(CRDT6));
+                logger.info("Value of {}: {}", CRDT7, getSetValue(CRDT7));
+                logger.info("Value of {}: {}", CRDT8, getSetValue(CRDT8));
+                break;
+            case 6:
+                logger.info("Keys of {}: {}", CRDT1, getMapKeys(CRDT1));
+                logger.info("Values of {}: {}", CRDT1, getMapValues(CRDT1));
+                logger.info("Keys of {}: {}", CRDT2, getMapKeys(CRDT2));
+                logger.info("Values of {}: {}", CRDT2, getMapValues(CRDT2));
+                logger.info("Keys of {}: {}", CRDT3, getMapKeys(CRDT3));
+                logger.info("Values of {}: {}", CRDT3, getMapValues(CRDT3));
+                logger.info("Keys of {}: {}", CRDT4, getMapKeys(CRDT4));
+                logger.info("Values of {}: {}", CRDT4, getMapValues(CRDT4));
+                logger.info("Keys of {}: {}", CRDT5, getMapKeys(CRDT5));
+                logger.info("Values of {}: {}", CRDT5, getMapValues(CRDT5));
+                logger.info("Keys of {}: {}", CRDT6, getMapKeys(CRDT6));
+                logger.info("Values of {}: {}", CRDT6, getMapValues(CRDT6));
+                logger.info("Keys of {}: {}", CRDT7, getMapKeys(CRDT7));
+                logger.info("Values of {}: {}", CRDT7, getMapValues(CRDT7));
+                logger.info("Keys of {}: {}", CRDT8, getMapKeys(CRDT8));
+                logger.info("Values of {}: {}", CRDT8, getMapValues(CRDT8));
+                break;
+            case 7:
+                logger.info("Integer value of {}: {}", CRDT0, getCounterValue(CRDT0));
+                logger.info("Integer value of {}: {}", CRDT1, getRegisterValue(CRDT1));
+                logger.info("Value of {}: {}", CRDT2, getSetValue(CRDT2));
+                keys = getMapKeys(CRDT3);
+                for (SerializableType key : keys)
+                    logger.info("{} key {} : {}", CRDT3, key, getMapping(CRDT3, key));
+                logger.info("Values of {}: {}", CRDT3, getMapValues(CRDT3));
+                break;
+            case 8:
+                logger.info("[CRDT-VAL] {} {}", CRDT0, getCounterValue(CRDT0));
+                logger.info("[CRDT-VAL] {} {}", CRDT1, getRegisterValue(CRDT1));
+                logger.info("[CRDT-VAL] {} {}", CRDT2, getSetValue(CRDT2));
+                keys = getMapKeys(CRDT3);
+                for (SerializableType key : keys)
+                    logger.info("[CRDT-VAL] {}:{} {}", CRDT3, key, getMapping(CRDT3, key));
+                break;
+            case 9:
+                logger.info("[CRDT-VAL] {} {}", CRDT0, getRegisterValue(CRDT0));
+                break;
+        }
+    }
+
+    private int getCounterValue(String crdtId) {
+        return ((CounterCRDT) myCRDTs.get(crdtId)).value();
+    }
+
+    private Object getRegisterValue(String crdtId) {
+        return ((RegisterCRDT) myCRDTs.get(crdtId)).value();
+    }
+
+    private List<SerializableType> getSetValue(String crdtId) {
+        List<SerializableType> list = new LinkedList<>(((SetCRDT) myCRDTs.get(crdtId)).elements());
+        Collections.sort(list);
+        return list;
+    }
+
+    private Set<SerializableType> getMapKeys(String crdtId) {
+        return ((MapCRDT) myCRDTs.get(crdtId)).keys();
+    }
+
+    private List<SerializableType> getMapValues(String crdtId) {
+        List<SerializableType> list = new LinkedList<>(((MapCRDT) myCRDTs.get(crdtId)).values());
+        Collections.sort(list);
+        return list;
+    }
+
+    private List<SerializableType> getMapping(String crdtId, SerializableType key) {
+        List<SerializableType> list = new LinkedList<>(((MapCRDT) myCRDTs.get(crdtId)).get(key));
+        Collections.sort(list);
+        return list;
+    }
+
+    private String generateRandomString(int nChars) {
+        String alphabetsInUpperCase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        String alphabetsInLowerCase = "abcdefghijklmnopqrstuvwxyz";
+        String numbers = "0123456789";
+        String others = "!?&$%+*#=<>?@~";
+        // Create a super set of all characters
+        String allCharacters = alphabetsInLowerCase + alphabetsInUpperCase + numbers + others;
+        StringBuffer randomString = new StringBuffer();
+        for (int i = 0; i < nChars; i++) {
+            int randomIndex = rand.nextInt(allCharacters.length());
+            randomString.append(allCharacters.charAt(randomIndex));
+        }
+        return randomString.toString();
     }
 
 }

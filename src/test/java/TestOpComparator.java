@@ -1,10 +1,3 @@
-import crdts.operations.Operation;
-import crdts.operations.SetOperation;
-import protocols.replication.utils.SortOpsByHostClock;
-
-import java.util.Queue;
-import java.util.concurrent.PriorityBlockingQueue;
-
 public class TestOpComparator {
 
 //    public static void main(String[] args) throws Exception {

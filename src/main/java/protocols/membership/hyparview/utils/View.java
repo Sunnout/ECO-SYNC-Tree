@@ -1,24 +1,32 @@
 package protocols.membership.hyparview.utils;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import protocols.broadcast.plumtree.PlumTree;
 import pt.unl.fct.di.novasys.network.data.Host;
 
 import java.util.*;
 
 public class View implements IView {
 
+    private static final Logger logger = LogManager.getLogger(View.class);
+
+
     private final int capacity;
     private final Set<Host> peers;
     private final Random rnd;
     private final Host self;
+    private boolean isActive;
 
     private IView other;
     private Set<Host> pending;
 
-    public View(int capacity, Host self, Random rnd) {
+    public View(boolean isActive, int capacity, Host self, Random rnd) {
         this.capacity = capacity;
         this.self = self;
         this.peers = new HashSet<>();
         this.rnd = rnd;
+        this.isActive = isActive;
     }
 
     public void setOther(IView other, Set<Host> pending) {
@@ -39,6 +47,7 @@ public class View implements IView {
             if (peers.size() == capacity)
                 excess = dropRandom();
             boolean ret = peers.add(peer);
+            logger.debug("Added {} {} {}", peer, isActive, peers);
             assert ret;
             assert peers.size() <= capacity;
             return excess;
@@ -47,7 +56,10 @@ public class View implements IView {
     }
 
     public boolean removePeer(Host peer) {
-        return peers.remove(peer);
+        boolean removed = peers.remove(peer);
+        if(removed)
+            logger.debug("Removed {} {} {}", peer, isActive, peers);
+        return removed;
     }
 
     public boolean containsPeer(Host peer) {
@@ -61,6 +73,7 @@ public class View implements IView {
             Host[] hosts = peers.toArray(new Host[0]);
             torm = hosts[idx];
             peers.remove(torm);
+            logger.debug("Removed {} {} {}", torm, isActive, peers);
         }
         return torm;
     }

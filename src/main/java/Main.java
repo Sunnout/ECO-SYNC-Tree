@@ -6,11 +6,10 @@ import org.apache.logging.log4j.Logger;
 
 import protocols.broadcast.flood.FloodBroadcast;
 import protocols.broadcast.periodicpull.PeriodicPullBroadcast;
-import protocols.broadcast.periodicpull.PeriodicPullDupesBroadcast;
 import protocols.broadcast.plumtree.PlumTree;
+import protocols.broadcast.plumtree.PlumTreeGC;
 import protocols.membership.hyparview.HyParView;
 import protocols.replication.ReplicationKernel;
-import protocols.replication.ReplicationKernelVCs;
 import pt.unl.fct.di.novasys.babel.core.Babel;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.network.data.Host;
@@ -63,15 +62,23 @@ public class Main {
         switch(bcast_protocol) {
             case "plumtree":
                 crdtApp = new CRDTApp(props, myself, ReplicationKernel.PROTOCOL_ID, PlumTree.PROTOCOL_ID);
-                replicationKernel = new ReplicationKernel(props, myself, PlumTree.PROTOCOL_ID);
+                replicationKernel = new ReplicationKernel(myself, PlumTree.PROTOCOL_ID);
                 broadcast = new PlumTree(props, myself);
+                membership = new HyParView(props, myself_membership);
+                registerAndStartProtocols(babel, crdtApp, replicationKernel, broadcast, membership, props);
+                break;
+
+            case "plumtreegc":
+                crdtApp = new CRDTApp(props, myself, ReplicationKernel.PROTOCOL_ID, PlumTreeGC.PROTOCOL_ID);
+                replicationKernel = new ReplicationKernel(myself, PlumTreeGC.PROTOCOL_ID);
+                broadcast = new PlumTreeGC(props, myself);
                 membership = new HyParView(props, myself_membership);
                 registerAndStartProtocols(babel, crdtApp, replicationKernel, broadcast, membership, props);
                 break;
 
             case "flood":
                 crdtApp = new CRDTApp(props, myself, ReplicationKernel.PROTOCOL_ID, FloodBroadcast.PROTOCOL_ID);
-                replicationKernel = new ReplicationKernel(props, myself, FloodBroadcast.PROTOCOL_ID);
+                replicationKernel = new ReplicationKernel(myself, FloodBroadcast.PROTOCOL_ID);
                 broadcast = new FloodBroadcast(props, myself);
                 membership = new HyParView(props, myself_membership);
                 registerAndStartProtocols(babel, crdtApp, replicationKernel, broadcast, membership, props);
@@ -79,16 +86,17 @@ public class Main {
 
             case "periodicpull":
                 crdtApp = new CRDTApp(props, myself, ReplicationKernel.PROTOCOL_ID, PeriodicPullBroadcast.PROTOCOL_ID);
-                replicationKernel = new ReplicationKernel(props, myself, PeriodicPullBroadcast.PROTOCOL_ID);
+                replicationKernel = new ReplicationKernel(myself, PeriodicPullBroadcast.PROTOCOL_ID);
                 broadcast = new PeriodicPullBroadcast(props, myself);
                 membership = new HyParView(props, myself_membership);
                 registerAndStartProtocols(babel, crdtApp, replicationKernel, broadcast, membership, props);
                 break;
 
-            case "periodicpulldupes":
-                crdtApp = new CRDTApp(props, myself, ReplicationKernelVCs.PROTOCOL_ID, PeriodicPullDupesBroadcast.PROTOCOL_ID);
-                replicationKernel = new ReplicationKernelVCs(props, myself, PeriodicPullDupesBroadcast.PROTOCOL_ID);
-                broadcast = new PeriodicPullDupesBroadcast(props, myself);
+            case "periodicpullsmallertimer":
+                props.setProperty("pull_timeout", "200");
+                crdtApp = new CRDTApp(props, myself, ReplicationKernel.PROTOCOL_ID, PeriodicPullBroadcast.PROTOCOL_ID);
+                replicationKernel = new ReplicationKernel(myself, PeriodicPullBroadcast.PROTOCOL_ID);
+                broadcast = new PeriodicPullBroadcast(props, myself);
                 membership = new HyParView(props, myself_membership);
                 registerAndStartProtocols(babel, crdtApp, replicationKernel, broadcast, membership, props);
                 break;

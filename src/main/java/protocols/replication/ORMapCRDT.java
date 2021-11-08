@@ -1,16 +1,17 @@
 package protocols.replication;
 
-import crdts.interfaces.MapCRDT;
-import crdts.operations.MapOperation;
-import crdts.operations.Operation;
-import crdts.utils.TaggedElement;
-import crdts.utils.VectorClock;
-import datatypes.SerializableType;
+import protocols.replication.crdts.interfaces.MapCRDT;
+import protocols.replication.crdts.operations.MapOperation;
+import protocols.replication.crdts.operations.Operation;
+import protocols.replication.crdts.utils.TaggedElement;
+import protocols.replication.crdts.datatypes.SerializableType;
+import io.netty.buffer.ByteBuf;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import protocols.replication.requests.DownstreamRequest;
-import pt.unl.fct.di.novasys.network.data.Host;
+import protocols.replication.crdts.serializers.CRDTSerializer;
+import protocols.replication.crdts.serializers.MySerializer;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -23,23 +24,27 @@ public class ORMapCRDT implements MapCRDT, KernelCRDT {
 
     private static final Logger logger = LogManager.getLogger(ORMapCRDT.class);
 
+    private static final String CRDT_TYPE = "or_map";
+    private static final String MAP_PUT = "map_put";
+    private static final String MAP_DELETE = "map_del";
+
     public enum MapOpType{
         PUT,
         DELETE
     }
 
-    private static final String CRDT_TYPE = "or_map";
-    private static final String MAP_PUT = "map_put";
-    private static final String MAP_DELETE = "map_del";
-
-    private final CRDTCommunicationInterface kernel;
     private final String crdtId;
     private Map<SerializableType, Set<TaggedElement>> map;
 
-    public ORMapCRDT(CRDTCommunicationInterface kernel, String crdtId) {
-        this.kernel = kernel;
+    public ORMapCRDT(String crdtId) {
         this.crdtId = crdtId;
         this.map = new ConcurrentHashMap<>();
+    }
+
+    public ORMapCRDT(String crdtId, Map<SerializableType, Set<TaggedElement>> map) {
+        this.crdtId = crdtId;
+        this.map = new ConcurrentHashMap<>();
+        this.map.putAll(map);
     }
 
     @Override
@@ -90,26 +95,17 @@ public class ORMapCRDT implements MapCRDT, KernelCRDT {
         return values;
     }
 
-    public synchronized void put(Host sender, SerializableType key, SerializableType value) {
+    public synchronized MapOperation putOperation(SerializableType key, SerializableType value) {
         TaggedElement elem = new TaggedElement(value, UUID.randomUUID());
         Set<TaggedElement> toRemove = this.map.get(key);
         toRemove = checkForNullSet(toRemove);
-        Set<TaggedElement> toAdd = new HashSet<>();
-        toAdd.add(elem);
-        this.map.put(key, toAdd);
-        Operation op = new MapOperation(sender, 0, MAP_PUT, crdtId, CRDT_TYPE, key, elem, toRemove);
-        UUID id = UUID.randomUUID();
-        logger.debug("Downstream put {} {} op for {} - {}", key, value, crdtId, id);
-        kernel.downstream(new DownstreamRequest(id, sender, op), (short)0);
+        return new MapOperation(MAP_PUT, crdtId, CRDT_TYPE, key, elem, toRemove);
     }
 
-    public synchronized void delete(Host sender, SerializableType key) {
-        Set<TaggedElement> toRemove = this.map.remove(key);
+    public synchronized MapOperation deleteOperation(SerializableType key) {
+        Set<TaggedElement> toRemove = this.map.get(key);
         toRemove = checkForNullSet(toRemove);
-        Operation op = new MapOperation(sender, 0, MAP_DELETE, crdtId, CRDT_TYPE, key, null, toRemove);
-        UUID id = UUID.randomUUID();
-        logger.debug("Downstream delete {} op for {} - {}", key, crdtId, id);
-        kernel.downstream(new DownstreamRequest(id, sender, op), (short)0);
+        return new MapOperation(MAP_DELETE, crdtId, CRDT_TYPE, key, null, toRemove);
     }
 
     public synchronized void upstream(Operation op) {
@@ -127,8 +123,62 @@ public class ORMapCRDT implements MapCRDT, KernelCRDT {
         }
     }
 
+    @Override
+    public synchronized void installState(KernelCRDT newCRDT) {
+        Map<SerializableType, Set<TaggedElement>> newMap = ((ORMapCRDT) newCRDT).getMap();
+        this.map.clear();
+        this.map.putAll(newMap);
+    }
+
+    public static CRDTSerializer<MapCRDT> serializer = new CRDTSerializer<MapCRDT>() {
+        @Override
+        public void serialize(MapCRDT mapCRDT, MySerializer[] serializers, ByteBuf out) throws IOException {
+            out.writeInt(mapCRDT.getCrdtId().getBytes().length);
+            out.writeBytes(mapCRDT.getCrdtId().getBytes());
+            Map<SerializableType, Set<TaggedElement>> map = ((ORMapCRDT)mapCRDT).getMap();
+            out.writeInt(map.size());
+            for (Map.Entry<SerializableType, Set<TaggedElement>> entry : map.entrySet()) {
+                serializers[0].serialize(entry.getKey(), out);
+                Set<TaggedElement> set = entry.getValue();
+                out.writeInt(set.size());
+                for (TaggedElement e : set) {
+                    TaggedElement.serializer.serialize(e, getValueSerializer(serializers), out);
+                }
+            }
+        }
+
+        @Override
+        public MapCRDT deserialize(MySerializer[] serializers, ByteBuf in) throws IOException {
+            int size = in.readInt();
+            byte[] crdtId = new byte[size];
+            in.readBytes(crdtId);
+            size = in.readInt();
+            Map<SerializableType, Set<TaggedElement>> map = new HashMap<>();
+            for(int i = 0; i < size; i++) {
+                SerializableType key = (SerializableType) serializers[0].deserialize(in);
+                int setSize = in.readInt();
+                Set<TaggedElement> set = new HashSet<>();
+                for (int j = 0; j < setSize; j++) {
+                    set.add(TaggedElement.serializer.deserialize(getValueSerializer(serializers), in));
+                }
+                map.put(key, set);
+            }
+            return new ORMapCRDT(new String(crdtId), map);
+        }
+    };
+
+    private static MySerializer[] getValueSerializer(MySerializer[] serializers) {
+        MySerializer[] array = new MySerializer[1];
+        array[0] = serializers[1];
+        return array;
+    }
+
     private Set<TaggedElement> checkForNullSet(Set<TaggedElement> set) {
         return set == null ? new HashSet<>() : set;
+    }
+
+    private Map<SerializableType, Set<TaggedElement>> getMap() {
+        return this.map;
     }
 
 }

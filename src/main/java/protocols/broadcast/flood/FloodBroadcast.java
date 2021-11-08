@@ -1,34 +1,34 @@
 package protocols.broadcast.flood;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
-import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import protocols.broadcast.common.messages.SendVectorClockMessage;
-import protocols.broadcast.common.messages.SyncOpsMessage;
+import protocols.broadcast.common.messages.SynchronizationMessage;
 import protocols.broadcast.common.messages.VectorClockMessage;
 import protocols.broadcast.common.requests.BroadcastRequest;
 import protocols.broadcast.common.notifications.DeliverNotification;
-import protocols.broadcast.flood.messages.FloodMessage;
-import protocols.broadcast.common.notifications.SendVectorClockNotification;
-import protocols.broadcast.common.notifications.VectorClockNotification;
-import protocols.broadcast.common.requests.SyncOpsRequest;
-import protocols.broadcast.common.requests.VectorClockRequest;
+import protocols.broadcast.common.utils.CommunicationCostCalculator;
+import protocols.broadcast.common.utils.MultiFileManager;
+import protocols.broadcast.common.utils.VectorClock;
 import protocols.broadcast.common.timers.ReconnectTimeout;
+import protocols.broadcast.common.messages.GossipMessage;
+import protocols.broadcast.flood.utils.FloodStats;
+import protocols.broadcast.plumtree.utils.IncomingSync;
+import protocols.broadcast.plumtree.utils.OutgoingSync;
 import protocols.membership.common.notifications.NeighbourDown;
 import protocols.membership.common.notifications.NeighbourUp;
-import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;
 import pt.unl.fct.di.novasys.channel.tcp.TCPChannel;
 import pt.unl.fct.di.novasys.channel.tcp.events.*;
 import pt.unl.fct.di.novasys.network.data.Host;
 
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.*;
 
-public class FloodBroadcast extends GenericProtocol  {
+public class FloodBroadcast extends CommunicationCostCalculator {
     private static final Logger logger = LogManager.getLogger(FloodBroadcast.class);
 
     public final static short PROTOCOL_ID = 1500;
@@ -37,32 +37,24 @@ public class FloodBroadcast extends GenericProtocol  {
     protected int channelId;
     private final Host myself;
     private final static int PORT_MAPPING = 1000;
+    private final static int SECONDS_TO_MILLIS = 1000;
 
     private final long reconnectTimeout;
 
     private final Set<Host> partialView;
     private final Set<Host> neighbours;
-    private final Set<Host> onGoingSyncs; // Set to know which hosts we have asked for vcs
-    private final Queue<Pair<Host, UUID>> pending;
-    private Pair<Host, UUID> currentPendingInfo;
-    private final Map<UUID, Queue<FloodMessage>> bufferedOps; //Buffer ops received between sending vc to kernel and sending sync ops (and send them after)
     private final Set<UUID> received;
 
-    /*** Stats ***/
-    public static int sentFlood;
-    public static int sentSendVC;
-    public static int sentVC;
-    public static int sentSyncOps;
-    public static int sentSyncFlood;
+    private final Set<OutgoingSync> outgoingSyncs; // Hosts we have asked for vcs
+    private IncomingSync incomingSync; // Host that we sent our vc to
+    private final Queue<IncomingSync> pendingIncomingSyncs; // Queue of pending incoming syncs
 
-    public static int receivedFlood;
-    public static int receivedDupesFlood;
-    public static int receivedSendVC;
-    public static int receivedVC;
-    public static int receivedSyncOps;
-    public static int receivedSyncFlood;
-    public static int receivedDupesSyncFlood;
+    public static VectorClock vectorClock; // Local vector clock
+    private int seqNumber; // Counter of local operations
 
+    private final MultiFileManager fileManager;
+
+    private final FloodStats stats;
 
 
     /*--------------------------------- Initialization ---------------------------------------- */
@@ -71,15 +63,25 @@ public class FloodBroadcast extends GenericProtocol  {
         super(PROTOCOL_NAME, PROTOCOL_ID);
         this.myself = myself;
 
+        long garbageCollectionTimeout = Long.parseLong(properties.getProperty("garbage_collection_timeout", "15")) * SECONDS_TO_MILLIS;
+        long garbageCollectionTTL = Long.parseLong(properties.getProperty("garbage_collection_ttl", "60")) * SECONDS_TO_MILLIS;
         this.reconnectTimeout = Long.parseLong(properties.getProperty("reconnect_timeout", "500"));
 
         this.partialView = new HashSet<>();
         this.neighbours = new HashSet<>();
-        this.onGoingSyncs = new HashSet<>();
-        this.pending = new LinkedList<>();
-        this.currentPendingInfo = Pair.of(null, null);
-        this.bufferedOps = new HashMap<>();
         this.received = new HashSet<>();
+
+        this.outgoingSyncs = new HashSet<>();
+        this.incomingSync = new IncomingSync(null, null);
+        this.pendingIncomingSyncs = new LinkedList<>();
+
+        vectorClock = new VectorClock(myself);
+
+        int indexSpacing = Integer.parseInt(properties.getProperty("index_spacing", "100"));
+        this.fileManager = new MultiFileManager(garbageCollectionTimeout, garbageCollectionTTL, indexSpacing, myself);
+
+        this.stats = new FloodStats();
+
 
         String cMetricsInterval = properties.getProperty("bcast_channel_metrics_interval", "10000"); // 10 seconds
 
@@ -101,27 +103,25 @@ public class FloodBroadcast extends GenericProtocol  {
         registerTimerHandler(ReconnectTimeout.TIMER_ID, this::uponReconnectTimeout);
 
         /*--------------------- Register Request Handlers ----------------------------- */
-        registerRequestHandler(BroadcastRequest.REQUEST_ID, this::uponBroadcast);
-        registerRequestHandler(VectorClockRequest.REQUEST_ID, this::uponVectorClock);
-        registerRequestHandler(SyncOpsRequest.REQUEST_ID, this::uponSyncOps);
+        registerRequestHandler(BroadcastRequest.REQUEST_ID, this::uponBroadcastRequest);
 
         /*--------------------- Register Notification Handlers ----------------------------- */
         subscribeNotification(NeighbourUp.NOTIFICATION_ID, this::uponNeighbourUp);
         subscribeNotification(NeighbourDown.NOTIFICATION_ID, this::uponNeighbourDown);
 
         /*---------------------- Register Message Serializers ---------------------- */
-        registerMessageSerializer(channelId, FloodMessage.MSG_ID, FloodMessage.serializer);
+        registerMessageSerializer(channelId, GossipMessage.MSG_ID, GossipMessage.serializer);
 
         registerMessageSerializer(channelId, SendVectorClockMessage.MSG_ID, SendVectorClockMessage.serializer);
         registerMessageSerializer(channelId, VectorClockMessage.MSG_ID, VectorClockMessage.serializer);
-        registerMessageSerializer(channelId, SyncOpsMessage.MSG_ID, SyncOpsMessage.serializer);
+        registerMessageSerializer(channelId, SynchronizationMessage.MSG_ID, SynchronizationMessage.serializer);
 
         /*---------------------- Register Message Handlers -------------------------- */
-        registerMessageHandler(channelId, FloodMessage.MSG_ID, this::uponReceiveFlood, this::onMessageFailed);
+        registerMessageHandler(channelId, GossipMessage.MSG_ID, this::uponReceiveGossipMsg, this::onMessageFailed);
 
-        registerMessageHandler(channelId, SendVectorClockMessage.MSG_ID, this::uponReceiveSendVectorClock, this::onMessageFailed);
-        registerMessageHandler(channelId, VectorClockMessage.MSG_ID, this::uponReceiveVectorClock, this::onMessageFailed);
-        registerMessageHandler(channelId, SyncOpsMessage.MSG_ID, this::uponReceiveSyncOps, this::onMessageFailed);
+        registerMessageHandler(channelId, SendVectorClockMessage.MSG_ID, this::uponReceiveSendVectorClockMsg, this::onMessageFailed);
+        registerMessageHandler(channelId, VectorClockMessage.MSG_ID, this::uponReceiveVectorClockMsg, this::onMessageFailed);
+        registerMessageHandler(channelId, SynchronizationMessage.MSG_ID, this::uponReceiveSynchronizationMsg, this::onMessageFailed);
 
         /*-------------------- Register Channel Event ------------------------------- */
         registerChannelEventHandler(channelId, OutConnectionDown.EVENT_ID, this::uponOutConnectionDown);
@@ -140,100 +140,87 @@ public class FloodBroadcast extends GenericProtocol  {
 
     /*--------------------------------- Requests ---------------------------------------- */
 
-    private void uponBroadcast(BroadcastRequest request, short sourceProto) {
+    private void uponBroadcastRequest(BroadcastRequest request, short sourceProto) {
         UUID mid = request.getMsgId();
-        Host sender = request.getSender();
         byte[] content = request.getMsg();
         logger.debug("Propagating my {} to {}", mid, neighbours);
-        FloodMessage msg = new FloodMessage(mid, sender, sourceProto, content);
+        GossipMessage msg = new GossipMessage(mid, myself, ++seqNumber, content);
         logger.info("SENT {}", mid);
-        uponReceiveFlood(msg, myself, getProtoId(), -1);
-    }
-
-    private void uponVectorClock(VectorClockRequest request, short sourceProto) {
-        Host neighbour = request.getTo();
-        VectorClockMessage msg = new VectorClockMessage(request.getMsgId(), request.getSender(), request.getVectorClock());
-        sendMessage(msg, neighbour, TCPChannel.CONNECTION_IN);
-        sentVC++;
-        logger.debug("Sent {} to {}", msg, neighbour);
-    }
-
-    private void uponSyncOps(SyncOpsRequest request, short sourceProto) {
-        Host neighbour = request.getTo();
-        UUID mid = request.getMsgId();
-        SyncOpsMessage msg = new SyncOpsMessage(request.getMsgId(), request.getIds(), request.getOperations());
-        sendMessage(msg, neighbour);
-        sentSyncOps++;
-        sentSyncFlood += request.getIds().size();
-        logger.debug("Sent {} to {}", msg, neighbour);
-        handleBufferedOperations(neighbour, mid);
-        addHostToNeighbours(neighbour);
+        uponReceiveGossipMsg(msg, myself, getProtoId(), -1);
     }
 
 
     /*--------------------------------- Messages ---------------------------------------- */
 
-    private void uponReceiveFlood(FloodMessage msg, Host from, short sourceProto, int channelId) {
-        receivedFlood++;
-
+    private void uponReceiveGossipMsg(GossipMessage msg, Host from, short sourceProto, int channelId) {
+        this.stats.incrementReceivedFlood();
         UUID mid = msg.getMid();
+        logger.debug("Received {} from {}. Is from sync {}", mid, from, false);
         if (received.add(mid)) {
-            handleFloodMessage(msg, from, false);
+            handleGossipMessage(msg, from, false);
         } else {
             logger.info("DUPLICATE from {}", from);
-            receivedDupesFlood++;
+            this.stats.incrementReceivedDupesFlood();
         }
     }
 
-    private void uponReceiveVectorClock(VectorClockMessage msg, Host from, short sourceProto, int channelId) {
-        receivedVC++;
+    private void uponReceiveVectorClockMsg(VectorClockMessage msg, Host from, short sourceProto, int channelId) {
+        logger.debug("Received {} from {}.", msg, from);
+        this.stats.incrementReceivedVC();
+        SynchronizationMessage synchronizationMsg = new SynchronizationMessage(msg.getMid(), null,
+                this.fileManager.readSyncOpsFromFile(msg.getVectorClock(), vectorClock));
+        sendMessage(synchronizationMsg, from);
+        this.stats.incrementSentSyncOps();
+        this.stats.incrementSentSyncFloodBy(synchronizationMsg.getMsgs().size());
+        logger.debug("Sent {} to {}", msg, from);
 
-        logger.debug("Received {} from {}", msg, from);
-        this.bufferedOps.put(msg.getMid(), new LinkedList<>());
-        triggerNotification(new VectorClockNotification(msg.getMid(), msg.getSender(), msg.getVectorClock()));
+        if (neighbours.add(from)) {
+            logger.debug("Added {} to neighbours {}", from, neighbours);
+        }
     }
 
-    private void uponReceiveSendVectorClock(SendVectorClockMessage msg, Host from, short sourceProto, int channelId) {
-        receivedSendVC++;
-
+    private void uponReceiveSendVectorClockMsg(SendVectorClockMessage msg, Host from, short sourceProto, int channelId) {
+        logger.debug("Received {} from {}.", msg, from);
+        this.stats.incrementReceivedSendVC();
         UUID mid = msg.getMid();
-        if(partialView.contains(from)) {
-            Host currentPending = currentPendingInfo.getLeft();
-            if (currentPending == null) {
-                currentPending = from;
-                currentPendingInfo = Pair.of(currentPending, mid);
-                logger.debug("{} is my currentPending ", from);
-                triggerNotification(new SendVectorClockNotification(mid, from));
-            } else {
-                pending.add(Pair.of(from, mid));
-                logger.debug("Added {} to pending {}", from, pending);
-            }
-        } else
-            triggerNotification(new SendVectorClockNotification(mid, from));
+        Host currentPending = incomingSync.getHost();
+        if (currentPending == null) {
+            incomingSync = new IncomingSync(from, mid);
+            logger.debug("Added {} to incomingSync; pendingIncomingSyncs {} ", from, pendingIncomingSyncs);
+            VectorClockMessage vectorClockMessage = new VectorClockMessage(mid, new VectorClock(vectorClock.getClock()));
+            sendMessage(vectorClockMessage, from, TCPChannel.CONNECTION_IN);
+            this.stats.incrementSentVC();
+            logger.debug("Sent {} to {}", vectorClockMessage, from);
+        } else {
+            pendingIncomingSyncs.add(new IncomingSync(from, mid));
+            logger.debug("Added {} to pendingIncomingSyncs {}", from, pendingIncomingSyncs);
+        }
     }
 
-    private void uponReceiveSyncOps(SyncOpsMessage msg, Host from, short sourceProto, int channelId) {
-        receivedSyncOps++;
-
+    private void uponReceiveSynchronizationMsg(SynchronizationMessage msg, Host from, short sourceProto, int channelId) {
+        this.stats.incrementReceivedSyncOps();
         logger.debug("Received {} from {}", msg, from);
-        Iterator<byte[]> opIt = msg.getOperations().iterator();
-        Iterator<byte[]> idIt = msg.getIds().iterator();
 
-        while (opIt.hasNext() && idIt.hasNext()) {
-            receivedSyncFlood++;
+        try {
+            for (byte[] serMsg : msg.getMsgs()) {
+                this.stats.incrementReceivedSyncFlood();
 
-            byte[] serOp = opIt.next();
-            byte[] serId = idIt.next();
-            UUID mid = deserializeId(serId);
+                DataInputStream dis = new DataInputStream(new ByteArrayInputStream(serMsg));
+                GossipMessage gossipMessage = GossipMessage.deserialize(dis);
+                UUID mid = gossipMessage.getMid();
 
-            if (received.add(mid)) {
-                handleFloodMessage(new FloodMessage(mid, from , sourceProto, serOp), from, true);
-            } else {
-                logger.info("DUPLICATE from {}", from);
-                receivedDupesSyncFlood++;
+                if (received.add(mid)) {
+                    handleGossipMessage(gossipMessage, from, true);
+                } else {
+                    logger.info("DUPLICATE from {}", from);
+                    this.stats.incrementReceivedDupesSyncFlood();
+                }
             }
+            logger.debug("Received sync ops. Sync {} ENDED", msg.getMid());
+            tryNextIncomingSync();
+        } catch (IOException e) {
+            logger.error("Sync message handling error", e);
         }
-        tryNextSync();
     }
 
     private void onMessageFailed(ProtoMessage protoMessage, Host host, short destProto, Throwable reason, int channel) {
@@ -281,17 +268,17 @@ public class FloodBroadcast extends GenericProtocol  {
             logger.debug("Removed {} from neighbours due to down {}", neighbour, neighbours);
         }
 
-        if (removeFromPending(neighbour)) {
-            logger.debug("Removed {} from pending due to down {}", neighbour, pending);
+        if (removeFromPendingIncomingSyncs(neighbour)) {
+            logger.debug("Removed {} from pending due to down {}", neighbour, pendingIncomingSyncs);
         }
 
-        if (onGoingSyncs.remove(neighbour)) {
-            logger.debug("Removed {} from onGoingSyncs due to down {}", neighbour, onGoingSyncs);
+        if (outgoingSyncs.remove(new OutgoingSync(neighbour))) {
+            logger.debug("Removed {} from onGoingSyncs due to down {}", neighbour, outgoingSyncs);
         }
 
-        if (neighbour.equals(currentPendingInfo.getLeft())) {
+        if (neighbour.equals(incomingSync.getHost())) {
             logger.debug("Removed {} from current pending due to down", neighbour);
-            tryNextSync();
+            tryNextIncomingSync();
         }
         closeConnection(neighbour);
     }
@@ -307,17 +294,17 @@ public class FloodBroadcast extends GenericProtocol  {
             logger.debug("Removed {} from neighbours due to flood down {}", host, neighbours);
         }
 
-        if (removeFromPending(host)) {
-            logger.debug("Removed {} from pending due to flood down {}", host, pending);
+        if (removeFromPendingIncomingSyncs(host)) {
+            logger.debug("Removed {} from pending due to flood down {}", host, pendingIncomingSyncs);
         }
 
-        if (onGoingSyncs.remove(host)) {
-            logger.debug("Removed {} from onGoingSyncs due to flood down {}", host, onGoingSyncs);
+        if (outgoingSyncs.remove(new OutgoingSync(host))) {
+            logger.debug("Removed {} from onGoingSyncs due to flood down {}", host, outgoingSyncs);
         }
 
-        if (host.equals(currentPendingInfo.getLeft())) {
+        if (host.equals(incomingSync.getHost())) {
             logger.debug("Removed {} from current pending due to flood down", host);
-            tryNextSync();
+            tryNextIncomingSync();
         }
 
         if(partialView.contains(host)) {
@@ -339,7 +326,7 @@ public class FloodBroadcast extends GenericProtocol  {
         logger.trace("Host (out) {} is up", neighbour);
         if(partialView.contains(neighbour)) {
             logger.debug("Trying sync from neighbour {} up", neighbour);
-            startSynchronization(neighbour);
+            startOutgoingSync(neighbour, UUID.randomUUID());
         }
     }
 
@@ -349,129 +336,88 @@ public class FloodBroadcast extends GenericProtocol  {
 
     private void uponInConnectionDown(InConnectionDown event, int channelId) {
         logger.trace("Connection from host {} is down, cause: {}", event.getNode(), event.getCause());
+
+        Host host = event.getNode();
+
+        if (removeFromPendingIncomingSyncs(host)) {
+            logger.debug("Removed {} from pendingIncomingSyncs due to in connection down {}", host, pendingIncomingSyncs);
+        }
+
+        if (host.equals(incomingSync.getHost())) {
+            logger.debug("Removed {} from incomingSync due to in connection down", host);
+            tryNextIncomingSync();
+        }
     }
 
 
     /*--------------------------------- Procedures ---------------------------------------- */
 
-    private void handleFloodMessage(FloodMessage msg, Host from, boolean fromSync) {
-        UUID mid = msg.getMid();
-        logger.debug("Received op {} from {}. Is from sync {}", mid, from, fromSync);
-        for(Queue<FloodMessage> q : this.bufferedOps.values())
-            q.add(msg);
+    private void handleGossipMessage(GossipMessage msg, Host from, boolean fromSync) {
+        Host sender = msg.getOriginalSender();
+        vectorClock.incrementClock(sender);
 
+        try {
+            this.fileManager.writeOperationToFile(msg, vectorClock);
+        } catch (IOException e) {
+            logger.error("Error when writing operation to file", e);
+        }
+
+        UUID mid = msg.getMid();
         logger.info("RECEIVED {}", mid);
-        triggerNotification(new DeliverNotification(mid, msg.getSender(), msg.getContent(), fromSync));
-        forwardFloodMessage(msg, from);
+        triggerNotification(new DeliverNotification(mid, msg.getContent()));
+        forwardGossipMessage(msg, from);
     }
 
-    private void forwardFloodMessage(FloodMessage msg, Host from) {
+    private void forwardGossipMessage(GossipMessage msg, Host from) {
         neighbours.forEach(host -> {
             if (!host.equals(from)) {
                 logger.debug("Sent {} to {}", msg, host);
                 sendMessage(msg, host);
-                sentFlood++;
+                this.stats.incrementSentFlood();
             }
         });
     }
 
-    private void startSynchronization(Host neighbour) {
-        if (!onGoingSyncs.contains(neighbour)) {
-            logger.debug("Added {} to onGoingSyncs", neighbour);
-            this.onGoingSyncs.add(neighbour);
+    private void startOutgoingSync(Host neighbour, UUID msgId) {
+        OutgoingSync os = new OutgoingSync(neighbour, msgId);
+
+        if (!outgoingSyncs.contains(os)) {
+            logger.debug("Added {} to outgoingSyncs", neighbour);
+            this.outgoingSyncs.add(os);
             UUID mid = UUID.randomUUID();
             SendVectorClockMessage msg = new SendVectorClockMessage(mid);
             sendMessage(msg, neighbour);
-            sentSendVC++;
+            this.stats.incrementSentSendVC();
             logger.debug("Sent {} to {}", msg, neighbour);
         }
     }
 
-    private void addHostToNeighbours(Host host) {
-        if (neighbours.add(host)) {
-            logger.debug("Added {} to neighbours {} : pending list {}", host, neighbours, pending);
-        }
-    }
+    private void tryNextIncomingSync() {
+        IncomingSync nextIncomingSync = pendingIncomingSyncs.poll();
 
-    private void tryNextSync() {
-        Pair<Host, UUID> nextCurrentPendingInfo = pending.poll();
-
-        if (nextCurrentPendingInfo != null) {
-            Host currentPending = nextCurrentPendingInfo.getLeft();
-            UUID mid = nextCurrentPendingInfo.getRight();
-            currentPendingInfo = nextCurrentPendingInfo;
-            logger.debug("{} is my currentPending try", currentPending);
-            triggerNotification(new SendVectorClockNotification(mid, currentPending));
+        if (nextIncomingSync != null) {
+            Host currentPending = nextIncomingSync.getHost();
+            UUID mid = nextIncomingSync.getMid();
+            incomingSync = nextIncomingSync;
+            logger.debug("Added {} to incomingSync (try Next); pendingIncomingSyncs {} ", currentPending, pendingIncomingSyncs);
+            VectorClockMessage vectorClockMessage = new VectorClockMessage(mid, new VectorClock(vectorClock.getClock()));
+            sendMessage(vectorClockMessage, currentPending, TCPChannel.CONNECTION_IN);
+            this.stats.incrementSentVC();
         } else {
-            currentPendingInfo = Pair.of(null, null);
+            incomingSync = new IncomingSync(null, null);
+            logger.debug("Added null to incomingSync (try Next); pendingIncomingSyncs {} ", pendingIncomingSyncs);
         }
     }
 
-    private void handleBufferedOperations(Host neighbour, UUID mid) {
-        Queue<FloodMessage> q = this.bufferedOps.remove(mid);
-        FloodMessage msg;
-        while((msg = q.poll()) != null) {
-            if(!msg.getSender().equals(neighbour)) {
-                sendMessage(msg, neighbour);
-                sentFlood++;
-                logger.debug("Sent buffered {} to {}", msg, neighbour);
-            }
-        }
-    }
-
-    private UUID deserializeId(byte[] msg) {
-        ByteBuf buf = Unpooled.buffer().writeBytes(msg);
-        return new UUID(buf.readLong(), buf.readLong());
-    }
-
-    private boolean removeFromPending(Host host) {
+    private boolean removeFromPendingIncomingSyncs(Host host) {
         boolean removed = false;
-        Iterator<Pair<Host, UUID>> it = this.pending.iterator();
+        Iterator<IncomingSync> it = this.pendingIncomingSyncs.iterator();
         while(it.hasNext()) {
-            if(it.next().getLeft().equals(host)) {
+            if(it.next().getHost().equals(host)) {
                 removed = true;
                 it.remove();
             }
         }
         return removed;
-    }
-
-
-    /*--------------------------------- Metrics ---------------------------------*/
-
-    /**
-     * If we passed a value > 0 in the METRICS_INTERVAL_KEY property of the channel, this event will be triggered
-     * periodically by the channel. "getInConnections" and "getOutConnections" returns the currently established
-     * connection to/from me. "getOldInConnections" and "getOldOutConnections" returns connections that have already
-     * been closed.
-     */
-    private void uponChannelMetrics(ChannelMetrics event, int channelId) {
-        StringBuilder sb = new StringBuilder("Channel Metrics: ");
-        long bytesSent = 0;
-        long bytesReceived = 0;
-
-        for(ChannelMetrics.ConnectionMetrics c: event.getOutConnections()){
-            bytesSent += c.getSentAppBytes();
-            bytesReceived += c.getReceivedAppBytes();
-        }
-
-        for(ChannelMetrics.ConnectionMetrics c: event.getOldOutConnections()){
-            bytesSent += c.getSentAppBytes();
-            bytesReceived += c.getReceivedAppBytes();
-        }
-
-        for(ChannelMetrics.ConnectionMetrics c: event.getInConnections()){
-            bytesSent += c.getSentAppBytes();
-            bytesReceived += c.getReceivedAppBytes();
-        }
-
-        for(ChannelMetrics.ConnectionMetrics c: event.getOldInConnections()){
-            bytesSent += c.getSentAppBytes();
-            bytesReceived += c.getReceivedAppBytes();
-        }
-
-        sb.append(String.format("BytesSent=%s ", bytesSent));
-        sb.append(String.format("BytesReceived=%s", bytesReceived));
-        logger.info(sb);
     }
 }

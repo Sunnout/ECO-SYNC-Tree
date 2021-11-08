@@ -1,33 +1,33 @@
 package protocols.broadcast.periodicpull;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
-import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import protocols.broadcast.common.messages.SyncOpsMessage;
+import protocols.broadcast.common.messages.GossipMessage;
+import protocols.broadcast.common.messages.SynchronizationMessage;
 import protocols.broadcast.common.messages.VectorClockMessage;
 import protocols.broadcast.common.notifications.DeliverNotification;
-import protocols.broadcast.common.notifications.SendVectorClockNotification;
-import protocols.broadcast.common.notifications.VectorClockNotification;
 import protocols.broadcast.common.requests.BroadcastRequest;
-import protocols.broadcast.common.requests.SyncOpsRequest;
-import protocols.broadcast.common.requests.VectorClockRequest;
 import protocols.broadcast.common.timers.ReconnectTimeout;
+import protocols.broadcast.common.utils.CommunicationCostCalculator;
+import protocols.broadcast.common.utils.MultiFileManager;
+import protocols.broadcast.common.utils.VectorClock;
 import protocols.broadcast.periodicpull.timers.PeriodicPullTimeout;
+import protocols.broadcast.periodicpull.utils.PeriodicPullStats;
+import protocols.broadcast.plumtree.utils.IncomingSync;
 import protocols.membership.common.notifications.NeighbourDown;
 import protocols.membership.common.notifications.NeighbourUp;
-import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;
 import pt.unl.fct.di.novasys.channel.tcp.TCPChannel;
 import pt.unl.fct.di.novasys.channel.tcp.events.*;
 import pt.unl.fct.di.novasys.network.data.Host;
 
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.util.*;
 
-public class PeriodicPullBroadcast extends GenericProtocol  {
+public class PeriodicPullBroadcast extends CommunicationCostCalculator {
     private static final Logger logger = LogManager.getLogger(PeriodicPullBroadcast.class);
 
     public final static short PROTOCOL_ID = 490;
@@ -36,28 +36,28 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
     protected int channelId;
     private final Host myself;
     private final static int PORT_MAPPING = 1000;
+    private final static int SECONDS_TO_MILLIS = 1000;
 
     private final long reconnectTimeout;
     private final long pullTimeout;
 
+    private long periodicPullTimer;
+
     private final Set<Host> partialView;
     private final Set<Host> neighbours;
     private final Set<UUID> received;
-    private Pair<Host, UUID> currentPendingInfo;
+
+    private IncomingSync incomingSync;
     private long startTime;
 
     private final Random rnd;
 
-    /*** Stats ***/
-    public static int sentVC;
-    public static int sentSyncOps;
-    public static int sentSyncPull;
+    public static VectorClock vectorClock; // Local vector clock
+    private int seqNumber; // Counter of local operations
 
-    public static int receivedVC;
-    public static int receivedSyncOps;
-    public static int receivedSyncPull;
-    public static int receivedDupes;
+    private final MultiFileManager fileManager;
 
+    private final PeriodicPullStats stats;
 
 
     /*--------------------------------- Initialization ---------------------------------------- */
@@ -66,16 +66,27 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
         super(PROTOCOL_NAME, PROTOCOL_ID);
         this.myself = myself;
 
+        long garbageCollectionTimeout = Long.parseLong(properties.getProperty("garbage_collection_timeout", "15")) * SECONDS_TO_MILLIS;
+        long garbageCollectionTTL = Long.parseLong(properties.getProperty("garbage_collection_ttl", "60")) * SECONDS_TO_MILLIS;
+
         this.reconnectTimeout = Long.parseLong(properties.getProperty("reconnect_timeout", "500"));
         this.pullTimeout = Long.parseLong(properties.getProperty("pull_timeout", "2000"));
 
         this.partialView = new HashSet<>();
         this.neighbours = new HashSet<>();
         this.received = new HashSet<>();
-        this.currentPendingInfo = Pair.of(null, null);
+
+        this.incomingSync = new IncomingSync(null, null);
         this.startTime = 0;
 
         this.rnd = new Random();
+
+        vectorClock = new VectorClock(myself);
+
+        int indexSpacing = Integer.parseInt(properties.getProperty("index_spacing", "100"));
+        this.fileManager = new MultiFileManager(garbageCollectionTimeout, garbageCollectionTTL, indexSpacing, myself);
+
+        this.stats = new PeriodicPullStats();
 
         String cMetricsInterval = properties.getProperty("bcast_channel_metrics_interval", "10000"); // 10 seconds
 
@@ -97,9 +108,7 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
         registerTimerHandler(ReconnectTimeout.TIMER_ID, this::uponReconnectTimeout);
 
         /*--------------------- Register Request Handlers ----------------------------- */
-        registerRequestHandler(BroadcastRequest.REQUEST_ID, this::uponBroadcast);
-        registerRequestHandler(VectorClockRequest.REQUEST_ID, this::uponVectorClock);
-        registerRequestHandler(SyncOpsRequest.REQUEST_ID, this::uponSyncOps);
+        registerRequestHandler(BroadcastRequest.REQUEST_ID, this::uponBroadcastRequest);
 
         /*--------------------- Register Notification Handlers ----------------------------- */
         subscribeNotification(NeighbourUp.NOTIFICATION_ID, this::uponNeighbourUp);
@@ -107,11 +116,11 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
 
         /*---------------------- Register Message Serializers ---------------------- */
         registerMessageSerializer(channelId, VectorClockMessage.MSG_ID, VectorClockMessage.serializer);
-        registerMessageSerializer(channelId, SyncOpsMessage.MSG_ID, SyncOpsMessage.serializer);
+        registerMessageSerializer(channelId, SynchronizationMessage.MSG_ID, SynchronizationMessage.serializer);
 
         /*---------------------- Register Message Handlers -------------------------- */
-        registerMessageHandler(channelId, VectorClockMessage.MSG_ID, this::uponReceiveVectorClock, this::onMessageFailed);
-        registerMessageHandler(channelId, SyncOpsMessage.MSG_ID, this::uponReceiveSyncOps, this::onMessageFailed);
+        registerMessageHandler(channelId, VectorClockMessage.MSG_ID, this::uponReceiveVectorClockMsg, this::onMessageFailed);
+        registerMessageHandler(channelId, SynchronizationMessage.MSG_ID, this::uponReceiveSynchronizationMsg, this::onMessageFailed);
 
         /*--------------------- Register Timer Handlers ----------------------------- */
         registerTimerHandler(PeriodicPullTimeout.TIMER_ID, this::uponPeriodicPullTimeout);
@@ -126,74 +135,67 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
     }
 
     @Override
-    public void init(Properties props) throws HandlerRegistrationException, IOException {
-        setupTimer(new PeriodicPullTimeout(), pullTimeout);
+    public void init(Properties props) {
+        this.periodicPullTimer = setupTimer(new PeriodicPullTimeout(), pullTimeout);
+        logger.debug("SETUP timer {} init", this.periodicPullTimer);
     }
 
 
     /*--------------------------------- Requests ---------------------------------------- */
 
-    private void uponBroadcast(BroadcastRequest request, short sourceProto) {
+    private void uponBroadcastRequest(BroadcastRequest request, short sourceProto) {
         UUID mid = request.getMsgId();
-        byte[] content = request.getMsg();
         logger.info("SENT {}", mid);
-        handlePullMessage(mid, myself, content, false);
-    }
-
-    private void uponVectorClock(VectorClockRequest request, short sourceProto) {
-        Host neighbour = request.getTo();
-        Pair<Host, UUID> info = Pair.of(neighbour, request.getMsgId());
-        if (!info.equals(currentPendingInfo))
-            return;
-
-        VectorClockMessage msg = new VectorClockMessage(request.getMsgId(), request.getSender(), request.getVectorClock());
-        sendMessage(msg, neighbour);
-        sentVC++;
-        logger.debug("Sent {} to {}", msg, neighbour);
-    }
-
-    private void uponSyncOps(SyncOpsRequest request, short sourceProto) {
-        Host neighbour = request.getTo();
-        SyncOpsMessage msg = new SyncOpsMessage(request.getMsgId(), request.getIds(), request.getOperations());
-        sendMessage(msg, neighbour, TCPChannel.CONNECTION_IN);
-        sentSyncOps++;
-        sentSyncPull += request.getIds().size();
-        logger.debug("Sent {} to {}", msg, neighbour);
+        handleGossipMessage(new GossipMessage(mid, myself, ++seqNumber, request.getMsg()), myself, false);
     }
 
 
     /*--------------------------------- Messages ---------------------------------------- */
 
-    private void uponReceiveVectorClock(VectorClockMessage msg, Host from, short sourceProto, int channelId) {
-        receivedVC++;
-
+    private void uponReceiveVectorClockMsg(VectorClockMessage msg, Host from, short sourceProto, int channelId) {
+        this.stats.incrementReceivedVC();
         logger.debug("Received {} from {}", msg, from);
-        triggerNotification(new VectorClockNotification(msg.getMid(), msg.getSender(), msg.getVectorClock()));
+        SynchronizationMessage synchronizationMsg = new SynchronizationMessage(msg.getMid(), null,
+                this.fileManager.readSyncOpsFromFile(msg.getVectorClock(), vectorClock));
+        sendMessage(synchronizationMsg, from, TCPChannel.CONNECTION_IN);
+        this.stats.incrementSentSyncOps();
+        this.stats.incrementSentSyncPullBy(synchronizationMsg.getMsgs().size());
+        logger.debug("Sent {} to {}", synchronizationMsg, from);
     }
 
-    private void uponReceiveSyncOps(SyncOpsMessage msg, Host from, short sourceProto, int channelId) {
-        receivedSyncOps++;
-
-        Pair<Host, UUID> info = Pair.of(from, msg.getMid());
-        if (!info.equals(currentPendingInfo))
+    private void uponReceiveSynchronizationMsg(SynchronizationMessage msg, Host from, short sourceProto, int channelId) {
+        this.stats.incrementReceivedSyncOps();
+        UUID mid = msg.getMid();
+        IncomingSync hostInfo = new IncomingSync(from, mid);
+        if (!hostInfo.equals(incomingSync))
             return;
 
-        Iterator<byte[]> opIt = msg.getOperations().iterator();
-        Iterator<byte[]> idIt = msg.getIds().iterator();
+        logger.debug("Received {} from {}", msg, from);
 
-        while (opIt.hasNext() && idIt.hasNext()) {
-            receivedSyncPull++;
+        try {
+            for (byte[] serMsg : msg.getMsgs()) {
+                this.stats.incrementReceivedSyncPull();
+                DataInputStream dis = new DataInputStream(new ByteArrayInputStream(serMsg));
+                GossipMessage gossipMessage = GossipMessage.deserialize(dis);
 
-            byte[] serOp = opIt.next();
-            byte[] serId = idIt.next();
-            UUID mid = deserializeId(serId);
-            handlePullMessage(mid, from, serOp, true);
+                if (received.add(gossipMessage.getMid())) {
+                    handleGossipMessage(gossipMessage, from, true);
+                }  else {
+                    logger.info("DUPLICATE from {}", from);
+                    this.stats.incrementReceivedDupes();
+                }
+
+            }
+            logger.debug("Received sync ops. Sync {} ENDED", mid);
+        } catch (IOException e) {
+            logger.error("Sync message handling error", e);
         }
         long timeout = pullTimeout - (System.currentTimeMillis() - this.startTime);
         if(timeout < 0)
             timeout = 0;
-        this.currentPendingInfo = Pair.of(null, null);
-        setupTimer(new PeriodicPullTimeout(), timeout);
+        this.incomingSync = new IncomingSync(null, null);
+        this.periodicPullTimer = setupTimer(new PeriodicPullTimeout(), timeout);
+        logger.debug("SETUP timer {} uponSyncMsgs", this.periodicPullTimer);
     }
 
     private void onMessageFailed(ProtoMessage protoMessage, Host host, short destProto, Throwable reason, int channel) {
@@ -214,15 +216,21 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
     }
 
     private void uponPeriodicPullTimeout(PeriodicPullTimeout timeout, long timerId) {
+        logger.debug("TIMEOUT {}", this.periodicPullTimer);
+
         Host h = getRandomNeighbour();
         if(h != null) {
-            UUID currentPendingID = UUID.randomUUID();
-            this.currentPendingInfo = Pair.of(h, currentPendingID);
-            logger.debug("Pulling from {}", h);
-            triggerNotification(new SendVectorClockNotification(currentPendingID, h));
+            UUID mid = UUID.randomUUID();
+            this.incomingSync = new IncomingSync(h, mid);
+            VectorClockMessage msg = new VectorClockMessage(mid, new VectorClock(vectorClock.getClock()));
+            sendMessage(msg, h);
+            this.stats.incrementSentVC();
+            logger.debug("Sent {} to {}", msg, h);
             this.startTime = System.currentTimeMillis();
-        } else
-            setupTimer(new PeriodicPullTimeout(), pullTimeout);
+        } else {
+            this.periodicPullTimer = setupTimer(new PeriodicPullTimeout(), pullTimeout);
+            logger.debug("SETUP timer {} uponTimer", this.periodicPullTimer);
+        }
     }
 
 
@@ -255,9 +263,10 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
 
         closeConnection(neighbour);
 
-        if(neighbour.equals(currentPendingInfo.getLeft())) {
-            this.currentPendingInfo = Pair.of(null, null);
-            setupTimer(new PeriodicPullTimeout(), pullTimeout);
+        if(neighbour.equals(incomingSync.getHost())) {
+            this.incomingSync = new IncomingSync(null, null);
+            this.periodicPullTimer = setupTimer(new PeriodicPullTimeout(), pullTimeout);
+            logger.debug("SETUP timer {} uponNeighDown", this.periodicPullTimer);
         }
     }
 
@@ -277,6 +286,7 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
         }
     }
 
+    @SuppressWarnings("rawtypes")
     private void uponOutConnectionFailed(OutConnectionFailed event, int channelId) {
         Host host = event.getNode();
         logger.trace("Connection to host {} failed, cause: {}", host, event.getCause());
@@ -306,20 +316,20 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
 
     /*--------------------------------- Procedures ---------------------------------------- */
 
-    private void handlePullMessage(UUID mid, Host sender, byte[] content, boolean fromSync) {
-        if (received.add(mid)) {
-            logger.debug("Received {} from {}", mid, sender);
-            logger.info("RECEIVED {}", mid);
-            triggerNotification(new DeliverNotification(mid, sender, content, fromSync));
-        } else {
-            logger.info("DUPLICATE from {}", sender);
-            receivedDupes++;
-        }
-    }
+    private void handleGossipMessage(GossipMessage msg,  Host from, boolean fromSync) {
+        UUID mid = msg.getMid();
+        Host sender = msg.getOriginalSender();
+        vectorClock.incrementClock(sender);
 
-    private UUID deserializeId(byte[] msg) {
-        ByteBuf buf = Unpooled.buffer().writeBytes(msg);
-        return new UUID(buf.readLong(), buf.readLong());
+        try {
+            this.fileManager.writeOperationToFile(msg, vectorClock);
+        } catch (IOException e) {
+            logger.error("Error when writing operation to file", e);
+        }
+
+        logger.debug("Received {} from {}", mid, from);
+        logger.info("RECEIVED {}", mid);
+        triggerNotification(new DeliverNotification(mid, msg.getContent()));
     }
 
     private Host getRandomNeighbour() {
@@ -329,44 +339,5 @@ public class PeriodicPullBroadcast extends GenericProtocol  {
             return hosts[idx];
         } else
             return null;
-    }
-
-
-    /*--------------------------------- Metrics ---------------------------------*/
-
-    /**
-     * If we passed a value > 0 in the METRICS_INTERVAL_KEY property of the channel, this event will be triggered
-     * periodically by the channel. "getInConnections" and "getOutConnections" returns the currently established
-     * connection to/from me. "getOldInConnections" and "getOldOutConnections" returns connections that have already
-     * been closed.
-     */
-    private void uponChannelMetrics(ChannelMetrics event, int channelId) {
-        StringBuilder sb = new StringBuilder("Channel Metrics: ");
-        long bytesSent = 0;
-        long bytesReceived = 0;
-
-        for(ChannelMetrics.ConnectionMetrics c: event.getOutConnections()){
-            bytesSent += c.getSentAppBytes();
-            bytesReceived += c.getReceivedAppBytes();
-        }
-
-        for(ChannelMetrics.ConnectionMetrics c: event.getOldOutConnections()){
-            bytesSent += c.getSentAppBytes();
-            bytesReceived += c.getReceivedAppBytes();
-        }
-
-        for(ChannelMetrics.ConnectionMetrics c: event.getInConnections()){
-            bytesSent += c.getSentAppBytes();
-            bytesReceived += c.getReceivedAppBytes();
-        }
-
-        for(ChannelMetrics.ConnectionMetrics c: event.getOldInConnections()){
-            bytesSent += c.getSentAppBytes();
-            bytesReceived += c.getReceivedAppBytes();
-        }
-
-        sb.append(String.format("BytesSent=%s ", bytesSent));
-        sb.append(String.format("BytesReceived=%s", bytesReceived));
-        logger.info(sb);
     }
 }

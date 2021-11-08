@@ -71,8 +71,8 @@ public class HyParView extends GenericProtocol {
         this.kPassive = Short.parseShort(properties.getProperty("kPassive", "3")); //param: number of passive nodes to exchange on shuffle
 
         this.rnd = new Random();
-        this.active = new View(maxActive, myself, rnd);
-        this.passive = new View(maxPassive, myself, rnd);
+        this.active = new View(true, maxActive, myself, rnd);
+        this.passive = new View(false, maxPassive, myself, rnd);
 
         this.pending = new HashSet<>();
         this.activeShuffles = new TreeMap<>();
@@ -436,8 +436,7 @@ public class HyParView extends GenericProtocol {
                 logger.trace("Sent " + m + " to " + contactHost);
                 setupTimer(new JoinTimeout(contactHost), joinTimeout);
             } catch (Exception e) {
-                logger.error("Invalid contact on configuration: '" + props.getProperty("contact"));
-                e.printStackTrace();
+                logger.error("Invalid contact on configuration: '" + props.getProperty("contact"), e);
                 System.exit(-1);
             }
         } else {

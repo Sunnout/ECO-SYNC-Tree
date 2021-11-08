@@ -7,7 +7,7 @@ import pt.unl.fct.di.novasys.network.ISerializer;
 import java.util.UUID;
 
 public class SendVectorClockMessage extends ProtoMessage {
-    public static final short MSG_ID = 908;
+    public static final short MSG_ID = 907;
 
     private final UUID mid;
 

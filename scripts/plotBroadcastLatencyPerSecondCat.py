@@ -13,28 +13,30 @@ runs = sys.argv[6]
 
 protos = protos.split(",")
 
-syncs = {}
+latencies = {}
+
 first_node_dead = 10000000
 for proto in protos:
     proto_first_node_dead = float(get_value_by_key(file_name.format(exp_name, nodes, proto, payloads, probs, runs), "FIRST_NODE_DEAD"))
+    catastrophe = float(get_value_by_key(file_name.format(exp_name, nodes, proto, payloads, probs, runs), "START_CATASTROPHE"))
     if proto_first_node_dead < first_node_dead:
         first_node_dead = proto_first_node_dead
-    sync_list = get_value_by_key(file_name.format(exp_name, nodes, proto, payloads, probs, runs), "AVG_N_SYNCS_PER_SECOND").split(", ")
-    syncs[proto] = list(map(float, sync_list))
+    lat_list = get_value_by_key(file_name.format(exp_name, nodes, proto, payloads, probs, runs), "AVG_LATENCIES_PER_SECOND").split(", ")
+    latencies[proto] = list(map(float, lat_list))
 
 plt.rcParams.update({'font.size': 14})
 fig = plt.figure(figsize=(10,5))
-x = np.arange(len(sync_list))
+x = np.arange(len(lat_list))
 x = list(map(lambda a: a / 60, x))
 plt.xticks(np.arange(min(x), max(x)+1, 1.0))
-plt.xlim(right=first_node_dead/60)
+plt.xlim(right=catastrophe/60 + 3, left=catastrophe/60 - 1)
 plt.xlabel('Time (minutes)')
-plt.ylabel('Number of Synchronizations')
+plt.ylabel('Average Broadcast Latency (seconds)')
 
 for proto in protos:
-    plt.plot(x[:int(first_node_dead)], syncs[proto][:int(first_node_dead)], label=alg_mapper[proto], color=color_mapper[proto])
+    plt.plot(x[:int(first_node_dead)], latencies[proto][:int(first_node_dead)], label=alg_mapper[proto], color=color_mapper[proto])
 
 plt.tight_layout()
 plt.legend()
-plt.savefig(f'../plots/n_syncs_per_sec/nsyncs_per_second_{exp_name}_{nodes}_{protos}_{payloads}_{probs}_{runs}.pdf', format='pdf')
+plt.savefig(f'../plots/latency_per_sec/latency_per_second_cut_{exp_name}_{nodes}_{protos}_{payloads}_{probs}_{runs}.pdf', format='pdf')
 plt.close(fig)

@@ -36,5 +36,5 @@ for proto in protos:
 
 plt.tight_layout()
 plt.legend()
-plt.savefig(f'../plots/sync_time_per_second_{exp_name}_{nodes}_{protos}_{payloads}_{probs}_{runs}.pdf', format='pdf')
+plt.savefig(f'../plots/sync_time_per_sec/sync_time_per_second_{exp_name}_{nodes}_{protos}_{payloads}_{probs}_{runs}.pdf', format='pdf')
 plt.close(fig)

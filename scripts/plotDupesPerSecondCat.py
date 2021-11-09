@@ -17,6 +17,7 @@ dupes = {}
 first_node_dead = 10000000
 for proto in protos:
     first_node_cooldown = float(get_value_by_key(file_name.format(exp_name, nodes, proto, payloads, probs, runs), "FIRST_NODE_COOLDOWN"))
+    catastrophe = float(get_value_by_key(file_name.format(exp_name, nodes, proto, payloads, probs, runs), "START_CATASTROPHE"))
     proto_first_node_dead = float(get_value_by_key(file_name.format(exp_name, nodes, proto, payloads, probs, runs), "FIRST_NODE_DEAD"))
     if proto_first_node_dead < first_node_dead:
         first_node_dead = proto_first_node_dead
@@ -28,14 +29,15 @@ fig = plt.figure(figsize=(10,5))
 x = np.arange(len(dupe_list))
 x = list(map(lambda a: a / 60, x))
 plt.xticks(np.arange(min(x), max(x)+1, 1.0))
-plt.xlim(right=first_node_dead/60)
+plt.xlim(right=catastrophe/60 + 2, left=catastrophe/60 - 1)
 plt.xlabel('Time (minutes)')
 plt.ylabel('Duplicate Messages Received')
+#plt.yscale("log")
 
 for proto in protos:
     plt.plot(x[:int(first_node_dead)], dupes[proto][:int(first_node_dead)], label=alg_mapper[proto], color=color_mapper[proto])
 
 plt.tight_layout()
 plt.legend()
-plt.savefig(f'../plots/dupes_per_sec/dupes_per_second_nolog_{exp_name}_{nodes}_{protos}_{payloads}_{probs}_{runs}.pdf', format='pdf')
+plt.savefig(f'../plots/dupes_per_sec/dupes_per_second_cut_{exp_name}_{nodes}_{protos}_{payloads}_{probs}_{runs}.pdf', format='pdf')
 plt.close(fig)

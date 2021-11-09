@@ -11,24 +11,25 @@ payloads = sys.argv[4]
 probs = sys.argv[5]
 runs = sys.argv[6]
 
-nodes = nodes.split(",")
+payloads = payloads.split(",")
 protos = protos.split(",")
 
 dupes = {}
 for proto in protos:
     dupes[proto] = []
-    for node in nodes:
+    for payload in payloads:
         dupes[proto].append(
-            float(get_value_by_key(file_name.format(exp_name, node, proto, payloads, probs, runs), "TOTAL_DUPES")))
+            float(get_value_by_key(file_name.format(exp_name, nodes, proto, payload, probs, runs), "TOTAL_DUPES")))
 
-x = np.arange(len(nodes))
+x = np.arange(len(payloads))
 width = 0.12
 plt.rcParams.update({'font.size': 14})
 fig = plt.figure()
 ax = fig.add_subplot()
 ax.set_xticks(x)
-ax.set_xticklabels(map(lambda a: a + " nodes", nodes))
+ax.set_xticklabels(payloads)
 plt.ylabel('Total Duplicate Messages Received')
+plt.xlabel('Payload Size (Bytes)')
 plt.yscale("log")
 
 space = width * len(protos)

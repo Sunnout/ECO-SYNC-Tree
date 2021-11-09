@@ -11,24 +11,26 @@ payloads = sys.argv[4]
 probs = sys.argv[5]
 runs = sys.argv[6]
 
-nodes = nodes.split(",")
+payloads = payloads.split(",")
 protos = protos.split(",")
 
 bytes = {}
 for proto in protos:
     bytes[proto] = []
-    for node in nodes:
+    for payload in payloads:
         bytes[proto].append(
-            float(get_value_by_key(file_name.format(exp_name, node, proto, payloads, probs, runs), "TOTAL_BYTES")) * 1e-9)
+            float(get_value_by_key(file_name.format(exp_name, nodes, proto, payload, probs, runs), "TOTAL_BYTES")) * 1e-9)
 
-x = np.arange(len(nodes))
+x = np.arange(len(payloads))
 width = 0.12
 plt.rcParams.update({'font.size': 14})
 fig = plt.figure()
 ax = fig.add_subplot()
 ax.set_xticks(x)
-ax.set_xticklabels(map(lambda a: a + " nodes", nodes))
+ax.set_xticklabels(payloads)
 plt.ylabel('Total Bandwidth Usage (GBytes)')
+plt.xlabel('Payload Size (Bytes)')
+
 
 space = width * len(protos)
 idx = 0

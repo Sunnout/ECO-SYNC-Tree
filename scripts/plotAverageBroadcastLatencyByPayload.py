@@ -11,24 +11,26 @@ payloads = sys.argv[4]
 probs = sys.argv[5]
 runs = sys.argv[6]
 
-nodes = nodes.split(",")
+payloads = payloads.split(",")
 protos = protos.split(",")
 
 latencies = {}
 for proto in protos:
     latencies[proto] = []
-    for node in nodes:
+    for payload in payloads:
         latencies[proto].append(
-            float(get_value_by_key(file_name.format(exp_name, node, proto, payloads, probs, runs), "AVG_BCAST_LATENCY")))
+            float(get_value_by_key(file_name.format(exp_name, nodes, proto, payload, probs, runs), "AVG_BCAST_LATENCY")))
 
-x = np.arange(len(nodes))
+x = np.arange(len(payloads))
 width = 0.12
 plt.rcParams.update({'font.size': 14})
 fig = plt.figure()
 ax = fig.add_subplot()
 ax.set_xticks(x)
-ax.set_xticklabels(map(lambda a: a + " nodes", nodes))
+ax.set_xticklabels(payloads)
 plt.ylabel('Average Broadcast Latency (seconds)')
+plt.xlabel('Payload Size (Bytes)')
+
 
 space = width * len(protos)
 idx = 0

@@ -114,7 +114,9 @@ for protocol in "${protocolList[@]}"; do
         exp_path="/logs/${expname}/${nnodes}nodes/${protocol}/payload${payload}/prob${probability}/${run}runs"
         output="/tmp/logs/${expname}/${nnodes}nodes/${protocol}/payload${payload}/prob${probability}/${run}runs/output.txt"
 
+        ### REMOVING THE OPERATION FILES ###
         for node in $(oarprint host); do
+          oarsh $node "sudo-g5k rm /tmp/data/*"
           oarsh $node "sudo-g5k mkdir -p /tmp${exp_path}"
         done
         sudo-g5k touch ${output}

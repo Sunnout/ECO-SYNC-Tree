@@ -6,8 +6,9 @@ config=$3
 image=$4
 bandwidth=$5
 net=$6
-vol=$7
-latencyMap=$8
+vol_logs=$7
+vol_data=$8
+latencyMap=$9
 
 function cmd {
     echo $1
@@ -26,7 +27,7 @@ do
     break
   fi
 
-  cmd "docker run --rm -v /lib/modules:/lib/modules -v ${vol}:/logs -d -t --cap-add=NET_ADMIN --net $net --ip $ip --name node_$i -h node_$i $image $i $bandwidth $latencyMap"
+  cmd "docker run --rm -v /lib/modules:/lib/modules -v ${vol_logs}:/logs -v ${vol_data}:/data -d -t --cap-add=NET_ADMIN --net $net --ip $ip --name node_$i -h node_$i $image $i $bandwidth $latencyMap"
   echo "${i}. Container node_$i with ip $ip launched"
 
 done < "$config"

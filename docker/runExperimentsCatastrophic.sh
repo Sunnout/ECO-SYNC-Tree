@@ -132,6 +132,7 @@ for protocol in "${protocolList[@]}"; do
         output="/tmp/logs/${expname}/${nnodes}nodes/${protocol}/payload${payload}/prob${probability}/${run}runs/output.txt"
 
         for node in $(oarprint host); do
+          oarsh $node "sudo-g5k rm /tmp/data/*"
           oarsh $node "sudo-g5k mkdir -p /tmp${exp_path}"
         done
         sudo-g5k touch ${output}

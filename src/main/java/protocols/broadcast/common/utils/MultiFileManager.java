@@ -13,7 +13,7 @@ public class MultiFileManager {
 
     private static final Logger logger = LogManager.getLogger(MultiFileManager.class);
 
-    private static final String DIRECTORY_PATH = "/tmp/data/";
+    private static final String DIRECTORY_PATH = "/data/";
 
     private final ArrayList<Pair<Long, MultiFileWorker>> fileWorkers;
     private final String fileNamePrefix;

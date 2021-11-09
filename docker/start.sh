@@ -60,6 +60,3 @@ if [ -z $contactnode ]; then
 else
   java -Xmx1024M -DlogFilename=${exppath}/${servernode}_${turn} -jar PlumtreeOpLogs.jar -conf config.properties port=${port} bcast_port=${bcast_port} interface=eth0 bcast_protocol=${protocol} op_probability=${probability} payload_size=${payload} create_time=${warmup} run_time=${runtime} cooldown_time=${cooldown} contact=${contactnode}
 fi
-
-### REMOVING THE OPERATION FILES ###
-rm /tmp/data/*

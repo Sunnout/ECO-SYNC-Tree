@@ -17,7 +17,8 @@ if [ -z $bandwidth ]; then
 fi
 
 net="crdtsnet"
-vol="/tmp/logs"
+vol_logs="/tmp/logs"
+vol_data="/tmp/data"
 
 n_nodes=$(uniq $OAR_FILE_NODES | wc -l)
 
@@ -56,7 +57,7 @@ for n in $(uniq $OAR_FILE_NODES); do
     mark=$(((i+1)*perHost))
   fi
 
-  oarsh -n $n "$setupScript $off $mark $config $image $bandwidth $net $vol config/$latencyMap"
+  oarsh -n $n "$setupScript $off $mark $config $image $bandwidth $net $vol_logs $vol_data config/$latencyMap"
   i=$((i+1))
 done
 

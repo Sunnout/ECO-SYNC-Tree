@@ -19,7 +19,7 @@ for proto in protos:
     sync_time[proto] = []
     for node in nodes:
         sync_time[proto].append(
-            float(get_value_by_key(file_name.format(exp_name, node, proto, payloads, probs, runs), "TOTAL_SYNC_TIME")))
+            float(get_value_by_key(file_name.format(exp_name, node, proto, payloads, probs, runs), "TOTAL_SYNC_TIME"))/60)
 
 x = np.arange(len(nodes))
 width = 0.12
@@ -28,7 +28,7 @@ fig = plt.figure()
 ax = fig.add_subplot()
 ax.set_xticks(x)
 ax.set_xticklabels(map(lambda a: a + " nodes", nodes))
-plt.ylabel('Total Time Spent Synchronizing (seconds)')
+plt.ylabel('Total Time Spent Synchronizing (minutes)')
 
 space = width * len(protos)
 idx = 0

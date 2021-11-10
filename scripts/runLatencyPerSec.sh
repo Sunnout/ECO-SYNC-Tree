@@ -3,6 +3,7 @@
 python3 plotBroadcastLatencyPerSecond.py stable 50 flood,plumtree,periodicpull,periodicpullsmallertimer 1024 1 5 && \
 python3 plotBroadcastLatencyPerSecond.py stable 100 flood,plumtree,periodicpull,periodicpullsmallertimer 1024 1 5 && \
 python3 plotBroadcastLatencyPerSecond.py stable 200 flood,plumtree,periodicpull,periodicpullsmallertimer 1024 1 5 && \
+python3 plotBroadcastLatencyPerSecond.py stable 200 flood,plumtree,periodicpull,periodicpullsmallertimer 4096 1 5 && \
 python3 plotBroadcastLatencyPerSecond.py churn 50 flood,plumtree,periodicpull,periodicpullsmallertimer 1024 1 5 && \
 python3 plotBroadcastLatencyPerSecond.py churn 100 flood,plumtree,periodicpull,periodicpullsmallertimer 1024 1 5 && \
 python3 plotBroadcastLatencyPerSecond.py churn 200 flood,plumtree,periodicpull,periodicpullsmallertimer 1024 1 5 && \

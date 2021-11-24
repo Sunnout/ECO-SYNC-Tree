@@ -11,5 +11,11 @@ python3 plotNumberSyncsPerSecond.py catastrophic_new 100 plumtree,plumtreegc 102
 python3 plotNumberSyncsPerSecond.py catastrophic_new 200 plumtree,plumtreegc 1024 1 5 && \
 python3 plotNumberSyncsPerSecond.py catastrophic_dead 50 plumtree,plumtreegc 1024 1 5 && \
 python3 plotNumberSyncsPerSecond.py catastrophic_dead 100 plumtree,plumtreegc 1024 1 5 && \
-python3 plotNumberSyncsPerSecond.py catastrophic_dead 200 plumtree,plumtreegc 1024 1 5
+python3 plotNumberSyncsPerSecond.py catastrophic_dead 200 plumtree,plumtreegc 1024 1 5 && \
+python3 plotNumberSyncsPerSecondCat.py catastrophic_new 50 plumtree,plumtreegc 1024 1 5 && \
+python3 plotNumberSyncsPerSecondCat.py catastrophic_new 100 plumtree,plumtreegc 1024 1 5 && \
+python3 plotNumberSyncsPerSecondCat.py catastrophic_new 200 plumtree,plumtreegc 1024 1 5 && \
+python3 plotNumberSyncsPerSecondCat.py catastrophic_dead 50 plumtree,plumtreegc 1024 1 5 && \
+python3 plotNumberSyncsPerSecondCat.py catastrophic_dead 100 plumtree,plumtreegc 1024 1 5 && \
+python3 plotNumberSyncsPerSecondCat.py catastrophic_dead 200 plumtree,plumtreegc 1024 1 5
 

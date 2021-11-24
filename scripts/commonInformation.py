@@ -12,11 +12,11 @@ def get_value_by_key(file_name, key):
 
 
 file_name = "../results/{}_{}nodes_{}_payload{}_prob{}_{}runs.parsed"
-alg_mapper = {"plumtree": "Causal Plumtree",
+alg_mapper = {"plumtree": "SYNC Tree",
               "flood": "Causal Flood",
-              "periodicpull": "Periodic Pull (1000 ms)",
-              "periodicpullsmallertimer": "Periodic Pull (200 ms)",
-              "plumtreegc": "Causal PlumtreeGC"}
+              "periodicpull": "Periodic Sync (1000 ms)",
+              "periodicpullsmallertimer": "Periodic Sync (200 ms)",
+              "plumtreegc": "ECO SYNC Tree"}
 
 color_mapper = {"plumtree": 'dodgerblue',
                 "flood": 'darkgreen',

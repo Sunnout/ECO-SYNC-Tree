@@ -26,11 +26,11 @@ for proto in protos:
 plt.rcParams.update({'font.size': 14})
 fig = plt.figure(figsize=(10,5))
 x = np.arange(len(byte_list))
-x = list(map(lambda a: a / 60, x))
-plt.xticks(np.arange(min(x), max(x)+1, 1.0))
-plt.xlim(right=catastrophe/60 + 2, left=catastrophe/60 - 1)
-plt.xlabel('Time (minutes)')
+plt.xticks(np.arange(min(x), max(x)+1, 15))
+plt.xlim(right=catastrophe + 150, left=catastrophe - 30)
+plt.xlabel('Time (seconds)')
 plt.ylabel('Bandwidth Usage (MBytes)')
+plt.axvline(catastrophe, color="grey", linestyle='--')
 
 for proto in protos:
     plt.plot(x[:int(first_node_dead)], bytes[proto][:int(first_node_dead)], label=alg_mapper[proto], color=color_mapper[proto])

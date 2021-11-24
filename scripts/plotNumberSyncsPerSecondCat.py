@@ -30,7 +30,7 @@ x = np.arange(len(sync_list))
 plt.xticks(np.arange(min(x), max(x)+1, 15))
 plt.xlim(right=catastrophe + 150, left=catastrophe - 30)
 plt.xlabel('Time (seconds)')
-plt.ylabel('Number of Synchronizations')
+plt.ylabel('Number of Synchronisations')
 plt.axvline(catastrophe, color="grey", linestyle='--')
 
 for proto in protos:

@@ -29,7 +29,7 @@ x = list(map(lambda a: a / 60, x))
 plt.xticks(np.arange(min(x), max(x)+1, 1.0))
 plt.xlim(right=first_node_dead/60)
 plt.xlabel('Time (minutes)')
-plt.ylabel('Average Synchronization Duration (seconds)')
+plt.ylabel('Average Synchronisation Duration (seconds)')
 
 for proto in protos:
     plt.plot(x[:int(first_node_dead)], syncs[proto][:int(first_node_dead)], label=alg_mapper[proto], color=color_mapper[proto])

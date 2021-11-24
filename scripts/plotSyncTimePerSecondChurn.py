@@ -37,7 +37,7 @@ elif nodes == "100":
 else:
     plt.xlim(right=end_churn/60 + 7, left=start_churn/60 - 1)
 plt.xlabel('Time (minutes)')
-plt.ylabel('Average Synchronization Duration (seconds)')
+plt.ylabel('Average Synchronisation Duration (seconds)')
 
 for proto in protos:
     plt.plot(x[:int(first_node_dead)], syncs[proto][:int(first_node_dead)], label=alg_mapper[proto], color=color_mapper[proto])

@@ -1,23 +1,26 @@
-package protocols.broadcast.plumtree;
+package protocols.broadcast.synctree;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import protocols.broadcast.common.messages.GossipMessage;
+import protocols.broadcast.common.messages.SendVectorClockMessage;
+import protocols.broadcast.common.messages.SynchronizationMessage;
+import protocols.broadcast.common.messages.VectorClockMessage;
+import protocols.broadcast.common.notifications.DeliverNotification;
 import protocols.broadcast.common.notifications.InstallStateNotification;
+import protocols.broadcast.common.notifications.SendStateNotification;
+import protocols.broadcast.common.requests.BroadcastRequest;
 import protocols.broadcast.common.requests.UpdateStateRequest;
+import protocols.broadcast.common.timers.ReconnectTimeout;
 import protocols.broadcast.common.utils.CommunicationCostCalculator;
 import protocols.broadcast.common.utils.MultiFileManager;
 import protocols.broadcast.common.utils.StateAndVC;
 import protocols.broadcast.common.utils.VectorClock;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import protocols.broadcast.common.messages.SendVectorClockMessage;
-import protocols.broadcast.common.messages.SynchronizationMessage;
-import protocols.broadcast.common.messages.VectorClockMessage;
-import protocols.broadcast.common.requests.BroadcastRequest;
-import protocols.broadcast.common.notifications.DeliverNotification;
-import protocols.broadcast.plumtree.messages.*;
-import protocols.broadcast.common.timers.ReconnectTimeout;
-import protocols.broadcast.plumtree.timers.*;
-import protocols.broadcast.plumtree.utils.*;
+import protocols.broadcast.synctree.messages.*;
+import protocols.broadcast.synctree.timers.*;
+import protocols.broadcast.synctree.utils.IncomingSync;
+import protocols.broadcast.synctree.utils.OutgoingSync;
+import protocols.broadcast.synctree.utils.PlumtreeStats;
 import protocols.membership.common.notifications.NeighbourDown;
 import protocols.membership.common.notifications.NeighbourUp;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
@@ -26,15 +29,17 @@ import pt.unl.fct.di.novasys.channel.tcp.TCPChannel;
 import pt.unl.fct.di.novasys.channel.tcp.events.*;
 import pt.unl.fct.di.novasys.network.data.Host;
 
-import java.io.*;
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
+import java.io.IOException;
 import java.util.*;
 
-public class PlumTree extends CommunicationCostCalculator {
+public class EcoSyncTree extends CommunicationCostCalculator {
 
-    private static final Logger logger = LogManager.getLogger(PlumTree.class);
+    private static final Logger logger = LogManager.getLogger(EcoSyncTree.class);
 
-    public final static short PROTOCOL_ID = 900;
-    public final static String PROTOCOL_NAME = "BCAST-PlumTree";
+    public final static short PROTOCOL_ID = 901;
+    public final static String PROTOCOL_NAME = "BCAST-EcoSyncTree";
 
     protected int channelId;
     private final Host myself;
@@ -49,6 +54,7 @@ public class PlumTree extends CommunicationCostCalculator {
     private final long checkTreeMsgsTimeout; // Timeout to check if tree messages have been received recently
 
     private final long garbageCollectionTimeout; // Timeout to garbage collect old operations
+    private final long saveStateTimeout; // Timeout to compute new state
     private StateAndVC stateAndVC; // Current state and corresponding VC
 
     private long sendTreeMsgTimer; // Timer to send tree messages
@@ -78,7 +84,7 @@ public class PlumTree extends CommunicationCostCalculator {
 
     /*--------------------------------- Initialization ---------------------------------------- */
 
-    public PlumTree(Properties properties, Host myself) throws HandlerRegistrationException, IOException {
+    public EcoSyncTree(Properties properties, Host myself) throws HandlerRegistrationException, IOException {
         super(PROTOCOL_NAME, PROTOCOL_ID);
         this.myself = myself;
 
@@ -91,6 +97,7 @@ public class PlumTree extends CommunicationCostCalculator {
 
         this.garbageCollectionTimeout = Long.parseLong(properties.getProperty("garbage_collection_timeout", "15")) * SECONDS_TO_MILLIS;
         long garbageCollectionTTL = Long.parseLong(properties.getProperty("garbage_collection_ttl", "60")) * SECONDS_TO_MILLIS;
+        this.saveStateTimeout = Long.parseLong(properties.getProperty("save_state_timeout", "30")) * SECONDS_TO_MILLIS;
         this.stateAndVC = new StateAndVC(null, new VectorClock(myself));
 
         this.partialView = new HashSet<>();
@@ -134,6 +141,8 @@ public class PlumTree extends CommunicationCostCalculator {
         registerTimerHandler(CheckReceivedTreeMessagesTimeout.TIMER_ID, this::uponCheckReceivedTreeMessagesTimeout);
         registerTimerHandler(IHaveTimeout.TIMER_ID, this::uponIHaveTimeout);
         registerTimerHandler(ReconnectTimeout.TIMER_ID, this::uponReconnectTimeout);
+        registerTimerHandler(GarbageCollectionTimeout.TIMER_ID, this::uponGarbageCollectionTimeout);
+        registerTimerHandler(SaveStateTimeout.TIMER_ID, this::uponSaveStateTimeout);
         registerTimerHandler(PrintDiskUsageTimeout.TIMER_ID, this::uponPrintDiskUsageTimeout);
 
         /*--------------------- Register Request Handlers ----------------------------- */
@@ -178,6 +187,8 @@ public class PlumTree extends CommunicationCostCalculator {
     @Override
     public void init(Properties props) {
         setupPeriodicTimer(new CheckReceivedTreeMessagesTimeout(), checkTreeMsgsTimeout, checkTreeMsgsTimeout);
+        setupPeriodicTimer(new GarbageCollectionTimeout(), garbageCollectionTimeout, garbageCollectionTimeout);
+        setupPeriodicTimer(new SaveStateTimeout(), saveStateTimeout, saveStateTimeout);
         setupPeriodicTimer(new PrintDiskUsageTimeout(),0, diskUsageTimeout);
     }
 
@@ -450,6 +461,19 @@ public class PlumTree extends CommunicationCostCalculator {
                     startOutgoingSync(sender, mid, "TIMEOUT-" + mid, true);
                 }
             }
+        }
+    }
+
+    private void uponSaveStateTimeout(SaveStateTimeout timeout, long timerId) {
+        VectorClock newVC = new VectorClock(vectorClock.getClock());
+        triggerNotification(new SendStateNotification(UUID.randomUUID(), newVC));
+    }
+
+    private void uponGarbageCollectionTimeout(GarbageCollectionTimeout timeout, long timerId) {
+        try {
+            this.fileManager.garbageCollectOperations();
+        } catch (IOException e) {
+            logger.error("Error garbage collecting", e);
         }
     }
 

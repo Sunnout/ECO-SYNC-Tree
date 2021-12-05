@@ -2,7 +2,6 @@ package protocols.membership.hyparview.utils;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import protocols.broadcast.plumtree.PlumTree;
 import pt.unl.fct.di.novasys.network.data.Host;
 
 import java.util.*;

@@ -1,4 +1,4 @@
-package protocols.broadcast.plumtree.messages;
+package protocols.broadcast.synctree.messages;
 
 import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;
 import io.netty.buffer.ByteBuf;
@@ -7,20 +7,20 @@ import pt.unl.fct.di.novasys.network.ISerializer;
 import java.io.IOException;
 import java.util.UUID;
 
-public class IHaveMessage extends ProtoMessage {
+public class GraftMessage extends ProtoMessage {
 
-    public static final short MSG_ID = 903;
+    public static final short MSG_ID = 902;
 
     private final UUID mid;
 
     @Override
     public String toString() {
-        return "IHaveMessage{" +
+        return "GraftMessage{" +
                 "mid=" + mid +
                 '}';
     }
 
-    public IHaveMessage(UUID mid) {
+    public GraftMessage(UUID mid) {
         super(MSG_ID);
         this.mid = mid;
     }
@@ -29,19 +29,19 @@ public class IHaveMessage extends ProtoMessage {
         return mid;
     }
 
-    public static ISerializer<IHaveMessage> serializer = new ISerializer<IHaveMessage>() {
+    public static ISerializer<GraftMessage> serializer = new ISerializer<GraftMessage>() {
         @Override
-        public void serialize(IHaveMessage iHaveMessage, ByteBuf out) throws IOException {
-            out.writeLong(iHaveMessage.mid.getMostSignificantBits());
-            out.writeLong(iHaveMessage.mid.getLeastSignificantBits());
+        public void serialize(GraftMessage graftMessage, ByteBuf out) throws IOException {
+            out.writeLong(graftMessage.mid.getMostSignificantBits());
+            out.writeLong(graftMessage.mid.getLeastSignificantBits());
         }
 
         @Override
-        public IHaveMessage deserialize(ByteBuf in) throws IOException {
+        public GraftMessage deserialize(ByteBuf in) throws IOException {
             long firstLong = in.readLong();
             long secondLong = in.readLong();
             UUID mid = new UUID(firstLong, secondLong);
-            return new IHaveMessage(mid);
+            return new GraftMessage(mid);
         }
     };
 }

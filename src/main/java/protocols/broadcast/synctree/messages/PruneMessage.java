@@ -1,10 +1,8 @@
-package protocols.broadcast.plumtree.messages;
+package protocols.broadcast.synctree.messages;
 
 import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;
 import io.netty.buffer.ByteBuf;
 import pt.unl.fct.di.novasys.network.ISerializer;
-
-import java.io.IOException;
 
 public class PruneMessage extends ProtoMessage {
 

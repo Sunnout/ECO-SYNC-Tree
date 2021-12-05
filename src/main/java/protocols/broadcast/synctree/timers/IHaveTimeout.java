@@ -1,4 +1,4 @@
-package protocols.broadcast.plumtree.timers;
+package protocols.broadcast.synctree.timers;
 
 import pt.unl.fct.di.novasys.babel.generic.ProtoTimer;
 

@@ -5,11 +5,11 @@ import java.util.*;
 import protocols.broadcast.flood.FloodBroadcast;
 import protocols.broadcast.flood.utils.FloodStats;
 import protocols.broadcast.periodicpull.utils.PeriodicPullStats;
-import protocols.broadcast.plumtree.PlumTreeGC;
+import protocols.broadcast.synctree.EcoSyncTree;
 import protocols.replication.crdts.interfaces.*;
 import protocols.broadcast.periodicpull.PeriodicPullBroadcast;
-import protocols.broadcast.plumtree.PlumTree;
-import protocols.broadcast.plumtree.utils.PlumtreeStats;
+import protocols.broadcast.synctree.SyncTree;
+import protocols.broadcast.synctree.utils.PlumtreeStats;
 import protocols.replication.OpCounterCRDT.CounterOpType;
 import protocols.replication.LWWRegisterCRDT.RegisterOpType;
 import protocols.replication.ORSetCRDT.SetOpType;
@@ -273,8 +273,8 @@ public class CRDTApp extends GenericProtocol {
 
         switch (broadcastId) {
             // Plumtree
-            case PlumTree.PROTOCOL_ID:
-                logger.info("Final vector clock: {}", PlumTree.vectorClock);
+            case SyncTree.PROTOCOL_ID:
+                logger.info("Final vector clock: {}", SyncTree.vectorClock);
 
                 logger.info("Number of sent operations: {}", PlumtreeStats.sentOps);
                 logger.info("Number of received operations: {}", PlumtreeStats.receivedOps);
@@ -301,8 +301,8 @@ public class CRDTApp extends GenericProtocol {
                 logger.info("receivedDupesSyncGossip: {}", PlumtreeStats.receivedDupesSyncGossip);
                 break;
             // PlumtreeGC
-            case PlumTreeGC.PROTOCOL_ID:
-                logger.info("Final vector clock: {}", PlumTreeGC.vectorClock);
+            case EcoSyncTree.PROTOCOL_ID:
+                logger.info("Final vector clock: {}", EcoSyncTree.vectorClock);
 
                 logger.info("Number of sent operations: {}", PlumtreeStats.sentOps);
                 logger.info("Number of received operations: {}", PlumtreeStats.receivedOps);

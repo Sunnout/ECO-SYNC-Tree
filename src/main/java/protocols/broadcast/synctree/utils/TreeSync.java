@@ -1,4 +1,4 @@
-package protocols.broadcast.plumtree.utils;
+package protocols.broadcast.synctree.utils;
 
 import pt.unl.fct.di.novasys.network.data.Host;
 

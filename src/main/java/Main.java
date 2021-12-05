@@ -6,8 +6,8 @@ import org.apache.logging.log4j.Logger;
 
 import protocols.broadcast.flood.FloodBroadcast;
 import protocols.broadcast.periodicpull.PeriodicPullBroadcast;
-import protocols.broadcast.plumtree.PlumTree;
-import protocols.broadcast.plumtree.PlumTreeGC;
+import protocols.broadcast.synctree.SyncTree;
+import protocols.broadcast.synctree.EcoSyncTree;
 import protocols.membership.hyparview.HyParView;
 import protocols.replication.ReplicationKernel;
 import pt.unl.fct.di.novasys.babel.core.Babel;
@@ -61,17 +61,17 @@ public class Main {
 
         switch(bcast_protocol) {
             case "plumtree":
-                crdtApp = new CRDTApp(props, myself, ReplicationKernel.PROTOCOL_ID, PlumTree.PROTOCOL_ID);
-                replicationKernel = new ReplicationKernel(myself, PlumTree.PROTOCOL_ID);
-                broadcast = new PlumTree(props, myself);
+                crdtApp = new CRDTApp(props, myself, ReplicationKernel.PROTOCOL_ID, SyncTree.PROTOCOL_ID);
+                replicationKernel = new ReplicationKernel(myself, SyncTree.PROTOCOL_ID);
+                broadcast = new SyncTree(props, myself);
                 membership = new HyParView(props, myself_membership);
                 registerAndStartProtocols(babel, crdtApp, replicationKernel, broadcast, membership, props);
                 break;
 
             case "plumtreegc":
-                crdtApp = new CRDTApp(props, myself, ReplicationKernel.PROTOCOL_ID, PlumTreeGC.PROTOCOL_ID);
-                replicationKernel = new ReplicationKernel(myself, PlumTreeGC.PROTOCOL_ID);
-                broadcast = new PlumTreeGC(props, myself);
+                crdtApp = new CRDTApp(props, myself, ReplicationKernel.PROTOCOL_ID, EcoSyncTree.PROTOCOL_ID);
+                replicationKernel = new ReplicationKernel(myself, EcoSyncTree.PROTOCOL_ID);
+                broadcast = new EcoSyncTree(props, myself);
                 membership = new HyParView(props, myself_membership);
                 registerAndStartProtocols(babel, crdtApp, replicationKernel, broadcast, membership, props);
                 break;

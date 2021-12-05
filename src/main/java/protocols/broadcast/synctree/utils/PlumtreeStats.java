@@ -1,4 +1,4 @@
-package protocols.broadcast.plumtree.utils;
+package protocols.broadcast.synctree.utils;
 
 public class PlumtreeStats {
 

@@ -1,4 +1,4 @@
-import protocols.broadcast.plumtree.utils.OutgoingSync;
+import protocols.broadcast.synctree.utils.OutgoingSync;
 import pt.unl.fct.di.novasys.network.data.Host;
 
 import java.net.InetAddress;

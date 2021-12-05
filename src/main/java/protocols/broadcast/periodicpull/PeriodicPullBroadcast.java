@@ -13,7 +13,7 @@ import protocols.broadcast.common.utils.MultiFileManager;
 import protocols.broadcast.common.utils.VectorClock;
 import protocols.broadcast.periodicpull.timers.PeriodicPullTimeout;
 import protocols.broadcast.periodicpull.utils.PeriodicPullStats;
-import protocols.broadcast.plumtree.utils.IncomingSync;
+import protocols.broadcast.synctree.utils.IncomingSync;
 import protocols.membership.common.notifications.NeighbourDown;
 import protocols.membership.common.notifications.NeighbourUp;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
